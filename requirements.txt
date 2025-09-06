@@ -1,0 +1,9 @@
+customtkinter
+fastf1
+matplotlib
+numpy
+pandas
+timple
+Pillow
+seaborn
+Flask
