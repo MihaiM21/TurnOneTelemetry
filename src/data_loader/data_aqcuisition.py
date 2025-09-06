@@ -16,3 +16,4 @@ class SessionLoader:
         return self.session
 
 
+    # TODO make a method that sends all the data needed for a specific plot to the frontend and not the whole session object

@@ -22,6 +22,7 @@ def TopSpeedFunc(y, r, e):
     sessionloader = data_aqcuisition.SessionLoader(y, r, e)
     session = sessionloader.get_session()
 
+    #Theme setup
     setup_theme.setup_turnone_theme()
 
     # Verifică dacă folderul pentru ploturi există si daca exista si plotul deja generat
@@ -43,18 +44,11 @@ def TopSpeedFunc(y, r, e):
         string_top_speed.append(str(speed))
 
 
-    list_colors = list()
-    # for tms in teams:
-    #     teamcolor = fastf1.plotting.team_color(tms)
-    #     list_colors.append(teamcolor)
-
-
+    # Get team colors from teamColorPicker module
     list_colors = [team_colors[tms] if tms in team_colors else "#FFFFFF" for tms in teams]
 
 
-
     list_top_speed, teams, list_colors = (list(t) for t in zip(*sorted(zip(list_top_speed, teams, list_colors))))
-
 
     string_top_speed.sort()
     list_top_speed.reverse()
@@ -64,6 +58,7 @@ def TopSpeedFunc(y, r, e):
     print(list_top_speed)
     print(teams)
 
+    # Plotting
     fig, ax = plt.subplots(figsize=(13, 13), layout='constrained')
     ax.bar(teams, list_top_speed, color=list_colors)
 
@@ -75,7 +70,6 @@ def TopSpeedFunc(y, r, e):
 
     x = 0
     for tms in teams:
-
         ax.text(tms, int(list_top_speed[x]) + 1, f"{int(list_top_speed[x])}km/h", verticalalignment='bottom',
             horizontalalignment='center', color='white', fontsize=16, fontweight="bold")
         x += 1
@@ -86,11 +80,8 @@ def TopSpeedFunc(y, r, e):
     plt.suptitle('Top speed comparison\n' + str(y) + " " + session.event['EventName'] + ' ' + session.name)
     plt.tight_layout()
 
+    # Glow effect from setup_theme module
     setup_theme.add_glow(ax)
 
     plt.savefig(location + "/" + name)
-    plt.show()
     return location + "/" + name
-
-
-TopSpeedFunc(2025,15, 'Q')
