@@ -55,8 +55,8 @@ def TopSpeedPlot(y, r, e):
     teams.reverse()
     list_colors.reverse()
     string_top_speed.reverse()
-    print(list_top_speed)
-    print(teams)
+    # print(list_top_speed)
+    # print(teams)
 
     # Plotting
     fig, ax = plt.subplots(figsize=(13, 13), layout='constrained')
@@ -91,7 +91,6 @@ def TopSpeedData(y, r, e):
     #Load session using data_aqcuisition module
     sessionloader = data_aqcuisition.SessionLoader(y, r, e)
     session = sessionloader.get_session()
-    print(y , r, e)
 
 
     # Check for existing folder and file
