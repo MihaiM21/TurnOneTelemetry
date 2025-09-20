@@ -1,6 +1,3 @@
-import fastf1 as ff1
-import fastf1
-from fastf1 import plotting
 from matplotlib.collections import LineCollection
 import matplotlib.pyplot as plt
 import numpy as np
