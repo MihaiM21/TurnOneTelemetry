@@ -80,39 +80,36 @@ def get_driver_color(driver):
         "Colapinto": ["COL", "Colapinto"]
     }
 
-
+    # Updated driver colors to match their 2025 teams correctly
     driver_colors = {
-        "Hamilton": "#E80020",
-        "Leclerc": "#b0041d",
-        "Verstappen": "#3671C6",
-        "Lawson": "#1e63c7",
-        "Russell": "#27F4D2",
-        "Antonelli": "#0dbda0",
-        "Norris": "#FF8000",
-        "Piastri": "#cc6804",
-        "Stroll": "#229971",
-        "Alonso": "#165c44",
-        "Hulkenberg": "#52E252",
-        "Bortoleto": "#2fb52f",
-        "Tsunoda": "#6692FF",
-        "Hadjar": "#4161b0",
-        "Ocon": "#B6BABD",
-        "Bearman": "#898c8f",
-        "Gasly": "#0093CC",
-        "Colapinto": "#026d96",
-        "Albon": "#64C4FF",
-        "Sainz": "#387ca6"
+        "Hamilton": "#E80020",        # Ferrari - Red
+        "Leclerc": "#DC143C",         # Ferrari - Darker Red
+        "Verstappen": "#3671C6",      # Red Bull - Blue
+        "Tsunoda": "#4A79CC",          # Red Bull - Lighter Blue
+        "Russell": "#27F4D2",         # Mercedes - Teal
+        "Antonelli": "#00D2BE",       # Mercedes - Darker Teal
+        "Norris": "#FF8000",          # McLaren - Orange
+        "Piastri": "#FF9500",         # McLaren - Lighter Orange
+        "Stroll": "#229971",          # Aston Martin - Green
+        "Alonso": "#2BB885",          # Aston Martin - Lighter Green
+        "Hulkenberg": "#52E252",      # Kick Sauber - Green
+        "Bortoleto": "#6BE66B",       # Kick Sauber - Lighter Green
+        "Lawson": "#6692FF",         # Racing Bulls - Blue
+        "Hadjar": "#8AA8FF",          # Racing Bulls - Lighter Blue
+        "Colapinto": "#0093CC",            # Alpine - Blue
+        "Gasly": "#33A3D1",           # Alpine - Lighter Blue
+        "Bearman": "#B6BABD",         # Haas - Silver/Grey
+        "Ocon": "#C5C9CC",          # Haas - Lighter Grey
+        "Albon": "#64C4FF",           # Williams - Light Blue
+        "Sainz": "#7AC8FF",           # Williams - Lighter Blue
+        "Albon": "#64C4FF"        # Williams backup - Light Blue
     }
 
     driver = driver.lower().strip()
-    # print(f"Driver search: '{driver}'")
 
     for official_name, aliases in driver_aliases.items():
-        # print(f"Checking {official_name}: {aliases}")
         if driver in [alias.lower() for alias in aliases]:
-            # print(f"Found match: {official_name}, returning {driver_colors[official_name]}")
-            return driver_colors[official_name]
+            return driver_colors.get(official_name, "#FFFFFF")
 
     # If the driver is not found the color will be white
-    # print("No match found, returning #FFFFFF")
     return "#FFFFFF"

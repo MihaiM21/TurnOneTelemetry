@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  f1-telemetry-api:
+    build: .
+    container_name: f1-telemetry-api
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./cache:/app/cache
+      - ./outputs:/app/outputs
+      - ./session_analytics.db:/app/session_analytics.db
+      - ./logs:/app/logs
+    environment:
+      - PYTHONPATH=/app
+      - ENVIRONMENT=production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - f1-network
+
+#  nginx:
+#    image: nginx:alpine
+#    container_name: f1-nginx
+#    restart: unless-stopped
+#    ports:
+#      - "80:80"
+#      - "443:443"
+#    volumes:
+#      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+#      - ./ssl:/etc/nginx/ssl:ro
+#    depends_on:
+#      - f1-telemetry-api
+#    networks:
+#      - f1-network
+
+networks:
+  f1-network:
+    driver: bridge
+
+volumes:
+  cache_data:
+  outputs_data:
+  logs_data:

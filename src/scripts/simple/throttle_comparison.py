@@ -122,13 +122,16 @@ def ThrottleCompData(y,r,e):
     list_colors.reverse()
     string_telemetry.reverse()
 
-    data = {
-        'Driver': valid_drivers,
-        'Average Throttle (%)': list_telemetry,
-        'Color': list_colors
-    }
-    df = pd.DataFrame(data)
-    df.to_json(location + "/" + name_json, orient='records')
+    # Return data in JSON format - Create list of records manually for consistent output
+    json_data = []
+    for i in range(len(valid_drivers)):
+        json_data.append({
+            'Driver': valid_drivers[i],
+            'Average Throttle (%)': float(list_telemetry[i]),
+            'Color': list_colors[i]
+        })
 
+    # Save JSON data directly using json module
+    with open(location + "/" + name_json, 'w') as f:
+        json.dump(json_data, f, indent=2)
 
-    return location + "/" + name_json

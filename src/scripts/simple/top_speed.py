@@ -1,6 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
+import json
 
 from src.utils import dirOrg
 from src.data_loader import data_aqcuisition

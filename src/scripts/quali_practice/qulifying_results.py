@@ -124,13 +124,16 @@ def QualiResultsData(y,r,e):
         return path2  # Return JSON file path instead of CSV
 
     drivers = pd.unique(session.laps['Driver'])
-    # print(drivers)
 
 
     list_fastest_laps = list()
     for drv in drivers:
-        drvs_fastest_lap = session.laps.pick_driver(drv).pick_fastest()
-        list_fastest_laps.append(drvs_fastest_lap)
+        try:
+            drvs_fastest_lap = session.laps.pick_driver(drv).pick_fastest()
+            list_fastest_laps.append(drvs_fastest_lap)
+        except Exception as e:
+            print(f"Could not retrieve fastest lap for driver {drv}: {e}")
+
 
     if not list_fastest_laps:
         raise ValueError("No valid lap times found for any driver.")
@@ -140,9 +143,6 @@ def QualiResultsData(y,r,e):
 
     pole_lap = fastest_laps.pick_fastest()
     fastest_laps['LapTimeDelta'] = fastest_laps['LapTime'] - pole_lap['LapTime']
-
-
-    # print(fastest_laps[['Driver', 'LapTime', 'LapTimeDelta']])
 
 
     team_colors = list()
@@ -155,8 +155,6 @@ def QualiResultsData(y,r,e):
     for i, lap in fastest_laps.iterrows():
         lap_time = strftimedelta(lap['LapTime'], '%S.%ms')
         pole_time = strftimedelta(fastest_lap_time, '%S.%ms')
-        pole_time_full = strftimedelta(fastest_lap_time, '%m:%s.%ms')
-        time_difference = abs(round(float(pole_time) - float(lap_time), 3))
 
     # Return data in JSON format
     data = {

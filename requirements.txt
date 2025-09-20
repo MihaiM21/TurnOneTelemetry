@@ -7,3 +7,7 @@ timple
 Pillow
 seaborn
 Flask
+fastapi
+uvicorn[standard]
+python-multipart
+aiofiles
