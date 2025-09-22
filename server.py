@@ -9,6 +9,7 @@ from src.scripts.simple.throttle_comparison import ThrottleComp, ThrottleCompDat
 from src.scripts.quali_practice.qulifying_results import QualiResults, QualiResultsData
 from src.scripts.quali_practice.track_comparison_2drivers import TrackComparisonPlot, TrackComparisonData
 from src.scripts.quali_practice.throttleBrake_comparison_2drivers import throttle_graph, throttle_graph_data
+from src.scripts.simple.latimes_distribution import LatimesDistribution
 
 from src.utils.session_tracker import SessionTracker
 
@@ -197,6 +198,20 @@ def throttleBrakeComparison2DriversData(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get('/api/laptimes')
+def get_laptimes(
+    year: int = Query(2025, description='Year of the race'),
+    gp: int = Query(15, description='Number of the gp'),
+    session: str = Query('Q', description='Session type (Q for qualifying)'),
+    driver: str = Query('VER', description='Driver code')
+):
+    try:
+        output_path = LatimesDistribution(year, gp, session, driver)
+        # Track the session analysis with driver information
+        session_tracker.track_session('laptimes', year, gp, session, driver)
+        return FileResponse(output_path, media_type='application/json')
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 # Analytics endpoints
 @app.get('/api/analytics/daily')
 def get_daily_analytics(
