@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query, HTTPException, Response
+from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 import uvicorn
@@ -24,7 +24,7 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -121,7 +121,7 @@ def qualifying_results_data(
     gp: int = Query(15, description='Number of the gp'),
     session: str = Query('Q', description='Session type (Q for qualifying)')
 ):
-    """Get throttle comparison data"""
+    """Get qualifying results data"""
     try:
         output_path = QualiResultsData(year, gp, session)
         # Track the session analysis

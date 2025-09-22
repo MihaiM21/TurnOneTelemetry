@@ -1,3 +1,5 @@
+import json
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
@@ -55,6 +57,9 @@ def ThrottleComp(y,r,e):
     valid_drivers.reverse()
     list_colors.reverse()
     string_telemetry.reverse()
+
+    print(list_colors)
+
     fig, ax = plt.subplots(figsize=(13, 13), layout='constrained')
     ax.bar(valid_drivers, list_telemetry, color = list_colors)
     # ax.set(ylim=(0, 100), yticks=np.linspace(0, 100, 11))
@@ -89,10 +94,12 @@ def ThrottleCompData(y,r,e):
     location, name, name_json = _init(y, r, e, session)
     name = name.replace("png", "json")
     name2 = name.replace("csv", "json")
-    path = dirOrg.checkForFile(location, name)
-    path2 = dirOrg.checkForFile(location, name2)
-    if (path != "NULL" and path2 != "NULL"):
-        return path2  # Return JSON file path instead of CSV
+    json_path = location + "/" + name_json
+
+    # Check if JSON file already exists
+    path = dirOrg.checkForFile(location, name_json)
+    if (path != "NULL"):
+        return path
 
 
     drivers = pd.unique(session.laps['Driver'])
@@ -122,6 +129,8 @@ def ThrottleCompData(y,r,e):
     list_colors.reverse()
     string_telemetry.reverse()
 
+    print(list_colors)
+
     # Return data in JSON format - Create list of records manually for consistent output
     json_data = []
     for i in range(len(valid_drivers)):
@@ -132,6 +141,7 @@ def ThrottleCompData(y,r,e):
         })
 
     # Save JSON data directly using json module
-    with open(location + "/" + name_json, 'w') as f:
-        json.dump(json_data, f, indent=2)
+    df = pd.DataFrame(json_data)
+    df.to_json(location + "/" + name_json, orient='records')
+    return location + "/" + name_json  # Return JSON file path
 

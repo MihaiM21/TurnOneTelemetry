@@ -102,7 +102,7 @@ def get_driver_color(driver):
         "Ocon": "#C5C9CC",          # Haas - Lighter Grey
         "Albon": "#64C4FF",           # Williams - Light Blue
         "Sainz": "#7AC8FF",           # Williams - Lighter Blue
-        "Albon": "#64C4FF"        # Williams backup - Light Blue
+        "Doohan": "#B6BABD"          # Haas - Silver/Grey
     }
 
     driver = driver.lower().strip()
