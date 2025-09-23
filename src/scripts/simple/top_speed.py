@@ -34,7 +34,6 @@ def TopSpeedPlot(y, r, e):
 
 
     teams = pd.unique(session.laps['Team'])
-    session.laps.pick_driver('VER').pick_fastest().get_car_data()
 
     list_top_speed = list()
     string_top_speed = list()
