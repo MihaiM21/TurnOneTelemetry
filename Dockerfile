@@ -49,7 +49,7 @@ VOLUME ["/app/cache", "/app/outputs", "/app/data"]
 
 # Expose port
 ARG DOCKER_EXPOSED_PORT=5000
-EXPOSE {$DOCKER_EXPOSED_PORT}
+EXPOSE $DOCKER_EXPOSED_PORT
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
