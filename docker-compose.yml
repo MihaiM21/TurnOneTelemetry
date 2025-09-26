@@ -10,7 +10,7 @@ services:
     volumes:
       - ./cache:/app/cache
       - ./outputs:/app/outputs
-      - ./session_analytics.db:/app/session_analytics.db
+      - ./data/session_analytics.db:/app/data/session_analytics.db
       - ./logs:/app/logs
     environment:
       - PYTHONPATH=/app
@@ -23,21 +23,6 @@ services:
       start_period: 40s
     networks:
       - f1-network
-
-#  nginx:
-#    image: nginx:alpine
-#    container_name: f1-nginx
-#    restart: unless-stopped
-#    ports:
-#      - "80:80"
-#      - "443:443"
-#    volumes:
-#      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-#      - ./ssl:/etc/nginx/ssl:ro
-#    depends_on:
-#      - f1-telemetry-api
-#    networks:
-#      - f1-network
 
 networks:
   f1-network:
