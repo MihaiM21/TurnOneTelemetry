@@ -2,7 +2,8 @@ from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 import uvicorn
-
+from dotenv import load_dotenv
+import os
 
 from src.scripts.simple.top_speed import TopSpeedPlot, TopSpeedData
 from src.scripts.simple.throttle_comparison import ThrottleComp, ThrottleCompData
@@ -12,6 +13,11 @@ from src.scripts.quali_practice.throttleBrake_comparison_2drivers import throttl
 from src.scripts.simple.latimes_distribution import LatimesDistribution
 
 from src.utils.session_tracker import SessionTracker
+
+
+load_dotenv()
+
+DOCKER_EXPOSED_PORT = int(os.getenv('DOCKER_EXPOSED_PORT', 8000))
 
 # Initialize session tracker
 session_tracker = SessionTracker()
@@ -241,4 +247,4 @@ def get_total_analytics():
 
 
 if __name__ == '__main__':
-    uvicorn.run(app, host='0.0.0.0', port=5000)
+    uvicorn.run(app, host='0.0.0.0', port=DOCKER_EXPOSED_PORT)
