@@ -27,22 +27,24 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir fastapi uvicorn[standard]
 
 # Create necessary directories
-RUN mkdir -p /app/cache /app/outputs/plots /app/outputs/data /app/lib /app/src
+RUN mkdir -p /app/cache /app/outputs/plots /app/outputs/data /app/lib /app/src /app/data
 
 # Copy application code
 COPY src/ ./src/
 COPY lib/ ./lib/
+COPY data/ ./data/
 COPY server.py .
 
 # Create a non-root user
 RUN useradd --create-home --shell /bin/bash app && \
-    chown -R app:app /app
+    chown -R app:app /app && \
+    chown -R app:app /app/data
 
 # Switch to non-root user
 USER app
 
 # Create volume mount points
-VOLUME ["/app/cache", "/app/outputs", "/app/session_analytics.db"]
+VOLUME ["/app/cache", "/app/outputs", "/app/data"]
 
 # Expose port
 EXPOSE 5000

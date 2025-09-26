@@ -10,7 +10,7 @@ class SessionTracker:
     Tracks daily, monthly, and total session counts.
     """
 
-    def __init__(self, db_path: str = "session_analytics.db"):
+    def __init__(self, db_path: str = "data/session_analytics.db"):
         self.db_path = db_path
         self.lock = threading.Lock()
         self._init_database()
