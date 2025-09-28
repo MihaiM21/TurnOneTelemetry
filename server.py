@@ -37,6 +37,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get('/')
+def welcome():
+    return {"Welcome to the F1 Telemetry API. Thank you for using it!",
+            "Go to t1f1.com or turnonehub.com for more info."}
 @app.get('/api/health')
 def health_check():
     """Check if the API is running"""
