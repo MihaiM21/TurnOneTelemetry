@@ -45,7 +45,15 @@ def welcome():
 def health_check():
     """Check if the API is running"""
     return {"status": "healthy"}
-
+@app.get('/api/daily-data')
+def daily_data():
+    """Get daily data plot"""
+    try:
+        from src.utils.daily_plot_data import DailyPlotData
+        output = DailyPlotData().generate_daily_plot()
+        return output
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 @app.get('/api/top-speed-plot')
 def quali_top_speed_plot(
     year: int = Query(2025, description='Year of the race'),
