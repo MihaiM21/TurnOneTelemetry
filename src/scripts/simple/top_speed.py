@@ -37,10 +37,13 @@ def TopSpeedPlot(y, r, e):
     list_top_speed = list()
     string_top_speed = list()
     for tms in teams:
-        telemetry = session.laps.pick_team(tms).pick_fastest().get_car_data()
-        speed = max(telemetry['Speed'])
-        list_top_speed.append(speed)
-        string_top_speed.append(str(speed))
+        try:
+            telemetry = session.laps.pick_team(tms).pick_fastest().get_car_data()
+            speed = max(telemetry['Speed'])
+            list_top_speed.append(speed)
+            string_top_speed.append(str(speed))
+        except Exception as ex:
+            print(f"An error occurred for team {tms}: {ex}")
 
 
     # Get team colors from teamColorPicker module
@@ -54,8 +57,6 @@ def TopSpeedPlot(y, r, e):
     teams.reverse()
     list_colors.reverse()
     string_top_speed.reverse()
-    # print(list_top_speed)
-    # print(teams)
 
     # Plotting
     fig, ax = plt.subplots(figsize=(13, 13), layout='constrained')
@@ -107,10 +108,13 @@ def TopSpeedData(y, r, e):
     list_top_speed = list()
     string_top_speed = list()
     for tms in teams:
-        telemetry = session.laps.pick_team(tms).pick_fastest().get_car_data()
-        speed = max(telemetry['Speed'])
-        list_top_speed.append(speed)
-        string_top_speed.append(str(speed))
+        try:
+            telemetry = session.laps.pick_team(tms).pick_fastest().get_car_data()
+            speed = max(telemetry['Speed'])
+            list_top_speed.append(speed)
+            string_top_speed.append(str(speed))
+        except Exception as ex:
+            print(f"An error occurred for team {tms}: {ex}")
 
 
     # Get team colors from teamColorPicker module
