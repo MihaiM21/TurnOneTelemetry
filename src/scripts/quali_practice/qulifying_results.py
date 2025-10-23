@@ -32,32 +32,33 @@ def QualiResults(y,r,e):
         return path
 
     drivers = pd.unique(session.laps['Driver'])
-    # print(drivers)
 
 
     list_fastest_laps = list()
     for drv in drivers:
-        drvs_fastest_lap = session.laps.pick_driver(drv).pick_fastest()
-        list_fastest_laps.append(drvs_fastest_lap)
+        try:
+            drvs_fastest_lap = session.laps.pick_drivers(drv).pick_fastest()
+            if len(drvs_fastest_lap) > 0:
+                list_fastest_laps.append(drvs_fastest_lap)
+        except Exception as e:
+            print(f"Could not retrieve fastest lap for driver {drv}: {e}")
 
     if not list_fastest_laps:
         raise ValueError("No valid lap times found for any driver.")
 
     fastest_laps = Laps(list_fastest_laps).sort_values(by='LapTime').reset_index(drop=True)
 
-
     pole_lap = fastest_laps.pick_fastest()
     fastest_laps['LapTimeDelta'] = fastest_laps['LapTime'] - pole_lap['LapTime']
 
 
-    # print(fastest_laps[['Driver', 'LapTime', 'LapTimeDelta']])
+    print(fastest_laps[['Driver', 'LapTime', 'LapTimeDelta']])
 
 
     team_colors = list()
     for index, lap in fastest_laps.iterlaps():
         color = get_team_color(lap['Team'])
         team_colors.append(color)
-
 
 
     fig, ax = plt.subplots(figsize=(13, 13))
@@ -129,8 +130,9 @@ def QualiResultsData(y,r,e):
     list_fastest_laps = list()
     for drv in drivers:
         try:
-            drvs_fastest_lap = session.laps.pick_driver(drv).pick_fastest()
-            list_fastest_laps.append(drvs_fastest_lap)
+            drvs_fastest_lap = session.laps.pick_drivers(drv).pick_fastest()
+            if len(drvs_fastest_lap) > 0:
+                list_fastest_laps.append(drvs_fastest_lap)
         except Exception as e:
             print(f"Could not retrieve fastest lap for driver {drv}: {e}")
 
