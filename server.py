@@ -37,11 +37,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get('/')
+def welcome():
+    return {"Welcome to the F1 Telemetry API. Thank you for using it!",
+            "Go to t1f1.com or turnonehub.com for more info."}
 @app.get('/api/health')
 def health_check():
     """Check if the API is running"""
     return {"status": "healthy"}
-
+@app.get('/api/daily-data')
+def daily_data():
+    """Get daily data plot"""
+    try:
+        from src.utils.daily_plot_data import DailyPlotData
+        output = DailyPlotData().generate_daily_plot()
+        return output
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 @app.get('/api/top-speed-plot')
 def quali_top_speed_plot(
     year: int = Query(2025, description='Year of the race'),
