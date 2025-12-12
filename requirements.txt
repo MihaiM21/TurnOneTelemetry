@@ -10,3 +10,4 @@ seaborn>=0.12.0
 plotly>=5.17.0
 timple
 Pillow
+pymongo

@@ -313,6 +313,31 @@ def throttle_brake_comparison_2drivers_data(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get('/api/analytics/daily', tags=["General"])
+def get_daily_analytics(
+    date_str: str = Query(None, description='Date in YYYY-MM-DD format, defaults to today')
+):
+    """Get daily session analytics"""
+    try:
+        if date_str:
+            from datetime import datetime
+            target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        else:
+            target_date = None
+
+        stats = session_tracker.get_daily_stats(target_date)
+        return stats
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get('/api/analytics/total', tags=["General"])
+def get_total_analytics():
+    """Get total session analytics"""
+    try:
+        stats = session_tracker.get_total_stats()
+        return stats
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == '__main__':
     uvicorn.run(app, host='0.0.0.0', port=DOCKER_EXPOSED_PORT)
