@@ -1,2 +1,6 @@
 .env.*
 .env.production
+.env
+.venv
+*.ff1pkl
+session_analytics.db
