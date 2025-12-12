@@ -67,7 +67,7 @@ app = FastAPI(
     contact={
         "name": "Turn One Hub Support",
         "url": "https://turnonehub.com",
-        "email": "support@turnonehub.com",
+        "email": "contact@t1f1.com",
     },
     license_info={
         "name": "Proprietary / Internal Use",
