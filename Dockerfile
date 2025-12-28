@@ -38,7 +38,8 @@ COPY server.py .
 
 # Create a non-root user
 RUN useradd --create-home --shell /bin/bash app && \
-    chown -R app:app /app
+    chown -R app:app /app && \
+    chmod -R 755 /app/logs /app/cache /app/outputs /app/data
 
 # Switch to non-root user
 USER app
