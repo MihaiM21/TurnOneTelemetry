@@ -36,13 +36,8 @@ COPY lib/ ./lib/
 COPY data/ ./data/
 COPY server.py .
 
-# Create a non-root user
-RUN useradd --create-home --shell /bin/bash app && \
-    chown -R app:app /app && \
-    chmod -R 755 /app/logs /app/cache /app/outputs /app/data
-
-# Switch to non-root user
-USER app
+# Ensure directories have proper permissions
+RUN chmod -R 777 /app/logs /app/cache /app/outputs /app/data
 
 # Create volume mount points
 VOLUME ["/app/cache", "/app/outputs", "/app/data", "/app/logs"]

@@ -66,21 +66,25 @@ def setup_logging(
     console_handler.setFormatter(CustomFormatter(log_format))
     logger.addHandler(console_handler)
     
-    # File handler with rotation
+    # File handler with rotation (optional - falls back to console only if fails)
     if log_file:
-        log_path = Path(log_file)
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        file_handler = RotatingFileHandler(
-            log_file,
-            maxBytes=100 * 1024 * 1024,  # 100 MB
-            backupCount=5,
-            encoding='utf-8'
-        )
-        file_handler.setLevel(logging.DEBUG)
-        file_formatter = logging.Formatter(log_format)
-        file_handler.setFormatter(file_formatter)
-        logger.addHandler(file_handler)
+        try:
+            log_path = Path(log_file)
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            file_handler = RotatingFileHandler(
+                log_file,
+                maxBytes=100 * 1024 * 1024,  # 100 MB
+                backupCount=5,
+                encoding='utf-8'
+            )
+            file_handler.setLevel(logging.DEBUG)
+            file_formatter = logging.Formatter(log_format)
+            file_handler.setFormatter(file_formatter)
+            logger.addHandler(file_handler)
+        except (PermissionError, OSError) as e:
+            # If we can't write to log file, just use console logging
+            logger.warning(f"Could not create log file {log_file}: {e}. Using console logging only.")
     
     # Prevent propagation to avoid duplicate logs
     logger.propagate = False
