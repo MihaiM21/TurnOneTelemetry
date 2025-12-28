@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  f1-telemetry-api:
+    build: .
+    container_name: f1-telemetry-api
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./cache:/app/cache
+      - ./outputs:/app/outputs
+      - ./logs:/app/logs
+      - ./data:/app/data
+    env_file:
+      - .env.production
+    environment:
+      - PYTHONPATH=/app
+      - ENVIRONMENT=production
+      # MongoDB connection from environment variables
+      - MONGODB_USER=${MONGODB_USER}
+      - MONGODB_PASSWORD=${MONGODB_PASSWORD}
+      - MONGODB_HOST=${MONGODB_HOST}
+      - MONGODB_PORT=${MONGODB_PORT:-27017}
+      - MONGODB_DATABASE=${MONGODB_DATABASE:-T1API_DB}
+      - MONGODB_MAX_POOL_SIZE=${MONGODB_MAX_POOL_SIZE:-50}
+      - MONGODB_MIN_POOL_SIZE=${MONGODB_MIN_POOL_SIZE:-10}
+      - MONGODB_TIMEOUT_MS=${MONGODB_TIMEOUT_MS:-30000}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - f1-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  f1-network:
+    driver: bridge

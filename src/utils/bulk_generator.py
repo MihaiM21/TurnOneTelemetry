@@ -3,21 +3,18 @@ import customtkinter
 import fastf1 as ff1
 from PIL import Image
 from itertools import combinations
-from Scripts.Quali.Throttle_comparison import ThrottleComp
-from Scripts.Quali.plot_qualifying_results import QualiResults
-from Scripts.Quali.top_speed_plot import TopSpeedFunc
-from Scripts.Race.plot_strategy import StrategyFunc
-from Scripts.Quali.Track_comparison import TrackCompFunc
-from Scripts.Quali.plot_speed_traces import SpeedTraceFunc
-from Scripts.Race.plot_team_pace_ranking import TeamPaceRankingFunc
-from Scripts.Race.plot_driver_laptimes import DriverLaptimesFunc
-from Scripts.Race.plot_laptimes_distribution import LaptimesDistributionFunc
-from Scripts.Throttle_graph import throttle_graph
-from Scripts.Race.plot_position_changes import position_changes
-from Scripts.Complex.driver_analysis import driver_analysis
-from Scripts.Complex.stint_laptimes_simple import stint_laptimes_simple
-from Scripts.Complex.team_race_pace import TeamRacePace
-from Scripts.Complex.drivers_race_pace import DriverRacePace
+
+# Import your custom modules
+from src.scripts.simple.top_speed import TopSpeedPlot, TopSpeedData
+from src.scripts.simple.throttle_comparison import ThrottleComp, ThrottleCompData
+from src.scripts.quali_practice.qulifying_results import QualiResults, QualiResultsData
+from src.scripts.quali_practice.track_comparison_2drivers import TrackComparisonPlot, TrackComparisonData
+from src.scripts.quali_practice.throttleBrake_comparison_2drivers import throttle_graph, throttle_graph_data
+from src.scripts.simple.laptimes_distribution import LatimesDistribution
+from src.utils.session_tracker import SessionTracker
+from src.utils.latest_session import get_latest_finished_session
+from src.scripts.complex.latest_session_analised import latest_session_analised
+
 
 # MODIFY HERE
 year = 2025
@@ -65,6 +62,7 @@ top_driver_aliases = {
     "Norris": ["NOR", "Norris"],
     "Piastri": ["PIA", "Piastri"]
 }
+
 driver_list = list(top_driver_aliases.items())
 def comparisonPlots(y, r, e):
     for i in range(len(top_driver_aliases)):

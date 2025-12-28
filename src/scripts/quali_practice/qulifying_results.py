@@ -8,6 +8,7 @@ from src.utils import dirOrg
 from src.data_loader import data_aqcuisition
 from src.utils import setup_theme
 from src.utils.teamColorPicker import team_colors, teams, get_team_color
+from src.utils.database.mongo_helper import store_plot_data_to_mongo, get_plot_data_from_mongo
 
 def _init(y, r, e, session):
     dirOrg.checkForFolder(str(y) + "/" + session.event['EventName'] + "/" + e)
@@ -18,10 +19,51 @@ def _init(y, r, e, session):
 
 def QualiResults(y,r,e):
 
-    # Load session using data_aqcuisition module
+    # Check MongoDB cache first (before loading session)
+    cached_data = get_plot_data_from_mongo(y, r, e, 'qualifying_results')
+    if cached_data:
+        # Load session only for metadata
+        sessionloader = data_aqcuisition.SessionLoader(y, r, e)
+        session = sessionloader.get_session()
+
+        # Generate plot from cached data
+        setup_theme.setup_turnone_theme()
+        location, name, name_json = _init(y, r, e, session)
+        
+        df = pd.DataFrame(cached_data)
+        
+        # Recreate plot from cached data
+        fig, ax = plt.subplots(figsize=(13, 13))
+        ax.barh(df.index, df['LapTimeDelta'], color=df['Color'].tolist(), edgecolor='grey')
+        ax.set_yticks(df.index)
+        ax.set_yticklabels(df['Driver'])
+        max_value = df['LapTimeDelta'].max()
+        ax.set_xlim(0, max_value * 1.15)
+
+        # Adding time gaps
+        for i, row in df.iterrows():
+            if i == 0:
+                ax.text(row['LapTimeDelta'], i, f" {row['LapTime']}s", va='center', fontsize=13, weight='bold')
+            else:
+                ax.text(row['LapTimeDelta'], i, f" +{row['LapTimeDelta']}s", va='center', fontsize=13, weight='bold')
+
+        ax.invert_yaxis()
+        ax.set_axisbelow(True)
+        ax.xaxis.grid(True, which='major', linestyle='--', color='black', zorder=-1000)
+        
+        plt.suptitle(f"{event_name} {y} {e}\n" + 
+                    f"Fastest Lap: {df.iloc[0]['LapTime']} ({df.iloc[0]['Driver']})")
+        
+        logo = mpimg.imread('lib/logo mic.png')
+        fig.figimage(logo, 575, 575, zorder=3, alpha=.6)
+        setup_theme.add_glow(ax)
+        plt.savefig(location + "/" + name)
+        return location + "/" + name
+
+    # If not in cache, load session and continue with normal generation
     sessionloader = data_aqcuisition.SessionLoader(y, r, e)
     session = sessionloader.get_session()
-
+    
     # Theme setup
     setup_theme.setup_turnone_theme()
 
@@ -106,12 +148,18 @@ def QualiResults(y,r,e):
     plt.savefig(location + "/" + name)
     return location + "/" + name
 
-def QualiResultsData(y,r,e):
+def QualiResultsData(y,r,e, store_to_mongo=True):
 
-    # Load session using data_aqcuisition module
+    # Check MongoDB cache first (before loading session)
+    cached_result = get_plot_data_from_mongo(y, r, e, 'qualifying_results')
+    if cached_result:
+        # Return cached data directly, no need to save to file
+        return cached_result['data']
+
+    # If not in cache, load session and continue with normal data generation
     sessionloader = data_aqcuisition.SessionLoader(y, r, e)
     session = sessionloader.get_session()
-
+    
     # Theme setup
     setup_theme.setup_turnone_theme()
 
@@ -169,5 +217,12 @@ def QualiResultsData(y,r,e):
 
     df = pd.DataFrame(data)
     df.to_json(location + "/" + name_json, orient='records')
+
+    # Store to MongoDB if requested
+    if store_to_mongo:
+        try:
+            store_plot_data_to_mongo(session, 'qualifying_results', location + "/" + name_json)
+        except Exception as e:
+            print(f"Warning: Failed to store to MongoDB: {e}")
 
     return location + "/" + name_json

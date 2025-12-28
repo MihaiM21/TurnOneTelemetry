@@ -9,6 +9,7 @@ from src.utils import dirOrg
 from src.data_loader import data_aqcuisition
 from src.utils import setup_theme
 from src.utils.teamColorPicker import team_colors, teams, get_team_color, get_driver_color
+from src.utils.database.mongo_helper import store_plot_data_to_mongo, get_plot_data_from_mongo
 
 
 def print_sector_times(lap, driver_code):
@@ -32,7 +33,21 @@ def _init(y, r, e, d1, d2, session):
 
 def TrackComparisonPlot(y, r, e, d1, d2):
 
-    # Load session using data_aqcuisition module
+    # Check MongoDB cache first (before loading session)
+    cached_data = get_plot_data_from_mongo(y, r, e, 'track_comparison')
+    if cached_data:
+        # Load session only for metadata
+        sessionloader = data_aqcuisition.SessionLoader(y, r, e)
+        session = sessionloader.get_session()
+        # Note: Track comparison needs full telemetry data to recreate the plot
+        # For now, we'll skip plot generation from cache for this complex visualization
+        # and just check file existence
+        location, name, name_json = _init(y, r, e, d1, d2, session)
+        path = dirOrg.checkForFile(location, name)
+        if (path != "NULL"):
+            return path
+
+    # Continue with normal generation - load session
     sessionloader = data_aqcuisition.SessionLoader(y, r, e)
     session = sessionloader.get_session()
     year = y
@@ -150,7 +165,13 @@ def TrackComparisonPlot(y, r, e, d1, d2):
 def TrackComparisonData(y, r, e, d1, d2):
 
     import json
-    # Load session using data_aqcuisition module
+    # Check MongoDB cache first (before loading session)
+    cached_data = get_plot_data_from_mongo(y, r, e, 'track_comparison')
+    if cached_data:
+        # Return cached data directly, no need to save to file
+        return cached_result['data']
+
+    # Continue with normal data generation - load session
     sessionloader = data_aqcuisition.SessionLoader(y, r, e)
     session = sessionloader.get_session()
     year = y
@@ -264,5 +285,11 @@ def TrackComparisonData(y, r, e, d1, d2):
     # Save to JSON file
     with open(location + "/" + name, "w") as f:
         json.dump(result, f, indent=2)
+
+    # Store to MongoDB
+    try:
+        store_plot_data_to_mongo(session, 'track_comparison', location + "/" + name)
+    except Exception as e:
+        print(f"Warning: Failed to store to MongoDB: {e}")
 
     return location + "/" + name

@@ -5,7 +5,7 @@ from src.scripts.simple.throttle_comparison import ThrottleComp, ThrottleCompDat
 from src.scripts.quali_practice.qulifying_results import QualiResults, QualiResultsData
 from src.scripts.quali_practice.track_comparison_2drivers import TrackComparisonPlot, TrackComparisonData
 from src.scripts.quali_practice.throttleBrake_comparison_2drivers import throttle_graph, throttle_graph_data
-from src.scripts.simple.latimes_distribution import LatimesDistribution
+from src.scripts.simple.laptimes_distribution import LatimesDistribution
 
 
 def get_session_category(session_name):

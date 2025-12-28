@@ -4,3 +4,10 @@
 .venv
 *.ff1pkl
 session_analytics.db
+
+*.ff1pkl
+*.log
+*.json
+*.xml
+__pycache__/
+*.pyc
