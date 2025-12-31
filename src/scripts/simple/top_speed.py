@@ -6,6 +6,7 @@ from src.utils import dirOrg
 from src.data_loader import data_aqcuisition
 from src.utils import setup_theme
 from src.utils.teamColorPicker import team_colors, teams
+from src.utils.database.mongo_helper import store_plot_data_to_mongo, get_plot_data_from_mongo
 
 
 def _init(y, r, e, session):
@@ -18,10 +19,54 @@ def _init(y, r, e, session):
 
 def TopSpeedPlot(y, r, e):
 
-    #Load session using data_aqcuisition module
+    # Check MongoDB cache first (before loading session)
+    cached_result = get_plot_data_from_mongo(y, r, e, 'top_speed')
+    if cached_result:
+        # Use cached data without loading session
+        cached_data = cached_result['data']
+        metadata = cached_result['metadata']
+        
+        # Generate plot from cached data
+        setup_theme.setup_turnone_theme()
+        
+        # Build paths using metadata (no session needed)
+        event_name = metadata['event_name'].replace(' ', '')
+        dirOrg.checkForFolder(str(y) + "/" + event_name + "/" + e)
+        location = "outputs/plots/" + str(y) + "/" + event_name + "/" + e
+        name = 'Top speed comparison ' + str(y) + " " + event_name + ' ' + e + " .png"
+        
+        # Convert cached data to DataFrame
+        df = pd.DataFrame(cached_data)
+        teams_list = df['Team'].tolist()
+        list_top_speed = df['Top Speed (km/h)'].tolist()
+        list_colors = df['Color'].tolist()
+        
+        # Plotting
+        fig, ax = plt.subplots(figsize=(13, 13), layout='constrained')
+        ax.bar(teams_list, list_top_speed, color=list_colors)
+        ax.set_ylim(280, 390)
+        plt.yticks(range(280, 391, 10))
+
+        x = 0
+        for tms in teams_list:
+            ax.text(tms, int(list_top_speed[x]) + 1, f"{int(list_top_speed[x])}km/h", 
+                   verticalalignment='bottom', horizontalalignment='center', 
+                   color='white', fontsize=16, fontweight="bold")
+            x += 1
+
+        # Adding Watermark
+        logo = mpimg.imread('lib/logo mic.png')
+        fig.figimage(logo, 575, 575, zorder=3, alpha=.6)
+        plt.suptitle('Top speed comparison\n' + str(y) + " " + event_name + ' ' + e)
+        plt.tight_layout()
+        setup_theme.add_glow(ax)
+        plt.savefig(location + "/" + name)
+        return location + "/" + name
+
+    # If not in cache, load session and continue with normal generation
     sessionloader = data_aqcuisition.SessionLoader(y, r, e)
     session = sessionloader.get_session()
-
+    
     #Theme setup
     setup_theme.setup_turnone_theme()
 
@@ -86,24 +131,31 @@ def TopSpeedPlot(y, r, e):
     plt.savefig(location + "/" + name)
     return location + "/" + name
 
-def TopSpeedData(y, r, e):
+def TopSpeedData(y, r, e, store_to_mongo=True):
 
-    #Load session using data_aqcuisition module
+    # Check MongoDB cache first (before loading session)
+    cached_result = get_plot_data_from_mongo(y, r, e, 'top_speed')
+    if cached_result:
+        # Return cached data directly, no need to save to file
+        print("Using cached Top Speed data from MongoDB")
+        return cached_result['data']
+    
+    print("No cached Top Speed data found in MongoDB, generating new data.")
+
+    # If not in cache, load session and continue with normal data generation
     sessionloader = data_aqcuisition.SessionLoader(y, r, e)
     session = sessionloader.get_session()
-
-
+    
     # Check for existing folder and file
     location, name, name_json = _init(y,r, e, session)
     name = name.replace("png", "json")
     name2 = name.replace("csv", "json")
     path = dirOrg.checkForFile(location, name)
     path2 = dirOrg.checkForFile(location, name2)
-    if (path != "NULL" and path2 != "NULL"):
-        return path2  # Return JSON file path instead of CSV
+    # if (path != "NULL" and path2 != "NULL"):
+    #     return path2  # Return JSON file path instead of CSV
 
     teams = pd.unique(session.laps['Team'])
-    session.laps.pick_driver('VER').pick_fastest().get_car_data()
 
     list_top_speed = list()
     string_top_speed = list()
@@ -139,6 +191,14 @@ def TopSpeedData(y, r, e):
         'Color': list_colors
     }
     df = pd.DataFrame(data)
-    df.to_json(location + "/" + name_json, orient='records')
-    return location + "/" + name_json  # Return JSON file path
+    json_path = location + "/" + name_json
+    df.to_json(json_path, orient='records')
 
+    # Store to MongoDB if requested
+    if store_to_mongo:
+        try:
+            store_plot_data_to_mongo(session, 'top_speed', json_path)
+        except Exception as e:
+            print(f"Warning: Failed to store to MongoDB: {e}")
+
+    return json_path  # Return JSON file path

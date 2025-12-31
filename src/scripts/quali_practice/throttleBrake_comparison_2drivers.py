@@ -6,6 +6,7 @@ from src.utils import dirOrg
 from src.data_loader import data_aqcuisition
 from src.utils import setup_theme
 from src.utils.teamColorPicker import team_colors, teams, get_team_color, get_driver_color
+from src.utils.database.mongo_helper import store_plot_data_to_mongo, get_plot_data_from_mongo
 
 def _init(y, r, e, d1, d2, session):
     dirOrg.checkForFolder(str(y) + "/" + session.event['EventName'] + "/" + e)
@@ -15,10 +16,22 @@ def _init(y, r, e, d1, d2, session):
     return location, name, name_json
 
 def throttle_graph(y,r,e,d1,d2):
-    # Load session using data_aqcuisition module
+    # Check MongoDB cache first (before loading session)
+    cached_data = get_plot_data_from_mongo(y, r, e, 'throttle_brake_comparison')
+    if cached_data:
+        # Load session only for metadata
+        sessionloader = data_aqcuisition.SessionLoader(y, r, e)
+        session = sessionloader.get_session()
+        # For complex telemetry plots, just check file existence
+        location, name, name_json = _init(y, r, e, d1, d2, session)
+        path = dirOrg.checkForFile(location, name)
+        if (path != "NULL"):
+            return path
+
+    # Continue with normal generation - load session
     sessionloader = data_aqcuisition.SessionLoader(y, r, e)
     session = sessionloader.get_session()
-
+    
     # Theme setup
     setup_theme.setup_turnone_theme()
 
@@ -99,10 +112,16 @@ def throttle_graph(y,r,e,d1,d2):
     return location + "/" + name
 
 def throttle_graph_data(y,r,e,d1,d2):
-    # Load session using data_aqcuisition module
+    # Check MongoDB cache first (before loading session)
+    cached_data = get_plot_data_from_mongo(y, r, e, 'throttle_brake_comparison')
+    if cached_data:
+        # Return cached data directly, no need to save to file
+        return cached_result['data']
+
+    # Continue with normal data generation - load session
     sessionloader = data_aqcuisition.SessionLoader(y, r, e)
     session = sessionloader.get_session()
-
+    
     # Theme setup
     setup_theme.setup_turnone_theme()
     driver1 = d1
@@ -186,6 +205,13 @@ def throttle_graph_data(y,r,e,d1,d2):
         # Save to JSON file
         with open(location + "/" + name, "w") as f:
             json.dump(json_data, f, indent=2)
+        
+        # Store to MongoDB
+        try:
+            store_plot_data_to_mongo(session, 'throttle_brake_comparison', location + "/" + name)
+        except Exception as e:
+            print(f"Warning: Failed to store to MongoDB: {e}")
+        
         return location + "/" + name
 
     except Exception as e:

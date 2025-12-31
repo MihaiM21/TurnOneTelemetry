@@ -7,6 +7,8 @@ from src.utils import dirOrg
 from src.data_loader import data_aqcuisition
 from src.utils import setup_theme
 from src.utils.teamColorPicker import team_colors, teams
+from src.utils.database.mongo_helper import store_plot_data_to_mongo, get_plot_data_from_mongo
+from src.utils.database.mongo_helper import store_plot_data_to_mongo, get_plot_data_from_mongo
 
 
 def _format_laptime(laptime_seconds):
@@ -28,10 +30,20 @@ def _init(y, r, e, d, session):
 
 def LatimesDistribution(y, r, e, d):
 
-    #Load session using data_aqcuisition module
+    # Check MongoDB cache first (before loading session)
+    cached_result = get_plot_data_from_mongo(y, r, e, 'lap_times_distribution')
+    if cached_result:
+        # Return cached data directly, no need to save to file
+        print("Using cached Lap Times Distribution data from MongoDB")
+        return cached_result['data']
+
+    print("No cached Lap Times Distribution data found in MongoDB, generating new data.")
+
+    # If not in cache, load session using data_aqcuisition module
     sessionloader = data_aqcuisition.SessionLoader(y, r, e)
     session = sessionloader.get_session()
 
+    # If not in cache, continue with normal generation
     #Theme setup
     setup_theme.setup_turnone_theme()
 
@@ -63,5 +75,14 @@ def LatimesDistribution(y, r, e, d):
         "compound": valid_laps['Compound'].tolist()
     }
     df = pd.DataFrame(data)
-    df.to_json(location + "/" + name_json, orient='records')
-    return location + "/" + name_json
+    json_path = location + "/" + name_json
+    df.to_json(json_path, orient='records')
+    
+    # Store to MongoDB
+    try:
+        store_plot_data_to_mongo(session, 'lap_times_distribution', json_path)
+    except Exception as e:
+        print(f"Warning: Failed to store to MongoDB: {e}")
+    
+    return json_path
+

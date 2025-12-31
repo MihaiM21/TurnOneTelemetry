@@ -8,6 +8,7 @@ from src.utils import dirOrg
 from src.data_loader import data_aqcuisition
 from src.utils import setup_theme
 from src.utils.teamColorPicker import team_colors, teams, get_driver_color
+from src.utils.database.mongo_helper import store_plot_data_to_mongo, get_plot_data_from_mongo
 
 def _init(y, r, e, session):
     dirOrg.checkForFolder(str(y) + "/" + session.event['EventName'] + "/" + e)
@@ -17,10 +18,42 @@ def _init(y, r, e, session):
     return location, name, name_json
 def ThrottleComp(y,r,e):
 
-    # Load session using data_aqcuisition module
+    # Check MongoDB cache first (before loading session)
+    cached_data = get_plot_data_from_mongo(y, r, e, 'throttle_comparison')
+    if cached_data:
+        # Load session only for metadata
+        sessionloader = data_aqcuisition.SessionLoader(y, r, e)
+        session = sessionloader.get_session()
+
+        # Generate plot from cached data
+        setup_theme.setup_turnone_theme()
+        location, name, name_json = _init(y, r, e, session)
+        
+        # Convert cached data to DataFrame
+        df = pd.DataFrame(cached_data)
+        valid_drivers = df['Driver'].tolist()
+        list_telemetry = df['Average Throttle (%)'].tolist()
+        list_colors = df['Color'].tolist()
+        
+        fig, ax = plt.subplots(figsize=(13, 13), layout='constrained')
+        ax.bar(valid_drivers, list_telemetry, color = list_colors)
+        ax.set_ylim(50, 100)
+        plt.yticks(range(50, 101, 5))
+
+        for x, drv in enumerate(valid_drivers):
+            ax.text(drv, list_telemetry[x]+1, str(list_telemetry[x]) + "%", horizontalalignment='center', color='white')
+
+        plt.suptitle('Throttle comparison\n' + str(y) + " " + event_name + ' ' + e)
+        logo = mpimg.imread('lib/logo mic.png')
+        fig.figimage(logo, 575, 575, zorder=3, alpha=.6)
+        setup_theme.add_glow(ax)
+        plt.savefig(location + "/" + name)
+        return location + "/" + name
+
+    # If not in cache, load session and continue with normal generation
     sessionloader = data_aqcuisition.SessionLoader(y, r, e)
     session = sessionloader.get_session()
-
+    
     # Theme setup
     setup_theme.setup_turnone_theme()
 
@@ -81,12 +114,18 @@ def ThrottleComp(y,r,e):
     plt.savefig(location + "/" + name)
     return location + "/" + name
 
-def ThrottleCompData(y,r,e):
+def ThrottleCompData(y,r,e, store_to_mongo=True):
 
-    # Load session using data_aqcuisition module
+    # Check MongoDB cache first (before loading session)
+    cached_result = get_plot_data_from_mongo(y, r, e, 'throttle_comparison')
+    if cached_result:
+        # Return cached data directly, no need to save to file
+        return cached_result['data']
+
+    # If not in cache, load session and continue with normal data generation
     sessionloader = data_aqcuisition.SessionLoader(y, r, e)
     session = sessionloader.get_session()
-
+    
     # Theme setup
     setup_theme.setup_turnone_theme()
 
@@ -143,5 +182,12 @@ def ThrottleCompData(y,r,e):
     # Save JSON data directly using json module
     df = pd.DataFrame(json_data)
     df.to_json(location + "/" + name_json, orient='records')
-    return location + "/" + name_json  # Return JSON file path
 
+    # Store to MongoDB if requested
+    if store_to_mongo:
+        try:
+            store_plot_data_to_mongo(session, 'throttle_comparison', location + "/" + name_json)
+        except Exception as e:
+            print(f"Warning: Failed to store to MongoDB: {e}")
+
+    return location + "/" + name_json  # Return JSON file path
