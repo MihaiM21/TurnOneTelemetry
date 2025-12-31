@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.0.1 (2025-12-31)
+
+### Bug Fixes
+
+- Docker compose
+  ([`40dcd6e`](https://github.com/MihaiM21/TurnOneTelemetry/commit/40dcd6ec41cddd6af0add07eaaa1328fc49dc5eb))
+
+
 ## v1.0.0 (2025-12-31)
 
 ### Bug Fixes
