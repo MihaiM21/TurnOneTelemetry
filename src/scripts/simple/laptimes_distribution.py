@@ -30,19 +30,18 @@ def _init(y, r, e, d, session):
 
 def LatimesDistribution(y, r, e, d):
 
-    #Load session using data_aqcuisition module
+    # Check MongoDB cache first (before loading session)
+    cached_result = get_plot_data_from_mongo(y, r, e, 'lap_times_distribution')
+    if cached_result:
+        # Return cached data directly, no need to save to file
+        print("Using cached Lap Times Distribution data from MongoDB")
+        return cached_result['data']
+
+    print("No cached Lap Times Distribution data found in MongoDB, generating new data.")
+
+    # If not in cache, load session using data_aqcuisition module
     sessionloader = data_aqcuisition.SessionLoader(y, r, e)
     session = sessionloader.get_session()
-
-    # Check MongoDB cache first
-    cached_data = get_plot_data_from_mongo(session, 'lap_times_distribution')
-    if cached_data:
-        location, name, name_json = _init(y, r, e, d, session)
-        json_path = location + "/" + name_json
-        # Save cached data to JSON file for compatibility
-        df = pd.DataFrame(cached_data)
-        df.to_json(json_path, orient='records')
-        return json_path
 
     # If not in cache, continue with normal generation
     #Theme setup

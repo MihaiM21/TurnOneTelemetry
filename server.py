@@ -516,12 +516,16 @@ async def get_laptimes(
     """Get laptime distribution data for a specific driver"""
     try:
         logger.info(f"Fetching lap times: Y{year} GP{gp} {session} Driver:{driver}")
-        output_path = await run_in_threadpool(LatimesDistribution, year, gp, session, driver)
+        result = await run_in_threadpool(LatimesDistribution, year, gp, session, driver)
         
         if session_tracker:
             session_tracker.track_session('laptimes', year, gp, session, driver)
         
-        return FileResponse(output_path, media_type='application/json')
+        # Handle both cached data (list) and file path (string)
+        if isinstance(result, list):
+            return JSONResponse(content=result)
+        else:
+            return FileResponse(result, media_type='application/json')
     except Exception as e:
         logger.error(f"Error fetching lap times: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch lap times")
