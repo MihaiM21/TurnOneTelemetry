@@ -7,13 +7,18 @@ from pydantic_settings import BaseSettings
 from typing import List, Optional
 from functools import lru_cache
 
+try:
+    from src.__version__ import __version__
+except ImportError:
+    __version__ = "1.0.0"
+
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
     
     # API Settings
     app_name: str = "F1 Telemetry API"
-    app_version: str = "1.0.0"
+    app_version: str = __version__
     environment: str = "development"
     debug: bool = False
     
