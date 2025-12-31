@@ -66,17 +66,25 @@ def analise_practice(year, round_num, session_name):
 
     # Top Speed Analysis
     try:
-        top_speed_path = TopSpeedData(year, round_num, session_name)
-        with open(top_speed_path, 'r') as f:
-            data['top_speed'] = json.load(f)
+        top_speed_result = TopSpeedData(year, round_num, session_name)
+        # Check if result is a list (cached data) or a file path
+        if isinstance(top_speed_result, list):
+            data['top_speed'] = top_speed_result
+        else:
+            with open(top_speed_result, 'r') as f:
+                data['top_speed'] = json.load(f)
     except Exception as e:
         data['top_speed'] = {'error': str(e)}
 
     # Throttle Comparison Analysis
     try:
-        throttle_path = ThrottleCompData(year, round_num, session_name)
-        with open(throttle_path, 'r') as f:
-            data['throttle_comparison'] = json.load(f)
+        throttle_result = ThrottleCompData(year, round_num, session_name)
+        # Check if result is a list (cached data) or a file path
+        if isinstance(throttle_result, list):
+            data['throttle_comparison'] = throttle_result
+        else:
+            with open(throttle_result, 'r') as f:
+                data['throttle_comparison'] = json.load(f)
     except Exception as e:
         data['throttle_comparison'] = {'error': str(e)}
 
@@ -97,25 +105,37 @@ def analise_qualifying(year, round_num, session_name):
 
     # Qualifying Results
     try:
-        quali_path = QualiResultsData(year, round_num, session_name)
-        with open(quali_path, 'r') as f:
-            data['qualifying_results'] = json.load(f)
+        quali_result = QualiResultsData(year, round_num, session_name)
+        # Check if result is a list (cached data) or a file path
+        if isinstance(quali_result, list):
+            data['qualifying_results'] = quali_result
+        else:
+            with open(quali_result, 'r') as f:
+                data['qualifying_results'] = json.load(f)
     except Exception as e:
         data['qualifying_results'] = {'error': str(e)}
 
     # Top Speed Analysis
     try:
-        top_speed_path = TopSpeedData(year, round_num, session_name)
-        with open(top_speed_path, 'r') as f:
-            data['top_speed'] = json.load(f)
+        top_speed_result = TopSpeedData(year, round_num, session_name)
+        # Check if result is a list (cached data) or a file path
+        if isinstance(top_speed_result, list):
+            data['top_speed'] = top_speed_result
+        else:
+            with open(top_speed_result, 'r') as f:
+                data['top_speed'] = json.load(f)
     except Exception as e:
         data['top_speed'] = {'error': str(e)}
 
     # Throttle Comparison Analysis
     try:
-        throttle_path = ThrottleCompData(year, round_num, session_name)
-        with open(throttle_path, 'r') as f:
-            data['throttle_comparison'] = json.load(f)
+        throttle_result = ThrottleCompData(year, round_num, session_name)
+        # Check if result is a list (cached data) or a file path
+        if isinstance(throttle_result, list):
+            data['throttle_comparison'] = throttle_result
+        else:
+            with open(throttle_result, 'r') as f:
+                data['throttle_comparison'] = json.load(f)
     except Exception as e:
         data['throttle_comparison'] = {'error': str(e)}
 
@@ -136,17 +156,25 @@ def analise_sprint(year, round_num, session_name):
 
     # Top Speed Analysis
     try:
-        top_speed_path = TopSpeedData(year, round_num, session_name)
-        with open(top_speed_path, 'r') as f:
-            data['top_speed'] = json.load(f)
+        top_speed_result = TopSpeedData(year, round_num, session_name)
+        # Check if result is a list (cached data) or a file path
+        if isinstance(top_speed_result, list):
+            data['top_speed'] = top_speed_result
+        else:
+            with open(top_speed_result, 'r') as f:
+                data['top_speed'] = json.load(f)
     except Exception as e:
         data['top_speed'] = {'error': str(e)}
 
     # Throttle Comparison Analysis
     try:
-        throttle_path = ThrottleCompData(year, round_num, session_name)
-        with open(throttle_path, 'r') as f:
-            data['throttle_comparison'] = json.load(f)
+        throttle_result = ThrottleCompData(year, round_num, session_name)
+        # Check if result is a list (cached data) or a file path
+        if isinstance(throttle_result, list):
+            data['throttle_comparison'] = throttle_result
+        else:
+            with open(throttle_result, 'r') as f:
+                data['throttle_comparison'] = json.load(f)
     except Exception as e:
         data['throttle_comparison'] = {'error': str(e)}
 
@@ -172,17 +200,25 @@ def analise_race(year, round_num, session_name):
 
     # Top Speed Analysis
     try:
-        top_speed_path = TopSpeedData(year, round_num, session_name)
-        with open(top_speed_path, 'r') as f:
-            data['top_speed'] = json.load(f)
+        top_speed_result = TopSpeedData(year, round_num, session_name)
+        # Check if result is a list (cached data) or a file path
+        if isinstance(top_speed_result, list):
+            data['top_speed'] = top_speed_result
+        else:
+            with open(top_speed_result, 'r') as f:
+                data['top_speed'] = json.load(f)
     except Exception as e:
         data['top_speed'] = {'error': str(e)}
 
     # Throttle Comparison Analysis
     try:
-        throttle_path = ThrottleCompData(year, round_num, session_name)
-        with open(throttle_path, 'r') as f:
-            data['throttle_comparison'] = json.load(f)
+        throttle_result = ThrottleCompData(year, round_num, session_name)
+        # Check if result is a list (cached data) or a file path
+        if isinstance(throttle_result, list):
+            data['throttle_comparison'] = throttle_result
+        else:
+            with open(throttle_result, 'r') as f:
+                data['throttle_comparison'] = json.load(f)
     except Exception as e:
         data['throttle_comparison'] = {'error': str(e)}
 
