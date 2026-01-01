@@ -16,6 +16,8 @@ except ImportError:
 class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
     
+
+
     # API Settings
     app_name: str = "F1 Telemetry API"
     app_version: str = __version__
@@ -25,6 +27,7 @@ class Settings(BaseSettings):
     # Server Settings
     host: str = "0.0.0.0"
     port: int = 8000
+    host_port: int = 5000  # Docker host port for Coolify deployment
     docker_exposed_port: int = 5000
     workers: int = 4
     
