@@ -166,8 +166,8 @@ def TrackComparisonData(y, r, e, d1, d2):
 
     import json
     # Check MongoDB cache first (before loading session)
-    cached_data = get_plot_data_from_mongo(y, r, e, 'track_comparison')
-    if cached_data:
+    cached_result = get_plot_data_from_mongo(y, r, e, 'track_comparison')
+    if cached_result:
         # Return cached data directly, no need to save to file
         return cached_result['data']
 

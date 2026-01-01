@@ -113,8 +113,8 @@ def throttle_graph(y,r,e,d1,d2):
 
 def throttle_graph_data(y,r,e,d1,d2):
     # Check MongoDB cache first (before loading session)
-    cached_data = get_plot_data_from_mongo(y, r, e, 'throttle_brake_comparison')
-    if cached_data:
+    cached_result = get_plot_data_from_mongo(y, r, e, 'throttle_brake_comparison')
+    if cached_result:
         # Return cached data directly, no need to save to file
         return cached_result['data']
 
