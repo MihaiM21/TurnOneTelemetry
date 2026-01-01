@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.0.2 (2026-01-01)
+
+### Bug Fixes
+
+- 2 drivers comparison data process
+  ([`cbfbcc2`](https://github.com/MihaiM21/TurnOneTelemetry/commit/cbfbcc2520fb27080f9b526675bce5001e30e284))
+
+
 ## v1.0.1 (2025-12-31)
 
 ### Bug Fixes
