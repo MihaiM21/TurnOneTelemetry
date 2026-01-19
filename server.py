@@ -99,7 +99,7 @@ except Exception as e:
 
 # --- Metadata & Tags ---
 description = """
-# 🏎️ F1 Telemetry Analysis API
+# T1API - Formula 1 Telemetry Analysis
 
 This API provides advanced telemetry analysis for Formula 1 sessions. 
 It powers the dashboards at **t1f1.com** and **turnonehub.com**.
@@ -127,6 +127,7 @@ All endpoints support both plot (PNG) and data (JSON) responses.
 tags_metadata = [
     {"name": "General", "description": "System health, welcome messages, and daily summaries"},
     {"name": "Latest Session", "description": "Aggregated data for the main frontend dashboard"},
+    {"name": "Seasonal Data", "description": "Season-specific data including drivers, teams, and race schedules"},
     {"name": "Simple Analysis", "description": "Analysis focused on general session stats or single driver metrics"},
     {"name": "Driver Comparison", "description": "Head-to-head driver comparisons"},
 ]
@@ -233,7 +234,7 @@ async def value_error_handler(request: Request, exc: ValueError):
 async def welcome():
     """Welcome message"""
     return {
-        "message": "Welcome to the F1 Telemetry API",
+        "message": "Welcome to the T1API",
         "version": settings.app_version,
         "docs": "/docs",
         "health": "/api/health"
@@ -351,6 +352,141 @@ async def get_dashboard_data(request: Request, api_key: str = Depends(verify_api
         logger.error(f"Error fetching dashboard data: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch dashboard data")
 
+# --- Seasonal Data Endpoints ---
+
+@app.get('/api/seasons', tags=["Seasonal Data"])
+@apply_tiered_limit("standard")
+async def get_available_seasons(
+    request: Request,
+    api_key: str = Depends(verify_api_key)
+):
+    """Get list of all available seasons"""
+    try:
+        logger.info("Fetching available seasons")
+        from src.utils.database.seasonal_data import get_available_seasons
+        seasons = await run_in_threadpool(get_available_seasons)
+        return {"seasons": seasons}
+    except Exception as e:
+        logger.error(f"Error fetching available seasons: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch available seasons")
+
+@app.get('/api/season/{year}', tags=["Seasonal Data"])
+@apply_tiered_limit("standard")
+async def get_season_summary(
+    request: Request,
+    year: int,
+    api_key: str = Depends(verify_api_key)
+):
+    """Get complete season data including drivers, teams, and races"""
+    try:
+        logger.info(f"Fetching complete season data for {year}")
+        from src.utils.database.seasonal_data import get_season_summary
+        season_data = await run_in_threadpool(lambda: get_season_summary(year))
+        
+        if not season_data:
+            raise HTTPException(status_code=404, detail=f"Season {year} not found")
+        
+        return season_data
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching season summary: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch season summary")
+
+@app.get('/api/season/{year}/drivers', tags=["Seasonal Data"])
+@apply_tiered_limit("standard")
+async def get_season_drivers(
+    request: Request,
+    year: int,
+    api_key: str = Depends(verify_api_key)
+):
+    """Get list of drivers for a specific season"""
+    try:
+        logger.info(f"Fetching drivers for season {year}")
+        from src.utils.database.seasonal_data import get_drivers_for_season
+        drivers = await run_in_threadpool(lambda: get_drivers_for_season(year))
+        
+        if not drivers:
+            raise HTTPException(status_code=404, detail=f"No drivers found for season {year}")
+        
+        return {"year": year, "drivers": drivers}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching season drivers: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch season drivers")
+
+@app.get('/api/season/{year}/teams', tags=["Seasonal Data"])
+@apply_tiered_limit("standard")
+async def get_season_teams(
+    request: Request,
+    year: int,
+    api_key: str = Depends(verify_api_key)
+):
+    """Get list of teams for a specific season"""
+    try:
+        logger.info(f"Fetching teams for season {year}")
+        from src.utils.database.seasonal_data import get_teams_for_season
+        teams = await run_in_threadpool(lambda: get_teams_for_season(year))
+        
+        if not teams:
+            raise HTTPException(status_code=404, detail=f"No teams found for season {year}")
+        
+        return {"year": year, "teams": teams}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching season teams: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch season teams")
+
+@app.get('/api/season/{year}/driver/{driver_code}', tags=["Seasonal Data"])
+@apply_tiered_limit("standard")
+async def get_driver_info(
+    request: Request,
+    year: int,
+    driver_code: str,
+    api_key: str = Depends(verify_api_key)
+):
+    """Get specific driver information for a season"""
+    try:
+        logger.info(f"Fetching driver {driver_code} for season {year}")
+        from src.utils.database.seasonal_data import get_driver_by_code
+        driver = await run_in_threadpool(lambda: get_driver_by_code(year, driver_code.upper()))
+        
+        if not driver:
+            raise HTTPException(status_code=404, detail=f"Driver {driver_code} not found for season {year}")
+        
+        return driver
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching driver info: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch driver info")
+
+@app.get('/api/season/{year}/team/{team_name}', tags=["Seasonal Data"])
+@apply_tiered_limit("standard")
+async def get_team_info(
+    request: Request,
+    year: int,
+    team_name: str,
+    api_key: str = Depends(verify_api_key)
+):
+    """Get specific team information for a season"""
+    try:
+        logger.info(f"Fetching team {team_name} for season {year}")
+        from src.utils.database.seasonal_data import get_team_by_name
+        team = await run_in_threadpool(lambda: get_team_by_name(year, team_name))
+        
+        if not team:
+            raise HTTPException(status_code=404, detail=f"Team {team_name} not found for season {year}")
+        
+        return team
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching team info: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch team info")
+    
 # --- Simple Analysis ---
 
 @app.get('/api/top-speed-plot', tags=["Simple Analysis"])
