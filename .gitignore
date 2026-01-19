@@ -4,6 +4,7 @@
 .venv
 *.ff1pkl
 session_analytics.db
+*.iml
 
 *.ff1pkl
 *.log
