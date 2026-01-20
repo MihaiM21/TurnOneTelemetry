@@ -131,7 +131,7 @@ def populate_2026_season():
             "full_name": "Lando Norris",
             "team": "McLaren",
             "color": "#FF8000",
-            "number": 4
+            "number": 1
         },
         {
             "code": "PIA",
