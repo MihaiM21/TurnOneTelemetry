@@ -4,6 +4,7 @@
 .venv
 *.ff1pkl
 session_analytics.db
+*.iml
 
 *.ff1pkl
 *.log
@@ -11,3 +12,22 @@ session_analytics.db
 *.xml
 __pycache__/
 *.pyc
+
+#dbs
+session_analytics.db
+*.sqlite
+
+#images
+*.png
+*.csv
+
+#OLD_FILES
+server_old.pyc
+
+# md
+COMMIT_CONVENTIONS.md
+DEPLOYMENT.md
+FIXES_SUMMARY.md
+IMPLEMENTATION_SUMMARY.md
+RATE_LIMITING.md
+MULTI_YEAR_GUIDE.md

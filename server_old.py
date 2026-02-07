@@ -61,7 +61,7 @@ tags_metadata = [
 
 # --- 2. Initialize App with Professional Metadata ---
 app = FastAPI(
-    title='F1 Telemetry API',
+    title='T1API',
     description=description,
     version='1.0.0',
     contact={

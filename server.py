@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Query, HTTPException, Request, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, PlainTextResponse
 from fastapi.concurrency import run_in_threadpool
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -21,6 +21,17 @@ from src.utils.validation import (
     ErrorResponse, HealthCheckResponse
 )
 from src.utils.background_processor import get_processor, start_background_processor, stop_background_processor
+
+# Import monitoring and observability
+from src.utils.monitoring import (
+    RequestTracingMiddleware,
+    get_request_tracker,
+    get_system_monitor,
+    get_prometheus_metrics,
+    get_prometheus_content_type,
+    set_api_info,
+    ACTIVE_REQUESTS
+)
 
 # Import custom modules
 import src.utils.database.populate_seasons
@@ -126,6 +137,7 @@ All endpoints support both plot (PNG) and data (JSON) responses.
 
 tags_metadata = [
     {"name": "General", "description": "System health, welcome messages, and daily summaries"},
+    {"name": "Monitoring", "description": "Observability, metrics, request tracing, and system monitoring"},
     {"name": "Latest Session", "description": "Aggregated data for the main frontend dashboard"},
     {"name": "Seasonal Data", "description": "Season-specific data including drivers, teams, and race schedules"},
     {"name": "Simple Analysis", "description": "Analysis focused on general session stats or single driver metrics"},
@@ -144,6 +156,13 @@ async def lifespan(app: FastAPI):
     logger.info(f"Environment: {settings.environment}")
     logger.info(f"CORS Origins: {settings.cors_origins_list}")
     logger.info(f"Rate limiting - Public: {settings.rate_limit_public_per_minute}/min, Standard: {settings.rate_limit_standard_per_minute}/min, Premium: {settings.rate_limit_premium_per_minute}/min")
+    
+    # Initialize monitoring
+    logger.info("🔍 Initializing observability and monitoring...")
+    set_api_info(settings.app_name, settings.app_version, settings.environment)
+    get_request_tracker()  # Initialize request tracker
+    get_system_monitor()  # Initialize system monitor
+    logger.info("✅ Monitoring initialized - full traceability enabled")
     
     # Start background processor
     processor_task = None
@@ -191,6 +210,9 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+# Add monitoring middleware (MUST be added BEFORE CORS for accurate metrics)
+app.add_middleware(RequestTracingMiddleware)
+
 # Add CORS middleware with proper configuration
 app.add_middleware(
     CORSMiddleware,
@@ -203,29 +225,44 @@ app.add_middleware(
 # --- Exception Handlers ---
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """Handle all unhandled exceptions"""
-    logger.error(f"Unhandled exception on {request.url.path}: {exc}", exc_info=True)
+    """Handle all unhandled exceptions with full traceability"""
+    request_id = getattr(request.state, 'request_id', 'unknown')
+    logger.error(f"[{request_id}] Unhandled exception on {request.url.path}: {exc}", exc_info=True)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": "Internal server error", "timestamp": datetime.utcnow().isoformat()}
+        content={
+            "detail": "Internal server error",
+            "request_id": request_id,
+            "timestamp": datetime.utcnow().isoformat()
+        }
     )
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
-    """Handle HTTP exceptions with logging"""
-    logger.warning(f"HTTP {exc.status_code} on {request.url.path}: {exc.detail}")
+    """Handle HTTP exceptions with logging and request ID"""
+    request_id = getattr(request.state, 'request_id', 'unknown')
+    logger.warning(f"[{request_id}] HTTP {exc.status_code} on {request.url.path}: {exc.detail}")
     return JSONResponse(
         status_code=exc.status_code,
-        content={"detail": exc.detail, "timestamp": datetime.utcnow().isoformat()}
+        content={
+            "detail": exc.detail,
+            "request_id": request_id,
+            "timestamp": datetime.utcnow().isoformat()
+        }
     )
 
 @app.exception_handler(ValueError)
 async def value_error_handler(request: Request, exc: ValueError):
-    """Handle validation errors"""
-    logger.warning(f"Validation error on {request.url.path}: {exc}")
+    """Handle validation errors with request ID"""
+    request_id = getattr(request.state, 'request_id', 'unknown')
+    logger.warning(f"[{request_id}] Validation error on {request.url.path}: {exc}")
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
-        content={"detail": str(exc), "timestamp": datetime.utcnow().isoformat()}
+        content={
+            "detail": str(exc),
+            "request_id": request_id,
+            "timestamp": datetime.utcnow().isoformat()
+        }
     )
 
 # --- Endpoints ---
@@ -263,6 +300,197 @@ async def health_check(request: Request):
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         raise HTTPException(status_code=503, detail="Service unhealthy")
+
+# ============================================================================
+# MONITORING & OBSERVABILITY ENDPOINTS
+# ============================================================================
+
+@app.get('/metrics', tags=["Monitoring"], include_in_schema=True)
+async def metrics():
+    """
+    Prometheus metrics endpoint
+    Returns metrics in Prometheus text format for scraping
+    """
+    return Response(
+        content=get_prometheus_metrics(),
+        media_type=get_prometheus_content_type()
+    )
+
+@app.get('/api/monitoring/system', tags=["Monitoring"])
+@apply_tiered_limit("standard")
+async def get_system_metrics(request: Request, api_key: str = Depends(verify_api_key)):
+    """
+    Get real-time system metrics
+    Shows CPU, memory, disk, network usage and uptime
+    """
+    try:
+        monitor = get_system_monitor()
+        metrics = monitor.get_metrics()
+        return metrics
+    except Exception as e:
+        logger.error(f"Error getting system metrics: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get system metrics")
+
+@app.get('/api/monitoring/requests', tags=["Monitoring"])
+@apply_tiered_limit("standard")
+async def get_recent_requests(
+    request: Request,
+    limit: int = Query(100, ge=1, le=1000, description="Number of recent requests to return"),
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Get recent requests with full traceability
+    Each request includes: ID, timestamp, endpoint, status, duration, client info
+    """
+    try:
+        tracker = get_request_tracker()
+        requests = tracker.get_recent_requests(limit)
+        return {
+            "count": len(requests),
+            "limit": limit,
+            "requests": requests
+        }
+    except Exception as e:
+        logger.error(f"Error getting recent requests: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get recent requests")
+
+@app.get('/api/monitoring/errors', tags=["Monitoring"])
+@apply_tiered_limit("standard")
+async def get_recent_errors(
+    request: Request,
+    limit: int = Query(50, ge=1, le=500, description="Number of recent errors to return"),
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Get recent errors with full details
+    Includes stack traces, request context, and error types
+    """
+    try:
+        tracker = get_request_tracker()
+        errors = tracker.get_recent_errors(limit)
+        return {
+            "count": len(errors),
+            "limit": limit,
+            "errors": errors
+        }
+    except Exception as e:
+        logger.error(f"Error getting recent errors: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get recent errors")
+
+@app.get('/api/monitoring/stats', tags=["Monitoring"])
+@apply_tiered_limit("standard")
+async def get_endpoint_stats(request: Request, api_key: str = Depends(verify_api_key)):
+    """
+    Get statistics per endpoint
+    Shows request counts, error rates, and performance metrics for each endpoint
+    """
+    try:
+        tracker = get_request_tracker()
+        stats = tracker.get_endpoint_stats()
+        summary = tracker.get_summary()
+        
+        return {
+            "summary": summary,
+            "endpoints": stats
+        }
+    except Exception as e:
+        logger.error(f"Error getting endpoint stats: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get endpoint stats")
+
+@app.get('/api/monitoring/load', tags=["Monitoring"])
+@apply_tiered_limit("standard")
+async def get_current_load(request: Request, api_key: str = Depends(verify_api_key)):
+    """
+    Get current load and active requests
+    Real-time view of system load and active API requests
+    """
+    try:
+        monitor = get_system_monitor()
+        tracker = get_request_tracker()
+        
+        # Get system metrics
+        system_metrics = monitor.get_metrics()
+        
+        # Get request statistics
+        summary = tracker.get_summary()
+        
+        # Get active requests count from Prometheus gauge
+        active_count = ACTIVE_REQUESTS._value.get()
+        
+        return {
+            "timestamp": datetime.utcnow().isoformat(),
+            "active_requests": active_count,
+            "system": {
+                "cpu_percent": system_metrics.get("cpu", {}).get("process_percent", 0),
+                "memory_percent": system_metrics.get("memory", {}).get("process_percent", 0),
+                "memory_mb": system_metrics.get("memory", {}).get("process_mb", 0),
+            },
+            "requests": {
+                "total": summary.get("total_requests", 0),
+                "total_errors": summary.get("total_errors", 0),
+                "error_rate_percent": summary.get("error_rate_percent", 0),
+            },
+            "uptime": system_metrics.get("uptime_human", "unknown")
+        }
+    except Exception as e:
+        logger.error(f"Error getting current load: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get current load")
+
+@app.get('/api/monitoring/health-detailed', tags=["Monitoring"])
+@apply_tiered_limit("standard")
+async def get_detailed_health(request: Request, api_key: str = Depends(verify_api_key)):
+    """
+    Comprehensive health check with full observability
+    Combines system metrics, request stats, and service health in one endpoint
+    """
+    try:
+        # Get processor status
+        processor = get_processor()
+        
+        # Get system metrics
+        monitor = get_system_monitor()
+        system_metrics = monitor.get_metrics()
+        
+        # Get request tracker stats
+        tracker = get_request_tracker()
+        summary = tracker.get_summary()
+        
+        # Get active requests
+        active_count = ACTIVE_REQUESTS._value.get()
+        
+        return {
+            "status": "healthy",
+            "timestamp": datetime.utcnow().isoformat(),
+            "version": settings.app_version,
+            "environment": settings.environment,
+            "services": {
+                "api": "healthy",
+                "session_tracker": "healthy" if session_tracker else "unavailable",
+                "background_processor": "running" if processor.running else "stopped",
+                "monitoring": "active",
+                "request_tracking": "active"
+            },
+            "system": system_metrics,
+            "requests": {
+                "active": active_count,
+                "total": summary.get("total_requests", 0),
+                "total_errors": summary.get("total_errors", 0),
+                "error_rate_percent": summary.get("error_rate_percent", 0),
+                "tracked_in_memory": summary.get("tracked_requests_in_memory", 0),
+                "unique_endpoints": summary.get("unique_endpoints", 0)
+            },
+            "background_processor": {
+                "running": processor.running,
+                "processed_sessions": len(processor.processed_sessions)
+            }
+        }
+    except Exception as e:
+        logger.error(f"Detailed health check failed: {e}", exc_info=True)
+        raise HTTPException(status_code=503, detail="Service unhealthy")
+
+# ============================================================================
+# ADMIN & UTILITY ENDPOINTS
+# ============================================================================
 
 @app.post('/api/admin/populate-sessions', tags=["General"])
 @apply_tiered_limit("standard")
@@ -810,6 +1038,145 @@ async def get_total_analytics(
     except Exception as e:
         logger.error(f"Error fetching total analytics: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch analytics")
+
+# ============================================================================
+# TEST & DIAGNOSTICS ENDPOINTS
+# ============================================================================
+
+@app.get('/api/test/ping', tags=["Monitoring"])
+@limiter.limit(f"{settings.rate_limit_public_per_minute}/minute")
+async def test_ping(request: Request):
+    """
+    Simple ping endpoint for testing
+    Returns request ID and timing info - useful for load testing
+    """
+    request_id = getattr(request.state, 'request_id', 'unknown')
+    return {
+        "status": "pong",
+        "request_id": request_id,
+        "timestamp": datetime.utcnow().isoformat(),
+        "message": "API is responding"
+    }
+
+@app.get('/api/test/error', tags=["Monitoring"])
+@apply_tiered_limit("standard")
+async def test_error(
+    request: Request,
+    error_type: str = Query("500", description="Error type: 400, 404, 500, or exception"),
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Test error handling and tracing
+    Useful for testing error logging and monitoring systems
+    """
+    request_id = getattr(request.state, 'request_id', 'unknown')
+    
+    if error_type == "400":
+        raise HTTPException(status_code=400, detail=f"[{request_id}] Test bad request error")
+    elif error_type == "404":
+        raise HTTPException(status_code=404, detail=f"[{request_id}] Test not found error")
+    elif error_type == "500":
+        raise HTTPException(status_code=500, detail=f"[{request_id}] Test internal server error")
+    elif error_type == "exception":
+        raise ValueError(f"[{request_id}] Test exception for monitoring")
+    else:
+        raise HTTPException(status_code=400, detail="Invalid error_type. Use: 400, 404, 500, or exception")
+
+@app.get('/api/diagnostics', tags=["Monitoring"])
+@apply_tiered_limit("standard")
+async def get_diagnostics(request: Request, api_key: str = Depends(verify_api_key)):
+    """
+    Complete diagnostics overview
+    Everything you need to know about the API status in one endpoint
+    """
+    try:
+        request_id = getattr(request.state, 'request_id', 'unknown')
+        
+        # Get all monitoring data
+        monitor = get_system_monitor()
+        tracker = get_request_tracker()
+        processor = get_processor()
+        
+        system_metrics = monitor.get_metrics()
+        request_summary = tracker.get_summary()
+        endpoint_stats = tracker.get_endpoint_stats()
+        recent_errors = tracker.get_recent_errors(10)
+        active_count = ACTIVE_REQUESTS._value.get()
+        
+        # Get top endpoints by request count
+        top_endpoints = sorted(
+            [(k, v['total_requests']) for k, v in endpoint_stats.items()],
+            key=lambda x: x[1],
+            reverse=True
+        )[:10]
+        
+        # Get endpoints with highest error rates
+        error_endpoints = sorted(
+            [(k, v['error_rate']) for k, v in endpoint_stats.items() if v['error_rate'] > 0],
+            key=lambda x: x[1],
+            reverse=True
+        )[:10]
+        
+        return {
+            "request_id": request_id,
+            "timestamp": datetime.utcnow().isoformat(),
+            "status": "healthy",
+            "version": settings.app_version,
+            "environment": settings.environment,
+            
+            "system": {
+                "uptime": system_metrics.get("uptime_human", "unknown"),
+                "cpu_percent": system_metrics.get("cpu", {}).get("process_percent", 0),
+                "memory_mb": system_metrics.get("memory", {}).get("process_mb", 0),
+                "memory_percent": system_metrics.get("memory", {}).get("process_percent", 0),
+            },
+            
+            "requests": {
+                "active": active_count,
+                "total": request_summary.get("total_requests", 0),
+                "total_errors": request_summary.get("total_errors", 0),
+                "error_rate_percent": request_summary.get("error_rate_percent", 0),
+                "unique_endpoints": request_summary.get("unique_endpoints", 0),
+                "tracked_in_memory": request_summary.get("tracked_requests_in_memory", 0),
+            },
+            
+            "top_endpoints": [
+                {"endpoint": endpoint, "requests": count}
+                for endpoint, count in top_endpoints
+            ],
+            
+            "error_prone_endpoints": [
+                {"endpoint": endpoint, "error_rate_percent": rate}
+                for endpoint, rate in error_endpoints
+            ],
+            
+            "recent_errors_sample": [
+                {
+                    "request_id": err.get("request_id"),
+                    "endpoint": err.get("endpoint"),
+                    "status_code": err.get("status_code"),
+                    "timestamp": err.get("timestamp"),
+                    "error_type": err.get("error", {}).get("type") if err.get("error") else None
+                }
+                for err in recent_errors
+            ],
+            
+            "background_processor": {
+                "running": processor.running,
+                "processed_sessions": len(processor.processed_sessions),
+            },
+            
+            "services": {
+                "api": "healthy",
+                "monitoring": "active",
+                "request_tracking": "active",
+                "session_tracker": "healthy" if session_tracker else "unavailable",
+                "background_processor": "running" if processor.running else "stopped",
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error getting diagnostics: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get diagnostics")
 
 if __name__ == '__main__':
     logger.info(f"Starting server on {settings.host}:{settings.docker_exposed_port}")
