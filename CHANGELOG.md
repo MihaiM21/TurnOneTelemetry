@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v1.1.0 (2026-02-07)
+
+### Bug Fixes
+
+- Lando norris number for the 2026 season (4 -> 1)
+  ([`1be0535`](https://github.com/MihaiM21/TurnOneTelemetry/commit/1be0535d8723384964c8e0dd3a026c6ed550f527))
+
+### Features
+
+- Added monitoring
+  ([`55ede44`](https://github.com/MihaiM21/TurnOneTelemetry/commit/55ede44ba256b4a6d56200c6f13d3a2891738e07))
+
+
 ## v1.0.2 (2026-01-01)
 
 ### Bug Fixes
