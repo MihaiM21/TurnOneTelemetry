@@ -56,7 +56,16 @@ class MongoDBManager:
     Handles connection and CRUD operations for race session data
     """
 
-    def __init__(self, year: Optional[int] = None):
+    def __init__(self, year: Optional[int] = None, version: str = 'v1'):
+        """
+        Initialize MongoDB Manager
+        
+        Args:
+            year: Year for the collection
+            version: Data source version ('v1' for FastF1, 'v2' for F1StaticClient)
+                    This affects collection naming to prevent data conflicts due to
+                    different round number indexing between sources.
+        """
         # Load credentials from environment variables
         username = os.getenv('MONGODB_USER', 'root')
         password = os.getenv('MONGODB_PASSWORD')
@@ -77,34 +86,44 @@ class MongoDBManager:
         self.client = MongoClient(uri, server_api=ServerApi('1'))
         self.db = self.client[database_name]
 
-        # Set collection based on year (dynamically switch collections)
+        # Set collection based on year and version (dynamically switch collections)
         self.current_year = year
-        self.collection = self._get_collection(year)
+        self.version = version
+        self.collection = self._get_collection(year, version)
 
         # Test connection
         try:
             self.client.admin.command('ping')
             collection_name = self.collection.name
             print(f"✓ Successfully connected to MongoDB at {host}:{port}")
-            print(f"✓ Using collection: {collection_name}")
+            print(f"✓ Using collection: {collection_name} (version: {version})")
         except Exception as e:
             print(f"✗ MongoDB connection failed: {e}")
             raise
 
-    def _get_collection(self, year: Optional[int] = None):
+    def _get_collection(self, year: Optional[int] = None, version: Optional[str] = None):
         """
-        Get the collection for a specific year
+        Get the collection for a specific year and version
 
         Args:
             year: Year for the collection. If None, uses current year or defaults to 2025
+            version: Data source version ('v1' or 'v2'). If None, uses instance version
 
         Returns:
             MongoDB collection object
         """
         if year is None:
             year = datetime.now().year
-
-        collection_name = f"{year}_processed_data"
+        
+        if version is None:
+            version = getattr(self, 'version', 'v1')
+        
+        # v1 uses standard naming, v2 adds version suffix for separation
+        if version == 'v2':
+            collection_name = f"{year}_processed_data_v2"
+        else:
+            collection_name = f"{year}_processed_data"
+        
         return self.db[collection_name]
 
     def set_year(self, year: int):
@@ -115,7 +134,7 @@ class MongoDBManager:
             year: Year to switch to
         """
         self.current_year = year
-        self.collection = self._get_collection(year)
+        self.collection = self._get_collection(year, self.version)
         print(f"✓ Switched to collection: {self.collection.name}")
 
     def get_current_year(self) -> int:
@@ -218,8 +237,8 @@ class MongoDBManager:
             if year is None:
                 year = int(gp_id.split('_')[0])
 
-            # Use the collection for the specific year
-            collection = self._get_collection(year)
+            # Use the collection for the specific year (with current version)
+            collection = self._get_collection(year, self.version)
 
             # Convert numpy types in data
             data = convert_numpy_types(data)

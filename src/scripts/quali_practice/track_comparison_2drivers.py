@@ -9,7 +9,7 @@ from src.utils import dirOrg
 from src.data_loader import data_aqcuisition
 from src.utils import setup_theme
 from src.utils.teamColorPicker import team_colors, teams, get_team_color, get_driver_color
-from src.utils.database.mongo_helper import store_plot_data_to_mongo, get_plot_data_from_mongo
+from src.utils.database.mongo_helper import store_data_dict_to_mongo, get_plot_data_from_mongo
 
 
 def print_sector_times(lap, driver_code):
@@ -282,14 +282,19 @@ def TrackComparisonData(y, r, e, d1, d2):
         'session_info': session_info
     }
 
-    # Save to JSON file
-    with open(location + "/" + name, "w") as f:
-        json.dump(result, f, indent=2)
-
     # Store to MongoDB
     try:
-        store_plot_data_to_mongo(session, 'track_comparison', location + "/" + name)
+        event_name = session.event['EventName']
+        store_data_dict_to_mongo(
+            year=year,
+            round_nr=r,
+            session_name=e,
+            event_name=event_name,
+            data_type='track_comparison',
+            data=result,
+            version='v1'
+        )
     except Exception as e:
         print(f"Warning: Failed to store to MongoDB: {e}")
 
-    return location + "/" + name
+    return result  # Return data directly

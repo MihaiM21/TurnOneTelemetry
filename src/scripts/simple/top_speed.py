@@ -6,7 +6,7 @@ from src.utils import dirOrg
 from src.data_loader import data_aqcuisition
 from src.utils import setup_theme
 from src.utils.teamColorPicker import team_colors, teams
-from src.utils.database.mongo_helper import store_plot_data_to_mongo, get_plot_data_from_mongo
+from src.utils.database.mongo_helper import store_data_dict_to_mongo, get_plot_data_from_mongo
 
 
 def _init(y, r, e, session):
@@ -191,14 +191,22 @@ def TopSpeedData(y, r, e, store_to_mongo=True):
         'Color': list_colors
     }
     df = pd.DataFrame(data)
-    json_path = location + "/" + name_json
-    df.to_json(json_path, orient='records')
+    data_list = df.to_dict(orient='records')
 
     # Store to MongoDB if requested
     if store_to_mongo:
         try:
-            store_plot_data_to_mongo(session, 'top_speed', json_path)
+            event_name = session.event['EventName']
+            store_data_dict_to_mongo(
+                year=y,
+                round_nr=r,
+                session_name=e,
+                event_name=event_name,
+                data_type='top_speed',
+                data=data_list,
+                version='v1'
+            )
         except Exception as e:
             print(f"Warning: Failed to store to MongoDB: {e}")
 
-    return json_path  # Return JSON file path
+    return data_list  # Return data directly

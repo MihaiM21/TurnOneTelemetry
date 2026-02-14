@@ -6,7 +6,7 @@ from src.utils import dirOrg
 from src.data_loader import data_aqcuisition
 from src.utils import setup_theme
 from src.utils.teamColorPicker import team_colors, teams, get_team_color, get_driver_color
-from src.utils.database.mongo_helper import store_plot_data_to_mongo, get_plot_data_from_mongo
+from src.utils.database.mongo_helper import store_data_dict_to_mongo, get_plot_data_from_mongo
 
 def _init(y, r, e, d1, d2, session):
     dirOrg.checkForFolder(str(y) + "/" + session.event['EventName'] + "/" + e)
@@ -139,10 +139,6 @@ def throttle_graph_data(y,r,e,d1,d2):
     name2 = name.replace("csv", "json")
     json_path = location + "/" + name_json
 
-    # Check if JSON file already exists
-    path = dirOrg.checkForFile(location, name_json)
-    if (path != "NULL"):
-        return path
     laps_driver1 = laps.pick_driver(driver1)
     try:
         # Getting laps from the drivers
@@ -202,17 +198,22 @@ def throttle_graph_data(y,r,e,d1,d2):
                 "session_name": session.name
             }
         }
-        # Save to JSON file
-        with open(location + "/" + name, "w") as f:
-            json.dump(json_data, f, indent=2)
-        
         # Store to MongoDB
         try:
-            store_plot_data_to_mongo(session, 'throttle_brake_comparison', location + "/" + name)
+            event_name = session.event['EventName']
+            store_data_dict_to_mongo(
+                year=y,
+                round_nr=r,
+                session_name=e,
+                event_name=event_name,
+                data_type='throttle_brake_comparison',
+                data=json_data,
+                version='v1'
+            )
         except Exception as e:
             print(f"Warning: Failed to store to MongoDB: {e}")
         
-        return location + "/" + name
+        return json_data  # Return data directly
 
     except Exception as e:
         print(f"Error generating telemetry data for drivers")
