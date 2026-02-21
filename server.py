@@ -42,6 +42,7 @@ from src.api.v1.analysis import router as analysis_router_v1
 from src.api.v1.seasonal import router as seasonal_router_v1
 # and v2 routers
 from src.api.v2.analysis import router as analysis_router_v2
+from src.api.v2.seasonal import router as seasonal_router_v2
 
 # Initialize session tracker
 try:
@@ -262,8 +263,11 @@ app.include_router(analysis_router_v1)
 # Include v1 seasonal router (paths prefixed with /api/v1)
 app.include_router(seasonal_router_v1)
 
-# Include v2 routers
+# Include v2 analysis router (paths prefixed with /api/v2)
 app.include_router(analysis_router_v2)
+
+# Include v2 seasonal router (paths prefixed with /api/v2)
+app.include_router(seasonal_router_v2)
 
 if __name__ == '__main__':
     logger.info(f"Starting server on {settings.host}:{settings.docker_exposed_port}")
