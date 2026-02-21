@@ -11,7 +11,6 @@ Technical Details:
 - Provides structured data output for downstream processing
 - SAVES OUTPUT TO JSON FILE
 
-Author: Senior Python Data Engineer
 Date: 2026-02-11
 """
 
@@ -422,6 +421,17 @@ class F1StaticClient:
 # DEMONSTRATION FUNCTIONS
 # ============================================================================
 
+def save_to_json(data: Any, filename: str):
+    """
+    Helper function to save data to a JSON file
+    """
+    try:
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=4, default=str)
+        print(f"\n[SAVED] Data successfully saved to: {os.path.abspath(filename)}")
+    except IOError as e:
+        print(f"\n[ERROR] Could not save file: {e}")
+
 def demo_task_1_scraper():
     """
     Task 1 Demo: Scrape the 2023 Italian Grand Prix Race session
@@ -518,16 +528,7 @@ def demo_task_3_decompressor():
         print(f"\n[ERROR] {e}")
         return []
 
-def save_to_json(data: Any, filename: str):
-    """
-    Helper function to save data to a JSON file
-    """
-    try:
-        with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=4, default=str)
-        print(f"\n[SAVED] Data successfully saved to: {os.path.abspath(filename)}")
-    except IOError as e:
-        print(f"\n[ERROR] Could not save file: {e}")
+
 
 def run_all_demos():
     """
