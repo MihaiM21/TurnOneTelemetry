@@ -3,7 +3,7 @@ Helper functions to integrate MongoDB storage with F1 telemetry plot generation
 """
 
 from src.utils.database.mongo import MongoDBManager, convert_numpy_types
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 import json
 
 # Session type mapping from FastF1 to our standard format
@@ -325,7 +325,7 @@ def close_global_db_manager():
         _global_db_manager = None
 
 
-def get_plot_data_from_mongo(year: int, round_nr: int, event_name: str, data_type: str,
+def get_plot_data_from_mongo(year: int, identifier: Union[int, str], event_name: str, data_type: str,
                              db_manager: Optional[MongoDBManager] = None,
                              version: str = 'v1') -> Optional[dict]:
     """
@@ -333,8 +333,8 @@ def get_plot_data_from_mongo(year: int, round_nr: int, event_name: str, data_typ
 
     Args:
         year: Race year
-        round_nr: Round number
-        event_name: Event name (e.g., 'FP1', 'FP2', 'Q', 'R')
+        identifier: Round number, Event Key, or Official Name
+        event_name: Session name (e.g., 'FP1', 'FP2', 'Q', 'R') - Note argument name corresponds to session_name historically.
         data_type: Type of plot data (from DATA_TYPE_MAP keys)
         db_manager: Optional existing MongoDBManager instance
         version: Data source version ('v1' for FastF1, 'v2' for F1StaticClient)
@@ -359,16 +359,21 @@ def get_plot_data_from_mongo(year: int, round_nr: int, event_name: str, data_typ
         # Build GP ID - use appropriate client based on version
         try:
             if version == 'v2':
-                # Use F1StaticClient for v2 (different round numbering)
+                # Use F1StaticClient for v2
                 from src.data_loader.f1_static_client import F1StaticClient
                 client = F1StaticClient()
-                event_full_name = client.get_event_name(year, round_nr)
+                event_info = client.get_event_info(year, identifier)
                 
-                if not event_full_name:
-                    print(f"✗ Could not get event name for round {round_nr} using F1StaticClient")
+                if not event_info:
+                    print(f"✗ Could not get event info for identifier {identifier} using F1StaticClient")
                     return None
+                    
+                event_full_name = event_info['name']
+                round_nr = event_info['round_nr']
             else:
                 # Use FastF1 for v1 (standard F1 round numbering)
+                # Assumes identifier is an integer
+                round_nr = int(identifier)
                 import fastf1
                 event = fastf1.get_event(year, round_nr)
                 event_full_name = event['EventName']

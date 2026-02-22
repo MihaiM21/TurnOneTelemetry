@@ -19,7 +19,7 @@ import json
 import base64
 import zlib
 import re
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any, Tuple, Union
 from urllib.parse import urljoin
 import logging
 import os
@@ -163,6 +163,69 @@ class F1StaticClient:
                 
         except Exception as e:
             logger.error(f"Failed to get event name for round {round_nr}: {e}")
+            return None
+    
+    def get_event_info(self, year: int, identifier: Union[int, str]) -> Optional[Dict[str, Any]]:
+        """
+        Get event information for a specific round number, event key, or official name.
+        
+        Args:
+            year: Season year
+            identifier: Round number (1-based index), Event Key (e.g., 1304), or Official Name
+        
+        Returns:
+            Dictionary with event information or None if not found
+        """
+        try:
+            season_index = self.fetch_season_index(year)
+            meetings = season_index.get('Meetings', [])
+            
+            # 1. Try resolving as an integer (Round or Key)
+            if isinstance(identifier, int) or (isinstance(identifier, str) and identifier.isdigit()):
+                num_id = int(identifier)
+                # Small numbers are likely round numbers
+                if 1 <= num_id <= len(meetings) and num_id <= 30:
+                    meeting = meetings[num_id - 1]
+                    logger.info(f"Resolved round {num_id}: {meeting.get('Name')}")
+                    return {
+                        'round_nr': num_id,
+                        'name': meeting.get('Name'),
+                        'official_name': meeting.get('OfficialName'),
+                        'key': meeting.get('Key')
+                    }
+                # Larger numbers are likely Keys
+                else:
+                    for idx, meeting in enumerate(meetings):
+                        if meeting.get('Key') == num_id:
+                            logger.info(f"Resolved Event Key {num_id}: {meeting.get('Name')}")
+                            return {
+                                'round_nr': idx + 1,
+                                'name': meeting.get('Name'),
+                                'official_name': meeting.get('OfficialName'),
+                                'key': meeting.get('Key')
+                            }
+            
+            # 2. Try resolving as a string (Name, Official Name, Code)
+            str_id = str(identifier).lower()
+            for idx, meeting in enumerate(meetings):
+                name = meeting.get('Name', '').lower()
+                official_name = meeting.get('OfficialName', '').lower()
+                code = meeting.get('Code', '').lower()
+                
+                if str_id in name or str_id in official_name or str_id == code:
+                    logger.info(f"Resolved Event String '{identifier}': {meeting.get('Name')}")
+                    return {
+                        'round_nr': idx + 1,
+                        'name': meeting.get('Name'),
+                        'official_name': meeting.get('OfficialName'),
+                        'key': meeting.get('Key')
+                    }
+            
+            logger.error(f"Event identifier '{identifier}' not found in {year} season")
+            return None
+                
+        except Exception as e:
+            logger.error(f"Failed to get event info for identifier {identifier}: {e}")
             return None
     
     # ========================================================================

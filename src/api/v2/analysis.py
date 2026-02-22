@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request, HTTPException, Depends, Query
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.concurrency import run_in_threadpool
-
+from typing import Union
 from src.utils.logger import get_logger
 from src.utils.auth import verify_api_key
 from src.utils.rate_limiting import apply_tiered_limit
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/api/v2")
 async def top_speed_telemetry_plot(
     request: Request,
     year: int = Query(2025, ge=2018, le=2030),
-    gp: int = Query(1, ge=1, le=24),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
     session: str = Query('Q'),
     api_key: str = Depends(verify_api_key)
 ):
@@ -51,7 +51,7 @@ async def top_speed_telemetry_plot(
 async def top_speed_telemetry_data(
     request: Request,
     year: int = Query(2025, ge=2018, le=2030),
-    gp: int = Query(1, ge=1, le=24),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
     session: str = Query('Q'),
     api_key: str = Depends(verify_api_key)
 ):
@@ -78,7 +78,7 @@ async def top_speed_telemetry_data(
 async def top_speed_st_plot(
     request: Request,
     year: int = Query(2025, ge=2018, le=2030),
-    gp: int = Query(1, ge=1, le=24),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
     session: str = Query('Q'),
     api_key: str = Depends(verify_api_key)
 ):
@@ -107,7 +107,7 @@ async def top_speed_st_plot(
 async def top_speed_st_data(
     request: Request,
     year: int = Query(2025, ge=2018, le=2030),
-    gp: int = Query(1, ge=1, le=24),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
     session: str = Query('Q'),
     api_key: str = Depends(verify_api_key)
 ):
@@ -136,7 +136,7 @@ async def top_speed_st_data(
 async def throttle_comparison_plot(
     request: Request,
     year: int = Query(2025, ge=2018, le=2030),
-    gp: int = Query(1, ge=1, le=24),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
     session: str = Query('Q'),
     api_key: str = Depends(verify_api_key)
 ):
@@ -163,7 +163,7 @@ async def throttle_comparison_plot(
 async def throttle_comparison_data(
     request: Request,
     year: int = Query(2025, ge=2018, le=2030),
-    gp: int = Query(1, ge=1, le=24),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
     session: str = Query('Q'),
     api_key: str = Depends(verify_api_key)
 ):

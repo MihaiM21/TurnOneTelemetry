@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
-from typing import Dict, List, Tuple, Any, Optional
+from typing import Dict, List, Tuple, Any, Optional, Union
 
 from src.utils import dirOrg
 from src.utils import setup_theme
@@ -79,10 +79,6 @@ def get_fastest_lap_windows_pandas(base_url: str, client: F1StaticClient) -> pd.
                     if not isinstance(last_lap_data, dict):
                         continue
                         
-                    is_personal_fastest = last_lap_data.get('PersonalFastest') is True
-                    if not is_personal_fastest:
-                        continue
-                        
                     llt = last_lap_data.get('Value', '')
                     if llt and llt != '':
                         lap_time = parse_f1_time(llt)
@@ -142,8 +138,11 @@ def extract_telemetry_pandas(base_url: str, client: F1StaticClient) -> pd.DataFr
 # ENGINE
 # ============================================================================
 
-def process_throttle_data(y: int, r: int, e: str, client: F1StaticClient) -> List[Dict]:
-    event_name = client.get_event_name(y, r)
+def process_throttle_data(y: int, identifier: Union[int, str], e: str, client: F1StaticClient) -> List[Dict]:
+    event_info = client.get_event_info(y, identifier)
+    if not event_info: raise ValueError(f"Event info nu a fost gasit pt {identifier}")
+    event_name = event_info['name']
+    
     base_url = client.get_event_session_url(y, event_name, e)
     if not base_url: raise ValueError("URL sesiune negăsit")
         
@@ -192,43 +191,49 @@ def get_all_driver_codes(base_url, client):
 # EXPORTED FUNCTIONS
 # ============================================================================
 
-def ThrottleComp(y: int, r: int, e: str, store_to_mongo: bool = True) -> str:
-    cached = get_plot_data_from_mongo(y, r, e, 'throttle_comparison', version='v2')
+def ThrottleComp(y: int, identifier: Union[int, str], e: str, store_to_mongo: bool = True) -> str:
+    cached = get_plot_data_from_mongo(y, identifier, e, 'throttle_comparison', version='v2')
     client = F1StaticClient()
-    event_name = client.get_event_name(y, r)
+    
+    event_info = client.get_event_info(y, identifier)
+    if not event_info: return ""
+    event_name = event_info['name']
+    round_nr = event_info['round_nr']
+    
     location, name, _ = _init(y, event_name, e)
 
     if cached:
         data = cached['data']
     else:
-        data = process_throttle_data(y, r, e, client)
+        data = process_throttle_data(y, identifier, e, client)
         if data:
-            store_data_dict_to_mongo(year=y, round_nr=r, session_name=e, event_name=event_name, 
+            store_data_dict_to_mongo(year=y, round_nr=round_nr, session_name=e, event_name=event_name, 
                                      data_type='throttle_comparison', data=data, version='v2')
 
     if not data: return ""
 
-    if store_to_mongo and data:
-        event_name = client.get_event_name(y, r)
-        store_data_dict_to_mongo(year=y, round_nr=r, session_name=e, event_name=event_name, 
-                                 data_type='throttle_comparison', data=data, version='v2')
+    if store_to_mongo and data and not cached:
+        pass # Already stored in else block above
 
     setup_theme.setup_turnone_theme()
     df = pd.DataFrame(data)
     _generate_plot(df['Driver'], df['Average Throttle (%)'], df['Color'], y, event_name, e, location, name)
     return f"{location}/{name}"
 
-def ThrottleCompData(y: int, r: int, e: str, store_to_mongo: bool = True) -> list:
-    cached = get_plot_data_from_mongo(y, r, e, 'throttle_comparison', version='v2')
+def ThrottleCompData(y: int, identifier: Union[int, str], e: str, store_to_mongo: bool = True) -> list:
+    cached = get_plot_data_from_mongo(y, identifier, e, 'throttle_comparison', version='v2')
     if cached: return cached['data']
 
     client = F1StaticClient()
-    data = process_throttle_data(y, r, e, client)
+    data = process_throttle_data(y, identifier, e, client)
     
     if store_to_mongo and data:
-        event_name = client.get_event_name(y, r)
-        store_data_dict_to_mongo(year=y, round_nr=r, session_name=e, event_name=event_name, 
-                                 data_type='throttle_comparison', data=data, version='v2')
+        event_info = client.get_event_info(y, identifier)
+        if event_info:
+            event_name = event_info['name']
+            round_nr = event_info['round_nr']
+            store_data_dict_to_mongo(year=y, round_nr=round_nr, session_name=e, event_name=event_name, 
+                                     data_type='throttle_comparison', data=data, version='v2')
     return data
 
 def _generate_plot(drivers, throttles, colors, y, event, session, loc, name):

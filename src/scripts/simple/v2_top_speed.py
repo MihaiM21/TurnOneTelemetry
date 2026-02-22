@@ -1,7 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Union
 from collections import defaultdict
 
 from src.utils import dirOrg
@@ -175,20 +175,20 @@ def _generate_plot(
 # ============================================================================
 # TELEMETRY FUNCTIONS
 # ============================================================================
-def TopSpeedPlot_Telemetry(y: int, r: int, e: str, store_to_mongo: bool = True) -> str:
+def TopSpeedPlot_Telemetry(y: int, identifier: Union[int, str], e: str, store_to_mongo: bool = True) -> str:
     """
     Generate top speed plot from telemetry data (CarData)
     
     Args:
         y: Year
-        r: Round number
+        identifier: Round number, Event Key, or Official Name
         e: Session name (e.g., "Race", "Qualifying")
     
     Returns:
         Path to the generated plot
     """
     # Check MongoDB cache first (v2 collection)
-    cached_result = get_plot_data_from_mongo(y, r, e, 'top_speed_telemetry', version='v2')
+    cached_result = get_plot_data_from_mongo(y, identifier, e, 'top_speed_telemetry', version='v2')
     if cached_result:
         cached_data = cached_result['data']
         metadata = cached_result['metadata']
@@ -219,12 +219,18 @@ def TopSpeedPlot_Telemetry(y: int, r: int, e: str, store_to_mongo: bool = True) 
     # If not in cache, generate new data
     client = F1StaticClient()
     
-    print(f"\nFetching {y} Round {r} {e}...")
-    event_name = client.get_event_name(y, r)
+    print(f"\nFetching {y} Identifier {identifier} {e}...")
+    event_info = client.get_event_info(y, identifier)
+    if not event_info:
+        raise ValueError(f"Could not find event info for: {y} Identifier {identifier}")
+        
+    event_name = event_info['name']
+    round_nr = event_info['round_nr']
+    
     base_url = client.get_event_session_url(y, event_name, e)
     
     if not base_url:
-        raise ValueError(f"Could not find session: {y} Round {r} {e}")
+        raise ValueError(f"Could not find session: {y} Event {event_name} {e}")
     
     # Setup
     setup_theme.setup_turnone_theme()
@@ -261,7 +267,7 @@ def TopSpeedPlot_Telemetry(y: int, r: int, e: str, store_to_mongo: bool = True) 
         from src.utils.database.mongo_helper import store_data_dict_to_mongo
         store_data_dict_to_mongo(
             year=y,
-            round_nr=r,
+            round_nr=round_nr,
             session_name=e,
             event_name=event_name,
             data_type='top_speed_telemetry',
@@ -284,13 +290,13 @@ def TopSpeedPlot_Telemetry(y: int, r: int, e: str, store_to_mongo: bool = True) 
     return location + "/" + name
 
 
-def TopSpeedData_Telemetry(y: int, r: int, e: str, store_to_mongo: bool = True) -> list:
+def TopSpeedData_Telemetry(y: int, identifier: Union[int, str], e: str, store_to_mongo: bool = True) -> list:
     """
     Generate top speed JSON data from telemetry (CarData)
     
     Args:
         y: Year
-        r: Round number
+        identifier: Round number, Event Key, or Official Name
         e: Session name (e.g., "Race", "Qualifying")
         store_to_mongo: Whether to store data to MongoDB
     
@@ -298,7 +304,7 @@ def TopSpeedData_Telemetry(y: int, r: int, e: str, store_to_mongo: bool = True) 
         List of dictionaries containing top speed data
     """
     # Check MongoDB cache first (v2 collection)
-    cached_result = get_plot_data_from_mongo(y, r, e, 'top_speed_telemetry', version='v2')
+    cached_result = get_plot_data_from_mongo(y, identifier, e, 'top_speed_telemetry', version='v2')
     if cached_result:
         print("Using cached Telemetry Top Speed data from MongoDB (v2 collection)")
         return cached_result['data']
@@ -308,12 +314,18 @@ def TopSpeedData_Telemetry(y: int, r: int, e: str, store_to_mongo: bool = True) 
     # Generate new data
     client = F1StaticClient()
     
-    print(f"\nFetching {y} Round {r} {e}...")
-    event_name = client.get_event_name(y, r)
+    print(f"\nFetching {y} Identifier {identifier} {e}...")
+    event_info = client.get_event_info(y, identifier)
+    if not event_info:
+        raise ValueError(f"Could not find event info for: {y} Identifier {identifier}")
+        
+    event_name = event_info['name']
+    round_nr = event_info['round_nr']
+    
     base_url = client.get_event_session_url(y, event_name, e)
     
     if not base_url:
-        raise ValueError(f"Could not find session: {y} Round {r} {e}")
+        raise ValueError(f"Could not find session: {y} Event {event_name} {e}")
     
     # Setup
     location, name, name_json = _init(y, event_name, e, "Telemetry")
@@ -340,7 +352,7 @@ def TopSpeedData_Telemetry(y: int, r: int, e: str, store_to_mongo: bool = True) 
         from src.utils.database.mongo_helper import store_data_dict_to_mongo
         store_data_dict_to_mongo(
             year=y,
-            round_nr=r,
+            round_nr=round_nr,
             session_name=e,
             event_name=event_name,
             data_type='top_speed_telemetry',
@@ -359,20 +371,20 @@ def TopSpeedData_Telemetry(y: int, r: int, e: str, store_to_mongo: bool = True) 
 # ============================================================================
 # SPEED TRAP FUNCTIONS
 # ============================================================================
-def TopSpeedPlot_SpeedTrap(y: int, r: int, e: str) -> str:
+def TopSpeedPlot_SpeedTrap(y: int, identifier: Union[int, str], e: str) -> str:
     """
     Generate top speed plot from Speed Trap data (TimingData)
     
     Args:
         y: Year
-        r: Round number
+        identifier: Round number, Event Key, or Official Name
         e: Session name (e.g., "Race", "Qualifying")
     
     Returns:
         Path to the generated plot
     """
     # Check MongoDB cache first (v2 collection)
-    cached_result = get_plot_data_from_mongo(y, r, e, 'top_speed_speedtrap', version='v2')
+    cached_result = get_plot_data_from_mongo(y, identifier, e, 'top_speed_speedtrap', version='v2')
     if cached_result:
         cached_data = cached_result['data']
         metadata = cached_result['metadata']
@@ -403,12 +415,18 @@ def TopSpeedPlot_SpeedTrap(y: int, r: int, e: str) -> str:
     # If not in cache, generate new data
     client = F1StaticClient()
     
-    print(f"\nFetching {y} Round {r} {e}...")
-    event_name = client.get_event_name(y, r)
+    print(f"\nFetching {y} Identifier {identifier} {e}...")
+    event_info = client.get_event_info(y, identifier)
+    if not event_info:
+        raise ValueError(f"Could not find event info for: {y} Identifier {identifier}")
+        
+    event_name = event_info['name']
+    round_nr = event_info['round_nr']
+    
     base_url = client.get_event_session_url(y, event_name, e)
     
     if not base_url:
-        raise ValueError(f"Could not find session: {y} Round {r} {e}")
+        raise ValueError(f"Could not find session: {y} Event {event_name} {e}")
     
     # Setup
     setup_theme.setup_turnone_theme()
@@ -445,7 +463,7 @@ def TopSpeedPlot_SpeedTrap(y: int, r: int, e: str) -> str:
         from src.utils.database.mongo_helper import store_data_dict_to_mongo
         store_data_dict_to_mongo(
             year=y,
-            round_nr=r,
+            round_nr=round_nr,
             session_name=e,
             event_name=event_name,
             data_type='top_speed_speedtrap',
@@ -468,13 +486,13 @@ def TopSpeedPlot_SpeedTrap(y: int, r: int, e: str) -> str:
     return location + "/" + name
 
 
-def TopSpeedData_SpeedTrap(y: int, r: int, e: str, store_to_mongo: bool = True) -> list:
+def TopSpeedData_SpeedTrap(y: int, identifier: Union[int, str], e: str, store_to_mongo: bool = True) -> list:
     """
     Generate top speed JSON data from Speed Trap (TimingData)
     
     Args:
         y: Year
-        r: Round number
+        identifier: Round number, Event Key, or Official Name
         e: Session name (e.g., "Race", "Qualifying")
         store_to_mongo: Whether to store data to MongoDB
     
@@ -482,7 +500,7 @@ def TopSpeedData_SpeedTrap(y: int, r: int, e: str, store_to_mongo: bool = True) 
         List of dictionaries containing top speed data
     """
     # Check MongoDB cache first (v2 collection)
-    cached_result = get_plot_data_from_mongo(y, r, e, 'top_speed_speedtrap', version='v2')
+    cached_result = get_plot_data_from_mongo(y, identifier, e, 'top_speed_speedtrap', version='v2')
     if cached_result:
         print("Using cached Speed Trap Top Speed data from MongoDB (v2 collection)")
         return cached_result['data']
@@ -492,12 +510,18 @@ def TopSpeedData_SpeedTrap(y: int, r: int, e: str, store_to_mongo: bool = True) 
     # Generate new data
     client = F1StaticClient()
     
-    print(f"\nFetching {y} Round {r} {e}...")
-    event_name = client.get_event_name(y, r)
+    print(f"\nFetching {y} Identifier {identifier} {e}...")
+    event_info = client.get_event_info(y, identifier)
+    if not event_info:
+        raise ValueError(f"Could not find event info for: {y} Identifier {identifier}")
+        
+    event_name = event_info['name']
+    round_nr = event_info['round_nr']
+    
     base_url = client.get_event_session_url(y, event_name, e)
     
     if not base_url:
-        raise ValueError(f"Could not find session: {y} Round {r} {e}")
+        raise ValueError(f"Could not find session: {y} Event {event_name} {e}")
     
     # Setup
     location, name, name_json = _init(y, event_name, e, "SpeedTrap")
@@ -524,7 +548,7 @@ def TopSpeedData_SpeedTrap(y: int, r: int, e: str, store_to_mongo: bool = True) 
         from src.utils.database.mongo_helper import store_data_dict_to_mongo
         store_data_dict_to_mongo(
             year=y,
-            round_nr=r,
+            round_nr=round_nr,
             session_name=e,
             event_name=event_name,
             data_type='top_speed_speedtrap',
