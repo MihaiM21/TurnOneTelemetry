@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v1.2.0 (2026-03-01)
+
+### Bug Fixes
+
+- Top speed v2
+  ([`643fcd6`](https://github.com/MihaiM21/TurnOneTelemetry/commit/643fcd65301263abc358079903c898dbd0e37a32))
+
+### Features
+
+- Added new endpoints for available grand prix and sessions from them
+  ([`226e67c`](https://github.com/MihaiM21/TurnOneTelemetry/commit/226e67c65d0f491c4d8dc60fca067198da779959))
+
+- Added throttle comparison v2 and improved our static client data mapping
+  ([`8daf146`](https://github.com/MihaiM21/TurnOneTelemetry/commit/8daf146b05554f31e7a6cd942a6a8bc339b2e360))
+
+- V2 can now accept gp key, gp official name or round number
+  ([`60faad7`](https://github.com/MihaiM21/TurnOneTelemetry/commit/60faad72ce66ea3e0e83c0276a808c54cd7aa937))
+
+
 ## v1.1.0 (2026-02-07)
 
 ### Bug Fixes
