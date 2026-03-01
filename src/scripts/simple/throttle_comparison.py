@@ -8,7 +8,7 @@ from src.utils import dirOrg
 from src.data_loader import data_aqcuisition
 from src.utils import setup_theme
 from src.utils.teamColorPicker import team_colors, teams, get_driver_color
-from src.utils.database.mongo_helper import store_plot_data_to_mongo, get_plot_data_from_mongo
+from src.utils.database.mongo_helper import store_data_dict_to_mongo, get_plot_data_from_mongo
 
 def _init(y, r, e, session):
     dirOrg.checkForFolder(str(y) + "/" + session.event['EventName'] + "/" + e)
@@ -19,8 +19,8 @@ def _init(y, r, e, session):
 def ThrottleComp(y,r,e):
 
     # Check MongoDB cache first (before loading session)
-    cached_data = get_plot_data_from_mongo(y, r, e, 'throttle_comparison')
-    if cached_data:
+    cached_result = get_plot_data_from_mongo(y, r, e, 'throttle_comparison')
+    if cached_result:
         # Load session only for metadata
         sessionloader = data_aqcuisition.SessionLoader(y, r, e)
         session = sessionloader.get_session()
@@ -29,11 +29,17 @@ def ThrottleComp(y,r,e):
         setup_theme.setup_turnone_theme()
         location, name, name_json = _init(y, r, e, session)
         
+        # Extract the actual data from the cache result
+        cached_data = cached_result.get('data', cached_result)
+        
         # Convert cached data to DataFrame
         df = pd.DataFrame(cached_data)
         valid_drivers = df['Driver'].tolist()
         list_telemetry = df['Average Throttle (%)'].tolist()
         list_colors = df['Color'].tolist()
+        
+        # Get event name from session
+        event_name = session.event['EventName']
         
         fig, ax = plt.subplots(figsize=(13, 13), layout='constrained')
         ax.bar(valid_drivers, list_telemetry, color = list_colors)
@@ -135,12 +141,6 @@ def ThrottleCompData(y,r,e, store_to_mongo=True):
     name2 = name.replace("csv", "json")
     json_path = location + "/" + name_json
 
-    # Check if JSON file already exists
-    path = dirOrg.checkForFile(location, name_json)
-    if (path != "NULL"):
-        return path
-
-
     drivers = pd.unique(session.laps['Driver'])
 
     valid_drivers = []
@@ -179,15 +179,20 @@ def ThrottleCompData(y,r,e, store_to_mongo=True):
             'Color': list_colors[i]
         })
 
-    # Save JSON data directly using json module
-    df = pd.DataFrame(json_data)
-    df.to_json(location + "/" + name_json, orient='records')
-
     # Store to MongoDB if requested
     if store_to_mongo:
         try:
-            store_plot_data_to_mongo(session, 'throttle_comparison', location + "/" + name_json)
+            event_name = session.event['EventName']
+            store_data_dict_to_mongo(
+                year=y,
+                round_nr=r,
+                session_name=e,
+                event_name=event_name,
+                data_type='throttle_comparison',
+                data=json_data,
+                version='v1'
+            )
         except Exception as e:
             print(f"Warning: Failed to store to MongoDB: {e}")
 
-    return location + "/" + name_json  # Return JSON file path
+    return json_data  # Return data directly

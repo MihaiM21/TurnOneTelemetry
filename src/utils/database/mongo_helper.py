@@ -3,7 +3,7 @@ Helper functions to integrate MongoDB storage with F1 telemetry plot generation
 """
 
 from src.utils.database.mongo import MongoDBManager, convert_numpy_types
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 import json
 
 # Session type mapping from FastF1 to our standard format
@@ -27,12 +27,59 @@ SESSION_TYPE_MAP = {
 # Data type mapping for different plot types
 DATA_TYPE_MAP = {
     'top_speed': 'top_speed',
+    'top_speed_telemetry': 'top_speed_telemetry',
+    'top_speed_speedtrap': 'top_speed_speedtrap',
     'throttle_comparison': 'throttle_comparison_drivers',
     'qualifying_results': 'qualifying_results',
     'lap_times_distribution': 'lap_times_distribution',
     'track_comparison': 'track_comparison_2drivers',
     'throttle_brake_comparison': 'throttle_brake_comparison_2drivers'
 }
+
+# Country code mapping for GP IDs (shared across all functions)
+COUNTRY_CODES = {
+    'Australian': 'AUS',
+    'Bahrain': 'BHR',
+    'Chinese': 'CHN',
+    'Japanese': 'JPN',
+    'Saudi Arabian': 'SAU',
+    'Miami': 'MIA',
+    'Emilia Romagna': 'EMI',
+    'Monaco': 'MON',
+    'Spanish': 'ESP',
+    'Canadian': 'CAN',
+    'Austrian': 'AUT',
+    'British': 'GBR',
+    'Belgian': 'BEL',
+    'Dutch': 'NED',
+    'Italian': 'ITA',
+    'Azerbaijan': 'AZE',
+    'Singapore': 'SGP',
+    'United States': 'USA',
+    'Mexico': 'MEX',
+    'Brazil': 'BRA',
+    'Las Vegas': 'LVG',
+    'Qatar': 'QAT',
+    'Abu Dhabi': 'ABU'
+}
+
+
+def get_country_code_from_event_name(event_name: str) -> str:
+    """
+    Extract country code from event name using consistent mapping
+    
+    Args:
+        event_name: Full event name (e.g., "Australian Grand Prix")
+    
+    Returns:
+        Three-letter country code (e.g., "AUS")
+    """
+    for key, code in COUNTRY_CODES.items():
+        if key.lower() in event_name.lower():
+            return code
+    
+    # Fallback to first 3 letters of cleaned event name
+    return event_name.replace(' ', '').replace('Grand', '').replace('Prix', '')[:3].upper()
 
 
 def get_gp_id_from_session(session: Any) -> str:
@@ -46,47 +93,10 @@ def get_gp_id_from_session(session: Any) -> str:
         GP ID string (e.g., "2025_AUS")
     """
     year = session.event['EventDate'].year
-    # Try to get country code from event name
     event_name = session.event['EventName']
-
-    # Map event names to country codes
-    country_codes = {
-        'Australian': 'AUS',
-        'Bahrain': 'BHR',
-        'Chinese': 'CHN',
-        'Japanese': 'JPN',
-        'Saudi Arabian': 'SAU',
-        'Miami': 'MIA',
-        'Emilia Romagna': 'EMI',
-        'Monaco': 'MON',
-        'Spanish': 'ESP',
-        'Canadian': 'CAN',
-        'Austrian': 'AUT',
-        'British': 'GBR',
-        'Belgian': 'BEL',
-        'Dutch': 'NED',
-        'Italian': 'ITA',
-        'Azerbaijan': 'AZE',
-        'Singapore': 'SGP',
-        'United States': 'USA',
-        'Mexico': 'MEX',
-        'Brazil': 'BRA',
-        'Las Vegas': 'LVG',
-        'Qatar': 'QAT',
-        'Abu Dhabi': 'ABU'
-    }
-
-    # Find matching country code
-    country_code = None
-    for key, code in country_codes.items():
-        if key.lower() in event_name.lower():
-            country_code = code
-            break
-
-    if not country_code:
-        # Fallback to first 3 letters of event name
-        country_code = event_name.replace(' ', '')[:3].upper()
-
+    
+    country_code = get_country_code_from_event_name(event_name)
+    
     return f"{year}_{country_code}"
 
 
@@ -177,7 +187,8 @@ def store_data_dict_to_mongo(year: int, round_nr: int, session_name: str,
                              event_name: str, data_type: str, data: list,
                              session_date: Optional[str] = None,
                              session_time: Optional[str] = None,
-                             db_manager: Optional[MongoDBManager] = None) -> bool:
+                             db_manager: Optional[MongoDBManager] = None,
+                             version: str = 'v1') -> bool:
     """
     Store data directly to MongoDB without a JSON file
 
@@ -191,6 +202,7 @@ def store_data_dict_to_mongo(year: int, round_nr: int, session_name: str,
         session_date: Optional session date
         session_time: Optional session time
         db_manager: Optional existing MongoDBManager instance
+        version: Data source version ('v1' for FastF1, 'v2' for F1StaticClient)
 
     Returns:
         True if successful, False otherwise
@@ -203,14 +215,51 @@ def store_data_dict_to_mongo(year: int, round_nr: int, session_name: str,
         year = int(year)
         round_nr = int(round_nr)
 
-        # Create DB manager if not provided, passing the year
+        # Create DB manager if not provided, passing the year and version
         if db_manager is None:
-            db_manager = MongoDBManager(year=year)
+            db_manager = MongoDBManager(year=year, version=version)
             should_close = True
 
-        # Create GP ID
-        gp_name = event_name.replace(' ', '').replace('Grand', '').replace('Prix', 'GP')
-        gp_id = f"{year}_{gp_name[:3].upper()}"
+        # Create GP ID using consistent country code mapping
+        country_codes = {
+            'Australian': 'AUS',
+            'Bahrain': 'BHR',
+            'Chinese': 'CHN',
+            'Japanese': 'JPN',
+            'Saudi Arabian': 'SAU',
+            'Miami': 'MIA',
+            'Emilia Romagna': 'EMI',
+            'Monaco': 'MON',
+            'Spanish': 'ESP',
+            'Canadian': 'CAN',
+            'Austrian': 'AUT',
+            'British': 'GBR',
+            'Belgian': 'BEL',
+            'Dutch': 'NED',
+            'Italian': 'ITA',
+            'Azerbaijan': 'AZE',
+            'Singapore': 'SGP',
+            'United States': 'USA',
+            'Mexico': 'MEX',
+            'Brazil': 'BRA',
+            'Las Vegas': 'LVG',
+            'Qatar': 'QAT',
+            'Abu Dhabi': 'ABU'
+        }
+        
+        # Find matching country code
+        country_code = None
+        for key, code in country_codes.items():
+            if key.lower() in event_name.lower():
+                country_code = code
+                break
+        
+        if not country_code:
+            # Fallback to first 3 letters of event name
+            country_code = event_name.replace(' ', '').replace('Grand', '').replace('Prix', '')[:3].upper()
+        
+        gp_id = f"{year}_{country_code}"
+        gp_name = event_name.replace(' ', '')
 
         # Get or create GP document
         db_manager.get_or_create_gp(year, round_nr, gp_name, gp_id)
@@ -276,17 +325,19 @@ def close_global_db_manager():
         _global_db_manager = None
 
 
-def get_plot_data_from_mongo(year: int, round_nr: int, event_name: str, data_type: str,
-                             db_manager: Optional[MongoDBManager] = None) -> Optional[dict]:
+def get_plot_data_from_mongo(year: int, identifier: Union[int, str], event_name: str, data_type: str,
+                             db_manager: Optional[MongoDBManager] = None,
+                             version: str = 'v1') -> Optional[dict]:
     """
     Retrieve plot data from MongoDB if it exists (lightweight - no session loading required)
 
     Args:
         year: Race year
-        round_nr: Round number
-        event_name: Event name (e.g., 'FP1', 'FP2', 'Q', 'R')
+        identifier: Round number, Event Key, or Official Name
+        event_name: Session name (e.g., 'FP1', 'FP2', 'Q', 'R') - Note argument name corresponds to session_name historically.
         data_type: Type of plot data (from DATA_TYPE_MAP keys)
         db_manager: Optional existing MongoDBManager instance
+        version: Data source version ('v1' for FastF1, 'v2' for F1StaticClient)
 
     Returns:
         Dict with 'data' and 'metadata' keys if found, None otherwise
@@ -297,63 +348,42 @@ def get_plot_data_from_mongo(year: int, round_nr: int, event_name: str, data_typ
         # Normalize session type
         session_type = normalize_session_type(event_name)
         
-        # Create DB manager if not provided
+        # Create DB manager if not provided, using specified version
         if db_manager is None:
-            db_manager = MongoDBManager(year=year)
+            db_manager = MongoDBManager(year=year, version=version)
             should_close = True
 
         # Map data_type to standard format
         standard_data_type = DATA_TYPE_MAP.get(data_type, data_type)
         
-        # Build GP ID from event_name instead of using round_nr
-        # This is more reliable since round_nr might not be unique or correctly stored
-        # Get the GP info from FastF1 to construct proper gp_id
-        import fastf1
+        # Build GP ID - use appropriate client based on version
         try:
-            # Get event by round number to extract proper event name
-            event = fastf1.get_event(year, round_nr)
-            event_full_name = event['EventName']
-            
-            # Construct gp_id using same logic as get_gp_id_from_session
-            country_codes = {
-                'Australian': 'AUS',
-                'Bahrain': 'BHR',
-                'Chinese': 'CHN',
-                'Japanese': 'JPN',
-                'Saudi Arabian': 'SAU',
-                'Miami': 'MIA',
-                'Emilia Romagna': 'EMI',
-                'Monaco': 'MON',
-                'Spanish': 'ESP',
-                'Canadian': 'CAN',
-                'Austrian': 'AUT',
-                'British': 'GBR',
-                'Belgian': 'BEL',
-                'Dutch': 'NED',
-                'Italian': 'ITA',
-                'Azerbaijan': 'AZE',
-                'Singapore': 'SGP',
-                'United States': 'USA',
-                'Mexico': 'MEX',
-                'Brazil': 'BRA',
-                'Las Vegas': 'LVG',
-                'Qatar': 'QAT',
-                'Abu Dhabi': 'ABU'
-            }
-            
-            country_code = None
-            for key, code in country_codes.items():
-                if key.lower() in event_full_name.lower():
-                    country_code = code
-                    break
-            
-            if not country_code:
-                country_code = event_full_name.replace(' ', '')[:3].upper()
+            if version == 'v2':
+                # Use F1StaticClient for v2
+                from src.data_loader.f1_static_client import F1StaticClient
+                client = F1StaticClient()
+                event_info = client.get_event_info(year, identifier)
                 
+                if not event_info:
+                    print(f"✗ Could not get event info for identifier {identifier} using F1StaticClient")
+                    return None
+                    
+                event_full_name = event_info['name']
+                round_nr = event_info['round_nr']
+            else:
+                # Use FastF1 for v1 (standard F1 round numbering)
+                # Assumes identifier is an integer
+                round_nr = int(identifier)
+                import fastf1
+                event = fastf1.get_event(year, round_nr)
+                event_full_name = event['EventName']
+            
+            # Construct gp_id using shared helper function
+            country_code = get_country_code_from_event_name(event_full_name)
             gp_id = f"{year}_{country_code}"
-            print(f"🔍 Searching MongoDB cache: year={year}, round={round_nr}, event={event_name} -> gp_id={gp_id}, session_type={session_type}, data_type={standard_data_type}")
+            print(f"🔍 Searching MongoDB cache (v{version[-1]}): year={year}, round={round_nr}, event={event_name} -> gp_id={gp_id}, session_type={session_type}, data_type={standard_data_type}")
         except Exception as e:
-            print(f"✗ Could not get event info from FastF1: {e}")
+            print(f"✗ Could not get event info: {e}")
             return None
         
         # Find GP document by gp_id (unique identifier)

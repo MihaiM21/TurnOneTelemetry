@@ -65,8 +65,8 @@ class PlotDataGenerator:
         """
         try:
             print(f"  → Generating top speed data...")
-            json_path = TopSpeedData(year, round_num, session_name, store_to_mongo=self.use_mongo)
-            if json_path:
+            data = TopSpeedData(year, round_num, session_name, store_to_mongo=self.use_mongo)
+            if data:
                 self.results['success'].append(f"Top Speed - Y{year} R{round_num} {session_name}")
                 return True
             return False
@@ -89,8 +89,8 @@ class PlotDataGenerator:
         """
         try:
             print(f"  → Generating throttle comparison data...")
-            json_path = ThrottleCompData(year, round_num, session_name, store_to_mongo=self.use_mongo)
-            if json_path:
+            data = ThrottleCompData(year, round_num, session_name, store_to_mongo=self.use_mongo)
+            if data:
                 self.results['success'].append(f"Throttle Comparison - Y{year} R{round_num} {session_name}")
                 return True
             return False
@@ -113,8 +113,8 @@ class PlotDataGenerator:
         """
         try:
             print(f"  → Generating qualifying results data...")
-            json_path = QualiResultsData(year, round_num, session_name, store_to_mongo=self.use_mongo)
-            if json_path:
+            data = QualiResultsData(year, round_num, session_name, store_to_mongo=self.use_mongo)
+            if data:
                 self.results['success'].append(f"Qualifying Results - Y{year} R{round_num} {session_name}")
                 return True
             return False
@@ -138,8 +138,8 @@ class PlotDataGenerator:
         """
         try:
             print(f"  → Generating lap times distribution for {driver}...")
-            json_path = LatimesDistribution(year, round_num, session_name, driver)
-            if json_path:
+            data = LatimesDistribution(year, round_num, session_name, driver)
+            if data:
                 self.results['success'].append(f"Lap Times Distribution - {driver} - Y{year} R{round_num} {session_name}")
                 return True
             return False
@@ -164,8 +164,8 @@ class PlotDataGenerator:
         """
         try:
             print(f"  → Generating track comparison for {driver1} vs {driver2}...")
-            json_path = TrackComparisonData(year, round_num, session_name, driver1, driver2)
-            if json_path:
+            data = TrackComparisonData(year, round_num, session_name, driver1, driver2)
+            if data:
                 self.results['success'].append(f"Track Comparison - {driver1} vs {driver2} - Y{year} R{round_num} {session_name}")
                 return True
             return False
@@ -190,8 +190,8 @@ class PlotDataGenerator:
         """
         try:
             print(f"  → Generating throttle/brake comparison for {driver1} vs {driver2}...")
-            json_path = throttle_graph_data(year, round_num, session_name, driver1, driver2)
-            if json_path:
+            data = throttle_graph_data(year, round_num, session_name, driver1, driver2)
+            if data:
                 self.results['success'].append(f"Throttle/Brake Comparison - {driver1} vs {driver2} - Y{year} R{round_num} {session_name}")
                 return True
             return False

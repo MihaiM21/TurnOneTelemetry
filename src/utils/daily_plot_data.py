@@ -42,12 +42,8 @@ class DailyPlotData:
 
     def generate_daily_plot(self):
         # Use the round/event already set for today
-        topSpeedDataPath = TopSpeedData(self.year, self.round, self.event)
-        throttleCompDataPath = ThrottleCompData(self.year, self.round, self.event)
-        with open(topSpeedDataPath, 'r') as f1:
-            topSpeedData_json = json.load(f1)
-        with open(throttleCompDataPath, 'r') as f2:
-            throttleCompData_json = json.load(f2)
+        topSpeedData_json = TopSpeedData(self.year, self.round, self.event)
+        throttleCompData_json = ThrottleCompData(self.year, self.round, self.event)
         merged_json = {
             'top_speed': topSpeedData_json,
             'throttle_comparison': throttleCompData_json,

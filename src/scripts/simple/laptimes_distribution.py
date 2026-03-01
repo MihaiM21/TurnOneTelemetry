@@ -49,9 +49,6 @@ def LatimesDistribution(y, r, e, d):
 
     # Check for existing folder and file
     location, name, name_json = _init(y, r, e, d, session)
-    path = dirOrg.checkForFile(location, name)
-    if (path != "NULL"):
-        return path
 
     laps = session.laps.pick_driver(d)
     laps['LapTimeSeconds'] = laps['LapTime'].dt.total_seconds()
@@ -75,14 +72,22 @@ def LatimesDistribution(y, r, e, d):
         "compound": valid_laps['Compound'].tolist()
     }
     df = pd.DataFrame(data)
-    json_path = location + "/" + name_json
-    df.to_json(json_path, orient='records')
+    data_list = df.to_dict(orient='records')
     
     # Store to MongoDB
     try:
-        store_plot_data_to_mongo(session, 'lap_times_distribution', json_path)
+        event_name = session.event['EventName']
+        store_data_dict_to_mongo(
+            year=y,
+            round_nr=r,
+            session_name=e,
+            event_name=event_name,
+            data_type='lap_times_distribution',
+            data=data_list,
+            version='v1'
+        )
     except Exception as e:
         print(f"Warning: Failed to store to MongoDB: {e}")
     
-    return json_path
+    return data_list  # Return data directly
 

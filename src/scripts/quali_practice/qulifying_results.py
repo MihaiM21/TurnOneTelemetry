@@ -8,7 +8,7 @@ from src.utils import dirOrg
 from src.data_loader import data_aqcuisition
 from src.utils import setup_theme
 from src.utils.teamColorPicker import team_colors, teams, get_team_color
-from src.utils.database.mongo_helper import store_plot_data_to_mongo, get_plot_data_from_mongo
+from src.utils.database.mongo_helper import store_data_dict_to_mongo, get_plot_data_from_mongo
 
 def _init(y, r, e, session):
     dirOrg.checkForFolder(str(y) + "/" + session.event['EventName'] + "/" + e)
@@ -20,8 +20,8 @@ def _init(y, r, e, session):
 def QualiResults(y,r,e):
 
     # Check MongoDB cache first (before loading session)
-    cached_data = get_plot_data_from_mongo(y, r, e, 'qualifying_results')
-    if cached_data:
+    cached_result = get_plot_data_from_mongo(y, r, e, 'qualifying_results')
+    if cached_result:
         # Load session only for metadata
         sessionloader = data_aqcuisition.SessionLoader(y, r, e)
         session = sessionloader.get_session()
@@ -30,7 +30,13 @@ def QualiResults(y,r,e):
         setup_theme.setup_turnone_theme()
         location, name, name_json = _init(y, r, e, session)
         
+        # Extract the actual data from the cache result
+        cached_data = cached_result.get('data', cached_result)
+        
         df = pd.DataFrame(cached_data)
+        
+        # Get event name from session
+        event_name = session.event['EventName']
         
         # Recreate plot from cached data
         fig, ax = plt.subplots(figsize=(13, 13))
@@ -167,10 +173,6 @@ def QualiResultsData(y,r,e, store_to_mongo=True):
     location, name, name_json = _init(y, r, e, session)
     name = name.replace("png", "json")
     name2 = name.replace("csv", "json")
-    path = dirOrg.checkForFile(location, name)
-    path2 = dirOrg.checkForFile(location, name2)
-    if (path != "NULL" and path2 != "NULL"):
-        return path2  # Return JSON file path instead of CSV
 
     drivers = pd.unique(session.laps['Driver'])
 
@@ -216,13 +218,22 @@ def QualiResultsData(y,r,e, store_to_mongo=True):
     }
 
     df = pd.DataFrame(data)
-    df.to_json(location + "/" + name_json, orient='records')
+    data_list = df.to_dict(orient='records')
 
     # Store to MongoDB if requested
     if store_to_mongo:
         try:
-            store_plot_data_to_mongo(session, 'qualifying_results', location + "/" + name_json)
+            event_name = session.event['EventName']
+            store_data_dict_to_mongo(
+                year=y,
+                round_nr=r,
+                session_name=e,
+                event_name=event_name,
+                data_type='qualifying_results',
+                data=data_list,
+                version='v1'
+            )
         except Exception as e:
             print(f"Warning: Failed to store to MongoDB: {e}")
 
-    return location + "/" + name_json
+    return data_list  # Return data directly
