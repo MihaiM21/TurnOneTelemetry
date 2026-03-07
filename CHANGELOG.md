@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.2.1 (2026-03-07)
+
+### Bug Fixes
+
+- Bug with saving to mongodb
+  ([`f5a4702`](https://github.com/MihaiM21/TurnOneTelemetry/commit/f5a47027d5e685004a8da31d84e98530cab8189b))
+
+
 ## v1.2.0 (2026-03-01)
 
 ### Bug Fixes
