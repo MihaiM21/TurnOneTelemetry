@@ -183,8 +183,8 @@ def QualiResultsData(y,r,e, store_to_mongo=True):
             drvs_fastest_lap = session.laps.pick_drivers(drv).pick_fastest()
             if len(drvs_fastest_lap) > 0:
                 list_fastest_laps.append(drvs_fastest_lap)
-        except Exception as e:
-            print(f"Could not retrieve fastest lap for driver {drv}: {e}")
+        except Exception as drv_ex:
+            print(f"Could not retrieve fastest lap for driver {drv}: {drv_ex}")
 
 
     if not list_fastest_laps:
@@ -201,12 +201,6 @@ def QualiResultsData(y,r,e, store_to_mongo=True):
     for index, lap in fastest_laps.iterlaps():
         color = get_team_color(lap['Team'])
         team_colors.append(color)
-
-    # Adding time gaps on the plot
-    fastest_lap_time = fastest_laps['LapTime'].min()
-    for i, lap in fastest_laps.iterrows():
-        lap_time = strftimedelta(lap['LapTime'], '%S.%ms')
-        pole_time = strftimedelta(fastest_lap_time, '%S.%ms')
 
     # Return data in JSON format
     data = {
