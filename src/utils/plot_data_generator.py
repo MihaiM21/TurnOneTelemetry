@@ -16,13 +16,19 @@ import fastf1
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-# Import plot data functions
+# Import plot data functions - V1 (FastF1-based)
 from src.scripts.simple.top_speed import TopSpeedData
 from src.scripts.simple.throttle_comparison import ThrottleCompData
+from src.scripts.simple.v1_speed_distribution import SpeedDistributionData as SpeedDistributionData_V1
 from src.scripts.simple.laptimes_distribution import LatimesDistribution
 from src.scripts.quali_practice.qulifying_results import QualiResultsData
 from src.scripts.quali_practice.track_comparison_2drivers import TrackComparisonData
 from src.scripts.quali_practice.throttleBrake_comparison_2drivers import throttle_graph_data
+
+# Import plot data functions - V2 (F1StaticClient-based)
+from src.scripts.simple.v2_top_speed import TopSpeedData_Telemetry, TopSpeedData_SpeedTrap
+from src.scripts.simple.v2_throttle_comparison import ThrottleCompData as ThrottleCompData_V2
+from src.scripts.simple.v2_speed_distribution import SpeedDistributionData as SpeedDistributionData_V2
 
 # Import database utilities
 from src.utils.database.mongo import MongoDBManager
@@ -200,42 +206,121 @@ class PlotDataGenerator:
             self.results['failed'].append(f"Throttle/Brake Comparison - {driver1} vs {driver2} - Y{year} R{round_num} {session_name}: {str(e)}")
             return False
 
+    # ------------------------------------------------------------------ V1 --
+    def generate_speed_distribution_v1(self, year: int, round_num: int, session_name: str) -> bool:
+        """Generate V1 overall fastest-lap speed distribution"""
+        try:
+            print(f"  → [V1] Generating speed distribution (overall)...")
+            data = SpeedDistributionData_V1(year, round_num, session_name, driver=None, store_to_mongo=self.use_mongo)
+            if data:
+                self.results['success'].append(f"V1 Speed Distribution - Y{year} R{round_num} {session_name}")
+                return True
+            return False
+        except Exception as e:
+            print(f"    ✗ Error: {e}")
+            self.results['failed'].append(f"V1 Speed Distribution - Y{year} R{round_num} {session_name}: {str(e)}")
+            return False
+
+    # ------------------------------------------------------------------ V2 --
+    def generate_top_speed_telemetry_v2(self, year: int, round_num: int, session_name: str) -> bool:
+        """Generate V2 top speed from telemetry (CarData)"""
+        try:
+            print(f"  → [V2] Generating top speed (telemetry)...")
+            data = TopSpeedData_Telemetry(year, round_num, session_name, store_to_mongo=self.use_mongo)
+            if data:
+                self.results['success'].append(f"V2 Top Speed Telemetry - Y{year} R{round_num} {session_name}")
+                return True
+            return False
+        except Exception as e:
+            print(f"    ✗ Error: {e}")
+            self.results['failed'].append(f"V2 Top Speed Telemetry - Y{year} R{round_num} {session_name}: {str(e)}")
+            return False
+
+    def generate_top_speed_speedtrap_v2(self, year: int, round_num: int, session_name: str) -> bool:
+        """Generate V2 top speed from speed trap (TimingData)"""
+        try:
+            print(f"  → [V2] Generating top speed (speed trap)...")
+            data = TopSpeedData_SpeedTrap(year, round_num, session_name, store_to_mongo=self.use_mongo)
+            if data:
+                self.results['success'].append(f"V2 Top Speed SpeedTrap - Y{year} R{round_num} {session_name}")
+                return True
+            return False
+        except Exception as e:
+            print(f"    ✗ Error: {e}")
+            self.results['failed'].append(f"V2 Top Speed SpeedTrap - Y{year} R{round_num} {session_name}: {str(e)}")
+            return False
+
+    def generate_throttle_comparison_v2(self, year: int, round_num: int, session_name: str) -> bool:
+        """Generate V2 throttle comparison"""
+        try:
+            print(f"  → [V2] Generating throttle comparison...")
+            data = ThrottleCompData_V2(year, round_num, session_name, store_to_mongo=self.use_mongo)
+            if data:
+                self.results['success'].append(f"V2 Throttle Comparison - Y{year} R{round_num} {session_name}")
+                return True
+            return False
+        except Exception as e:
+            print(f"    ✗ Error: {e}")
+            self.results['failed'].append(f"V2 Throttle Comparison - Y{year} R{round_num} {session_name}: {str(e)}")
+            return False
+
+    def generate_speed_distribution_v2(self, year: int, round_num: int, session_name: str) -> bool:
+        """Generate V2 overall fastest-lap speed distribution"""
+        try:
+            print(f"  → [V2] Generating speed distribution (overall)...")
+            data = SpeedDistributionData_V2(year, round_num, session_name, driver=None, store_to_mongo=self.use_mongo)
+            if data:
+                self.results['success'].append(f"V2 Speed Distribution - Y{year} R{round_num} {session_name}")
+                return True
+            return False
+        except Exception as e:
+            print(f"    ✗ Error: {e}")
+            self.results['failed'].append(f"V2 Speed Distribution - Y{year} R{round_num} {session_name}: {str(e)}")
+            return False
+
     def generate_all_session_data(self, year: int, round_num: int, session_name: str, 
                                   include_driver_comparisons: bool = False,
                                   driver_pairs: Optional[List[Tuple[str, str]]] = None,
-                                  drivers_for_laptimes: Optional[List[str]] = None) -> Dict[str, int]:
+                                  drivers_for_laptimes: Optional[List[str]] = None,
+                                  gp_name: Optional[str] = None) -> Dict[str, int]:
         """
         Generate all available data types for a session
 
         Args:
             year: Race year
-            round_num: Round number
+            round_num: Round number (used by V1/FastF1)
             session_name: Session name
             include_driver_comparisons: Whether to include driver-specific comparisons
             driver_pairs: List of driver pairs for comparisons (e.g., [('VER', 'HAM'), ('LEC', 'SAI')])
             drivers_for_laptimes: List of drivers for lap time distributions
+            gp_name: Grand Prix name (used by V2/F1StaticClient to avoid pre-season
+                     testing round-number offset). If None, falls back to round_num.
 
         Returns:
             Dictionary with counts of successful and failed generations
         """
+        # V2 identifier: prefer name-based lookup to avoid pre-season testing offset
+        v2_identifier = gp_name if gp_name else round_num
         print(f"\n{'='*60}")
-        print(f"Generating data for Y{year} R{round_num} - {session_name}")
+        print(f"Generating ALL data (V1 + V2) for Y{year} R{round_num} - {session_name}")
         print(f"{'='*60}")
 
         success_count = 0
         failed_count = 0
 
-        # Generate session-level data (no driver needed)
-        session_generators = [
-            self.generate_top_speed,
-            self.generate_throttle_comparison,
+        # ---- V1 session-level generators ----
+        v1_session_generators = [
+            self.generate_top_speed,           # V1 top speed
+            self.generate_throttle_comparison,  # V1 throttle comparison
+            self.generate_speed_distribution_v1, # V1 speed distribution (overall)
         ]
 
         # Add qualifying results for qualifying sessions
         if 'qualif' in session_name.lower() or session_name.lower() in ['q', 'sq']:
-            session_generators.append(self.generate_qualifying_results)
+            v1_session_generators.append(self.generate_qualifying_results)
 
-        for generator in session_generators:
+        print("\n>> V1 Generators (FastF1)")
+        for generator in v1_session_generators:
             try:
                 if generator(year, round_num, session_name):
                     success_count += 1
@@ -245,7 +330,27 @@ class PlotDataGenerator:
                 print(f"    ✗ Unexpected error: {e}")
                 failed_count += 1
 
-        # Generate driver-specific data if requested
+        # ---- V2 session-level generators ----
+        v2_session_generators = [
+            self.generate_top_speed_telemetry_v2,  # V2 top speed (telemetry)
+            self.generate_top_speed_speedtrap_v2,  # V2 top speed (speed trap)
+            self.generate_throttle_comparison_v2,  # V2 throttle comparison
+            self.generate_speed_distribution_v2,   # V2 speed distribution (overall)
+        ]
+
+        print("\n>> V2 Generators (F1StaticClient)")
+        print(f"   Using identifier: '{v2_identifier}'")
+        for generator in v2_session_generators:
+            try:
+                if generator(year, v2_identifier, session_name):
+                    success_count += 1
+                else:
+                    failed_count += 1
+            except Exception as e:
+                print(f"    ✗ Unexpected error: {e}")
+                failed_count += 1
+
+        # ---- Optional driver-specific V1 comparisons ----
         if include_driver_comparisons:
             # Driver pair comparisons
             if driver_pairs:

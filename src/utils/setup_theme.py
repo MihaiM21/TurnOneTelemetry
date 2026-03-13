@@ -1,5 +1,6 @@
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import matplotlib.patheffects as pe
 
 def setup_turnone_theme():
     plt.rcParams.update({
@@ -51,7 +52,7 @@ def add_glow(ax, linewidth=6, alpha=0.25, passes=4):
     for line in lines:
         path_effects = []
         for n in range(passes):
-            path_effects.append(mpl.patheffects.withStroke(
+            path_effects.append(pe.withStroke(
                 linewidth=linewidth + (n * 1.5),
                 alpha=alpha / (n + 1),
                 foreground=line.get_color()))

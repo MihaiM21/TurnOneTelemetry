@@ -38,6 +38,17 @@ class F1StaticClient:
     """
     
     BASE_URL = "https://livetiming.formula1.com/static/"
+
+    _SESSION_ALIASES = {
+        'race': {'r', 'race', 'grand prix'},
+        'qualifying': {'q', 'quali', 'qualifying'},
+        'sprint': {'s', 'sprint'},
+        # Different seasons may label this as either Sprint Qualifying or Sprint Shootout.
+        'sprint_qualifying': {'sq', 'sprint qualifying', 'sprint shootout'},
+        'practice_1': {'fp1', 'p1', 'practice 1', 'free practice 1'},
+        'practice_2': {'fp2', 'p2', 'practice 2', 'free practice 2'},
+        'practice_3': {'fp3', 'p3', 'practice 3', 'free practice 3'},
+    }
     
     def __init__(self, session: Optional[requests.Session] = None):
         """
@@ -51,6 +62,51 @@ class F1StaticClient:
             'User-Agent': 'F1TelemetryClient/1.0',
             'Accept': 'application/json, text/plain, */*'
         })
+
+    @staticmethod
+    def _normalize_text(value: str) -> str:
+        """Normalize text for loose, case-insensitive matching."""
+        return re.sub(r'[^a-z0-9]+', ' ', value.lower()).strip()
+
+    def _build_session_tokens(self, value: str) -> set:
+        """Build a token set that includes common aliases and acronyms."""
+        normalized = self._normalize_text(value)
+        compact = normalized.replace(' ', '')
+        words = [w for w in normalized.split() if w]
+        acronym = ''.join(word[0] for word in words)
+
+        tokens = {normalized, compact}
+        if acronym:
+            tokens.add(acronym)
+
+        for _, aliases in self._SESSION_ALIASES.items():
+            normalized_aliases = {self._normalize_text(alias) for alias in aliases}
+            alias_compact = {alias.replace(' ', '') for alias in normalized_aliases}
+
+            if (
+                normalized in normalized_aliases
+                or compact in alias_compact
+                or acronym in alias_compact
+            ):
+                tokens.update(normalized_aliases)
+                tokens.update(alias_compact)
+
+        return {token for token in tokens if token}
+
+    def _session_matches(self, requested_session: str, candidate_session: str) -> bool:
+        """Return True when two session labels refer to the same F1 session."""
+        requested_tokens = self._build_session_tokens(requested_session)
+        candidate_tokens = self._build_session_tokens(candidate_session)
+
+        if requested_tokens.intersection(candidate_tokens):
+            return True
+
+        requested_normalized = self._normalize_text(requested_session)
+        candidate_normalized = self._normalize_text(candidate_session)
+        return (
+            requested_normalized in candidate_normalized
+            or candidate_normalized in requested_normalized
+        )
     
     # ========================================================================
     # TASK 1: THE SCRAPER
@@ -96,7 +152,7 @@ class F1StaticClient:
         # Find the session within the event's sessions
         session_data = None
         for session in event_data.get('Sessions', []):
-            if session_name.lower() in session.get('Name', '').lower():
+            if self._session_matches(session_name, session.get('Name', '')):
                 session_data = session
                 logger.info(f"Found session: {session.get('Name')}")
                 break

@@ -9,6 +9,7 @@ from src.utils.latest_session import get_latest_finished_session
 from src.scripts.complex.latest_session_analised import latest_session_analised
 from src.scripts.simple.top_speed import TopSpeedPlot, TopSpeedData
 from src.scripts.simple.throttle_comparison import ThrottleComp, ThrottleCompData
+from src.scripts.simple.v1_speed_distribution import SpeedDistributionPlot, SpeedDistributionData
 from src.scripts.quali_practice.qulifying_results import QualiResults, QualiResultsData
 from src.scripts.quali_practice.track_comparison_2drivers import TrackComparisonPlot, TrackComparisonData
 from src.scripts.quali_practice.throttleBrake_comparison_2drivers import throttle_graph, throttle_graph_data
@@ -272,6 +273,71 @@ async def get_laptimes(
     except Exception as e:
         logger.error(f"Error fetching lap times: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch lap times")
+
+@router.get('/speed-distribution-plot', tags=["API v1", "Simple Analysis"])
+@apply_tiered_limit("standard")
+async def speed_distribution_plot(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: int = Query(1, ge=1, le=24),
+    session: str = Query('Q'),
+    driver: str = Query(None, description="Optional driver TLA (e.g., VER)"),
+    api_key: str = Depends(verify_api_key)
+):
+    """Generate PNG plot of speed distribution"""
+    try:
+        logger.info(f"Generating speed distribution plot: Y{year} GP{gp} {session} Driver={driver}")
+        output_path = await run_in_threadpool(SpeedDistributionPlot, year, gp, session, driver)
+        
+        # Track session if tracker is available
+        try:
+            from src.utils.session_tracker import SessionTracker
+            session_tracker = SessionTracker()
+            session_tracker.track_session('speed-distribution', year, gp, session)
+        except:
+            pass
+        
+        return FileResponse(output_path, media_type='image/png')
+    except ValueError as ve:
+        logger.warning(f"Data error in speed distribution plot: {ve}")
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"Error generating speed distribution plot: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to generate plot")
+
+@router.get('/speed-distribution-data', tags=["API v1", "Simple Analysis"])
+@apply_tiered_limit("data")
+async def speed_distribution_data(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: int = Query(1, ge=1, le=24),
+    session: str = Query('Q'),
+    driver: str = Query(None, description="Optional driver TLA (e.g., VER)"),
+    api_key: str = Depends(verify_api_key)
+):
+    """Get raw JSON data for speed distribution"""
+    try:
+        logger.info(f"Fetching speed distribution data: Y{year} GP{gp} {session} Driver={driver}")
+        result = await run_in_threadpool(SpeedDistributionData, year, gp, session, driver)
+        
+        # Track session if tracker is available
+        try:
+            from src.utils.session_tracker import SessionTracker
+            session_tracker = SessionTracker()
+            session_tracker.track_session('speed-distribution', year, gp, session)
+        except:
+            pass
+        
+        if isinstance(result, (dict, list)):
+            return result
+        else:
+            return FileResponse(result, media_type='application/json')
+    except ValueError as ve:
+        logger.warning(f"Data error in speed distribution data: {ve}")
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"Error fetching speed distribution data: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch data")
 
 # --- Driver Comparison ---
 

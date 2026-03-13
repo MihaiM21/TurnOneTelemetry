@@ -295,7 +295,7 @@ def store_data_dict_to_mongo(year: int, round_nr: int, session_name: str,
 _global_db_manager = None
 
 
-def get_global_db_manager(year: Optional[int] = None) -> MongoDBManager:
+def get_global_db_manager(year: Optional[int] = None, version: str = 'v1') -> MongoDBManager:
     """
     Get or create a global MongoDB manager instance
 
@@ -308,9 +308,13 @@ def get_global_db_manager(year: Optional[int] = None) -> MongoDBManager:
     global _global_db_manager
 
     if _global_db_manager is None:
-        _global_db_manager = MongoDBManager(year=year)
+        _global_db_manager = MongoDBManager(year=year, version=version)
+    elif getattr(_global_db_manager, 'version', 'v1') != version:
+        # Recreate manager when switching between v1/v2 collections.
+        _global_db_manager.close()
+        _global_db_manager = MongoDBManager(year=year, version=version)
     elif year is not None and _global_db_manager.get_current_year() != year:
-        # Switch to different year if requested
+        # Switch to different year's collection.
         _global_db_manager.set_year(year)
 
     return _global_db_manager
@@ -350,13 +354,17 @@ def get_plot_data_from_mongo(year: int, identifier: Union[int, str], event_name:
         
         # Create DB manager if not provided, using specified version
         if db_manager is None:
-            db_manager = MongoDBManager(year=year, version=version)
-            should_close = True
+            db_manager = get_global_db_manager(year=year, version=version)
+            should_close = False
 
         # Map data_type to standard format
         standard_data_type = DATA_TYPE_MAP.get(data_type, data_type)
+        collection = db_manager._get_collection(year)
+        round_nr = None
+        gp_doc = None
+        gp_id = None
         
-        # Build GP ID - use appropriate client based on version
+        # Resolve GP document
         try:
             if version == 'v2':
                 # Use F1StaticClient for v2
@@ -370,43 +378,65 @@ def get_plot_data_from_mongo(year: int, identifier: Union[int, str], event_name:
                     
                 event_full_name = event_info['name']
                 round_nr = event_info['round_nr']
+                country_code = get_country_code_from_event_name(event_full_name)
+                gp_id = f"{year}_{country_code}"
+                gp_doc = collection.find_one({"year": year, "gp_id": gp_id})
             else:
-                # Use FastF1 for v1 (standard F1 round numbering)
-                # Assumes identifier is an integer
+                # Fast path for v1: find the GP directly by round number.
                 round_nr = int(identifier)
-                import fastf1
-                event = fastf1.get_event(year, round_nr)
-                event_full_name = event['EventName']
-            
-            # Construct gp_id using shared helper function
-            country_code = get_country_code_from_event_name(event_full_name)
-            gp_id = f"{year}_{country_code}"
-            print(f"🔍 Searching MongoDB cache (v{version[-1]}): year={year}, round={round_nr}, event={event_name} -> gp_id={gp_id}, session_type={session_type}, data_type={standard_data_type}")
+                gp_doc = collection.find_one({"year": year, "round_nr": round_nr})
+
+                # Fallback for older/mismatched data where round is missing or inconsistent.
+                if not gp_doc:
+                    import fastf1
+                    event = fastf1.get_event(year, round_nr)
+                    event_full_name = event['EventName']
+                    country_code = get_country_code_from_event_name(event_full_name)
+                    gp_id = f"{year}_{country_code}"
+                    gp_doc = collection.find_one({"year": year, "gp_id": gp_id})
         except Exception as e:
             print(f"✗ Could not get event info: {e}")
             return None
         
-        # Find GP document by gp_id (unique identifier)
-        collection = db_manager._get_collection(year)
-        gp_doc = collection.find_one({"year": year, "gp_id": gp_id})
-        
         if not gp_doc:
-            print(f"✗ No GP found for year={year}, gp_id={gp_id}")
+            print(f"✗ No GP found for year={year}, identifier={identifier}")
             return None
-            
+
+        gp_id = gp_doc['gp_id']
+        if round_nr is None:
+            round_nr = gp_doc.get('round_nr')
+
+        print(f"🔍 Searching MongoDB cache (v{version[-1]}): year={year}, round={round_nr}, event={event_name} -> gp_id={gp_id}, session_type={session_type}, data_type={standard_data_type}")
+
         gp_name = gp_doc['name']
         print(f"✓ Found GP: {gp_id} ({gp_name})")
 
-        # Try to get data from MongoDB
-        data = db_manager.get_session_data(
-            gp_id=gp_id,
-            session_type=session_type,
-            data_type=standard_data_type,
-            year=year
-        )
+        # Try to get data from MongoDB. For legacy compatibility, try both mapped and raw keys.
+        data_type_candidates = [standard_data_type]
+        if data_type not in data_type_candidates:
+            data_type_candidates.append(data_type)
+
+        # Compatibility for historical throttle key drift.
+        if 'throttle_comparison_drivers' in data_type_candidates and 'throttle_comparison' not in data_type_candidates:
+            data_type_candidates.append('throttle_comparison')
+        if 'throttle_comparison' in data_type_candidates and 'throttle_comparison_drivers' not in data_type_candidates:
+            data_type_candidates.append('throttle_comparison_drivers')
+
+        data = None
+        selected_data_type = None
+        for candidate_type in data_type_candidates:
+            data = db_manager.get_session_data(
+                gp_id=gp_id,
+                session_type=session_type,
+                data_type=candidate_type,
+                year=year
+            )
+            if data:
+                selected_data_type = candidate_type
+                break
 
         if data:
-            print(f"✓ Retrieved {data_type} from MongoDB cache for {gp_id} - {session_type}")
+            print(f"✓ Retrieved {selected_data_type} from MongoDB cache for {gp_id} - {session_type}")
             # Return data with metadata so we don't need to load session
             return {
                 'data': data,
@@ -419,7 +449,7 @@ def get_plot_data_from_mongo(year: int, identifier: Union[int, str], event_name:
                 }
             }
         else:
-            print(f"✗ No data found in GP {gp_id} for session_type={session_type}, data_type={standard_data_type}")
+            print(f"✗ No data found in GP {gp_id} for session_type={session_type}, tried_data_types={data_type_candidates}")
             # Let's check what sessions exist
             sessions = gp_doc.get('sessions', [])
             print(f"📋 Available sessions in GP: {[s.get('session_type') for s in sessions]}")
