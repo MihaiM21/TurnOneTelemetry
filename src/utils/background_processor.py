@@ -141,14 +141,16 @@ class BackgroundProcessor:
             logger.debug(f"Session Y{year} GP{gp} {session} not yet available: {e}")
             return False
     
-    async def process_session(self, year: int, gp: int, session: str) -> Dict[str, Any]:
+    async def process_session(self, year: int, gp: int, session: str, gp_name: str = None) -> Dict[str, Any]:
         """
         Process all data for a completed session
         
         Args:
             year: Year
-            gp: Grand Prix round number
+            gp: Grand Prix round number (used for V1/FastF1)
             session: Session type
+            gp_name: Grand Prix name string (used for V2/F1StaticClient to avoid
+                     round-number mismatch caused by pre-season testing entries)
             
         Returns:
             Dictionary with processing results
@@ -160,20 +162,22 @@ class BackgroundProcessor:
             logger.debug(f"Session {session_id} already processed, skipping")
             return {"status": "skipped", "session": session_id, "reason": "already_processed"}
         
-        logger.info(f"🔄 Starting automatic processing for Y{year} GP{gp} {session}")
+        logger.info(f"🔄 Starting automatic processing for Y{year} GP{gp} ({gp_name or gp}) {session}")
         
         try:
             # Generate all data for this session
+            # V1 uses round number, V2 uses gp_name to avoid pre-season testing offset
             results = await asyncio.to_thread(
-                self.generator.generate_session_data,
-                year, gp, session
+                self.generator.generate_all_session_data,
+                year, gp, session,
+                gp_name=gp_name  # passed as keyword arg
             )
             
             # Mark as processed
             self.processed_sessions.add(session_id)
             
             logger.info(f"✅ Successfully processed Y{year} GP{gp} {session}")
-            logger.info(f"   Generated {results.get('total_generated', 0)} plot datasets")
+            logger.info(f"   Generated {results.get('success', 0)} plot datasets ({results.get('failed', 0)} failed)")
             
             return {
                 "status": "success",
@@ -266,8 +270,9 @@ class BackgroundProcessor:
             if latest:
                 result = await self.process_session(
                     latest['year'],
-                    latest['gp'],
-                    latest['session']
+                    latest['round'],
+                    latest['session_name'],
+                    gp_name=latest.get('grandPrix')  # name-based V2 lookup
                 )
                 return result
             else:
