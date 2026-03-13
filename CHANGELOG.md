@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.3.0 (2026-03-13)
+
+### Features
+
+- Implemented new plot analysis type and refactored static client and dashboard endpoint
+  ([`5a1187d`](https://github.com/MihaiM21/TurnOneTelemetry/commit/5a1187ddca7754db0b8fc8b5fcdf38f18cbaa5f1))
+
+
 ## v1.2.1 (2026-03-07)
 
 ### Bug Fixes
