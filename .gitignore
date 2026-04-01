@@ -34,5 +34,9 @@ MULTI_YEAR_GUIDE.md
 docs/*
 
 # tests
-tests/*.txt
-tests/*.json
+tests/old/*.txt
+tests/old/*.json
+tests/old
+
+# storage parquet files
+*.parquet
