@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     api_secret_key: str = "your-secret-key-change-in-production"
     api_key_name: str = "X-API-Key"
     allowed_api_keys: str = ""  # Comma-separated
+    docs_auth_always: bool = False
+    docs_username: str = ""
+    docs_password: str = ""
     
     @property
     def allowed_api_keys_list(self) -> List[str]:
