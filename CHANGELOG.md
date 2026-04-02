@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.3.1 (2026-04-02)
+
+### Performance Improvements
+
+- Added authorization login for the swagger
+  ([`4bcb268`](https://github.com/MihaiM21/TurnOneTelemetry/commit/4bcb268323f2d7d49c67fac1365afb3297e78079))
+
+
 ## v1.3.0 (2026-03-13)
 
 ### Features
