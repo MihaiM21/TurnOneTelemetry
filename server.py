@@ -1,6 +1,10 @@
+import secrets
+
 from fastapi import FastAPI, Query, HTTPException, Request, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -27,6 +31,9 @@ from src.utils.monitoring import (
 
 # Import session tracker
 from src.utils.session_tracker import SessionTracker
+
+#Import docs auth page
+from docs_auth import setup_docs_auth
 
 # Setup logging
 setup_logging(level=settings.log_level, log_file=settings.log_file)
@@ -135,6 +142,16 @@ async def lifespan(app: FastAPI):
             pass
         logger.info("✅ Background processor stopped")
 
+
+SWAGGER_UI_PARAMETERS = {
+    "filter": True,
+    "persistAuthorization": True,
+    "displayRequestDuration": True,
+    "docExpansion": "none",
+    "defaultModelsExpandDepth": -1,
+    "tryItOutEnabled": True,
+}
+
 # --- Initialize App ---
 app = FastAPI(
     title=settings.app_name,
@@ -148,10 +165,11 @@ app = FastAPI(
     },
     license_info={"name": "Proprietary / Internal Use"},
     openapi_tags=tags_metadata,
-    docs_url='/docs',
-    redoc_url='/redoc'
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
 )
-
+setup_docs_auth(app, settings, SWAGGER_UI_PARAMETERS)
 # Add rate limiter to app state
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -188,8 +206,23 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     """Handle HTTP exceptions with logging and request ID"""
     request_id = getattr(request.state, 'request_id', 'unknown')
     logger.warning(f"[{request_id}] HTTP {exc.status_code} on {request.url.path}: {exc.detail}")
+
+    # Preserve browser Basic Auth challenge behavior for docs endpoints.
+    from starlette.responses import Response
+    if (
+        request.url.path in {"/docs", "/openapi.json", "/redoc"}
+        and exc.status_code == status.HTTP_401_UNAUTHORIZED
+    ):
+        return Response(
+            content="Unauthorized",
+            status_code=401,
+            media_type="text/plain",
+            headers={"WWW-Authenticate": "Basic", "Cache-Control": "no-store"},
+    )
+
     return JSONResponse(
         status_code=exc.status_code,
+        headers=exc.headers,
         content={
             "detail": exc.detail,
             "request_id": request_id,
