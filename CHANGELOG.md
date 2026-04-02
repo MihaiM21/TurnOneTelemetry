@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.3.2 (2026-04-02)
+
+### Bug Fixes
+
+- Dockerfile
+  ([`ffa60ef`](https://github.com/MihaiM21/TurnOneTelemetry/commit/ffa60efb17e78ec8a0fcd6f6af6d81a870b56c7f))
+
+
 ## v1.3.1 (2026-04-02)
 
 ### Performance Improvements
