@@ -46,6 +46,9 @@ from src.api.v1.seasonal import router as seasonal_router_v1
 # and v2 routers
 from src.api.v2.analysis import router as analysis_router_v2
 from src.api.v2.seasonal import router as seasonal_router_v2
+# Static data router for drivers and teams
+from src.api.static.drivers_api import router as drivers_api_router
+from src.api.static.teams_api import router as teams_api_router
 
 # Initialize session tracker
 try:
@@ -91,6 +94,7 @@ tags_metadata = [
     {"name": "Seasonal Data", "description": "Season-specific data including drivers, teams, and race schedules"},
     {"name": "Simple Analysis", "description": "Analysis focused on general session stats or single driver metrics"},
     {"name": "Driver Comparison", "description": "Head-to-head driver comparisons"},
+    {"name": "Static", "description": "Static data endpoints for drivers, teams, and race schedules"},
 ]
 
 # --- Lifespan Context Manager ---
@@ -297,6 +301,10 @@ app.include_router(analysis_router_v2)
 
 # Include v2 seasonal router (paths prefixed with /api/v2)
 app.include_router(seasonal_router_v2)
+
+# Include static data router (paths prefixed with /api/static)
+app.include_router(drivers_api_router)
+app.include_router(teams_api_router)
 
 if __name__ == '__main__':
     logger.info(f"Starting server on {settings.host}:{settings.docker_exposed_port}")
