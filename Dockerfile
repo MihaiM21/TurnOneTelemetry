@@ -113,7 +113,6 @@ RUN mkdir -p /app/cache /app/outputs/plots /app/outputs/data \
 
 COPY src/ ./src/
 COPY lib/ ./lib/
-COPY data/ ./data/
 COPY docs_auth.py .
 COPY server.py .
 
