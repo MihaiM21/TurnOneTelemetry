@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from src.utils.logger import get_logger
 from src.utils.rate_limiting import apply_tiered_limit
 from fastapi import Request, Query, HTTPException
-from src.data_loader.const_loader import get_season_drivers, get_season_teams
+from src.data_loader.const_loader import get_season_teams, get_team_details_by_name
 
 
 
@@ -25,5 +25,20 @@ async def get_teams_from_year(
         logger.error(f"Error fetching teams for year {year}: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     
-
-# TODO: Add endpoint for single team details (e.g., by team ID or name)
+@router.get('/teams/{team_id}', tags=["Static"])
+@apply_tiered_limit("data")
+async def get_team_details(
+    request: Request,
+    year: int = Query(2026, ge=2025, le=2026, description="Season year (2025-2026)"),
+    team_name: str = Query(..., description="Team Name")
+):
+    """Get details for a specific team by Name"""
+    try:
+        team_details = get_team_details_by_name(year, team_name)
+        if not team_details:
+            raise ValueError(f"Team {team_name} not found")
+        return {"team": team_details}
+    except ValueError as e:
+        logger.error(f"Error fetching team details for {team_name}: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
+    
