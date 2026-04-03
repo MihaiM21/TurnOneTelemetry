@@ -1,12 +1,9 @@
 import secrets
 
-from fastapi import FastAPI, Query, HTTPException, Request, Depends, status
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, PlainTextResponse
-from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from contextlib import asynccontextmanager
 import uvicorn
@@ -19,7 +16,7 @@ from src.utils.config import settings
 from src.utils.logger import get_logger, setup_logging
 from src.utils.validation import HealthCheckResponse
 from src.utils.background_processor import get_processor, start_background_processor, stop_background_processor
-from src.utils.rate_limiting import init_limiter, get_limiter, apply_tiered_limit
+from src.utils.rate_limiting import init_limiter
 
 # Import monitoring and observability
 from src.utils.monitoring import (
