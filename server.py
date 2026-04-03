@@ -9,7 +9,6 @@ from contextlib import asynccontextmanager
 import uvicorn
 import asyncio
 from datetime import datetime
-from typing import Optional
 
 # Import configuration and utilities
 from src.utils.config import settings

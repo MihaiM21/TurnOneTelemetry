@@ -6,34 +6,19 @@ This script extracts data from teamColorPicker.py and stores it in MongoDB
 import traceback
 from src.utils.database.seasons_manager import SeasonsDataManager
 from src.utils.database.mongo import MongoDBManager
-from src.static_data.f1_2025_data import f1_2025_races_data
-from src.static_data.f1_2026_data import f1_2026_races_data
+from src.data_loader.const_loader import get_season_events, get_season_drivers_and_teams
 
 import json
 
 def populate_2026_season():
     """Populate 2026 season data"""
-    with open("lib/constants/drivers.json", "r") as f:
-        drivers_data = json.load(f)
-    
-    with open("lib/constants/teams.json", "r") as f:
-        teams_data = json.load(f)
-    
-    teams_2026 = teams_data["2026"]
-    drivers_2026 = drivers_data["2026"]
+    drivers_2026, teams_2026 = get_season_drivers_and_teams(2026)
 
     return drivers_2026, teams_2026
 
 def populate_2025_season():
     """Populate 2025 season data"""
-    with open("lib/constants/drivers.json", "r") as f:
-        drivers_data = json.load(f)
-    
-    with open("lib/constants/teams.json", "r") as f:
-        teams_data = json.load(f)
-    
-    teams_2025 = teams_data["2025"]
-    drivers_2025 = drivers_data["2025"]
+    drivers_2025, teams_2025 = get_season_drivers_and_teams(2025)
 
     return drivers_2025, teams_2025
 
@@ -62,22 +47,22 @@ def main():
     # Populate 2026 season
     print("\n1. Populating 2026 Season Data...")
     drivers_2026, teams_2026 = populate_2026_season()
-    success_2026 = seasons_manager.create_season_document(2026, drivers_2026, teams_2026, f1_2026_races_data)
+    success_2026 = seasons_manager.create_season_document(2026, drivers_2026, teams_2026, get_season_events(2026))
 
     if success_2026:
         print(f"   ✓ Added {len(drivers_2026)} drivers")
         print(f"   ✓ Added {len(teams_2026)} teams")
-        print(f"   ✓ Added {len(f1_2026_races_data)} races")
+        print(f"   ✓ Added {len(get_season_events(2026))} races")
 
     # Populate 2025 season
     print("\n2. Populating 2025 Season Data...")
     drivers_2025, teams_2025 = populate_2025_season()
-    success_2025 = seasons_manager.create_season_document(2025, drivers_2025, teams_2025, f1_2025_races_data)
+    success_2025 = seasons_manager.create_season_document(2025, drivers_2025, teams_2025, get_season_events(2025))
 
     if success_2025:
         print(f"   ✓ Added {len(drivers_2025)} drivers")
         print(f"   ✓ Added {len(teams_2025)} teams")
-        print(f"   ✓ Added {len(f1_2025_races_data)} races")
+        print(f"   ✓ Added {len(get_season_events(2025))} races")
 
     # Populate 2024 season
     print("\n3. Populating 2024 Season Data...")
