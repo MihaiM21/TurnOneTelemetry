@@ -1,0 +1,164 @@
+{
+    "2024":[
+        {
+            "name": "Red Bull Racing",
+            "color": "#3671C6",
+            "drivers": ["VER", "PER"]
+        },
+        {
+            "name": "Ferrari",
+            "color": "#E80020",
+            "drivers": ["LEC", "SAI"]
+        },
+        {
+            "name": "Mercedes",
+            "color": "#27F4D2",
+            "drivers": ["HAM", "RUS"]
+        },
+        {
+            "name": "McLaren",
+            "color": "#FF8000",
+            "drivers": ["NOR", "PIA"]
+        },
+        {
+            "name": "Aston Martin",
+            "color": "#229971",
+            "drivers": ["ALO", "STR"]
+        },
+        {
+            "name": "Alpine",
+            "color": "#0093CC",
+            "drivers": ["GAS", "OCO"]
+        },
+        {
+            "name": "Williams",
+            "color": "#64C4FF",
+            "drivers": ["ALB", "SAR"]
+        },
+        {
+            "name": "Racing Bulls",
+            "color": "#6692FF",
+            "drivers": ["RIC", "TSU"]
+        },
+        {
+            "name": "Kick Sauber",
+            "color": "#52E252",
+            "drivers": ["BOT", "ZHO"]
+        },
+        {
+            "name": "Haas",
+            "color": "#B6BABD",
+            "drivers": ["MAG", "HUL"]
+        }
+    ],
+    "2025":[
+        {
+            "name": "Red Bull Racing",
+            "color": "#3671C6",
+            "drivers": ["VER", "TSU"]
+        },
+        {
+            "name": "Ferrari",
+            "color": "#E80020",
+            "drivers": ["HAM", "LEC"]
+        },
+        {
+            "name": "Mercedes",
+            "color": "#27F4D2",
+            "drivers": ["RUS", "ANT"]
+        },
+        {
+            "name": "McLaren",
+            "color": "#FF8000",
+            "drivers": ["NOR", "PIA"]
+        },
+        {
+            "name": "Aston Martin",
+            "color": "#229971",
+            "drivers": ["ALO", "STR"]
+        },
+        {
+            "name": "Alpine",
+            "color": "#0093CC",
+            "drivers": ["GAS", "COL"]
+        },
+        {
+            "name": "Williams",
+            "color": "#64C4FF",
+            "drivers": ["ALB", "SAI"]
+        },
+        {
+            "name": "Racing Bulls",
+            "color": "#6692FF",
+            "drivers": ["LAW", "HAD"]
+        },
+        {
+            "name": "Kick Sauber",
+            "color": "#52E252",
+            "drivers": ["HUL", "BOR"]
+        },
+        {
+            "name": "Haas",
+            "color": "#B6BABD",
+            "drivers": ["BEA", "OCO"]
+        }
+    ],
+
+    "2026": [
+        {
+        "name": "Red Bull Racing",
+        "color": "#3671C6",
+        "drivers": ["VER", "HAD"]
+        },
+        {
+        "name": "Ferrari",
+        "color": "#E80020",
+        "drivers": ["HAM", "LEC"]
+        },
+        {
+        "name": "Mercedes",
+        "color": "#27F4D2",
+        "drivers": ["RUS", "ANT"]
+        },
+        {
+        "name": "McLaren",
+        "color": "#FF8000",
+        "drivers": ["NOR", "PIA"]
+        },
+        {
+        "name": "Aston Martin",
+        "color": "#229971",
+        "drivers": ["ALO", "STR"]
+        },
+        {
+        "name": "Alpine",
+        "color": "#0093CC",
+        "drivers": ["GAS", "COL"]
+        },
+        {
+        "name": "Williams",
+        "color": "#64C4FF",
+        "drivers": ["ALB", "SAI"]
+        },
+        {
+        "name": "Racing Bulls",
+        "color": "#6692FF",
+        "drivers": ["LAW", "LIN"]
+        },
+        {
+        "name": "Audi",
+        "color": "#ff5226",
+        "drivers": ["HUL", "BOR"]
+        },
+        {
+        "name": "Haas",
+        "color": "#B6BABD",
+        "drivers": ["BEA", "OCO"]
+        },
+        {
+        "name": "Cadillac",
+        "color": "#42423e",
+        "drivers": ["BOT", "PER"]
+        }
+    ]
+}
