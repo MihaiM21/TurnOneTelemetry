@@ -1,9 +1,7 @@
-version: '3.8'
-
 services:
-  f1-telemetry-api:
+  t1api:
     build: .
-    container_name: f1-telemetry-api
+    container_name: T1API
     restart: unless-stopped
     ports:
       - '${HOST_PORT}:5000'
@@ -17,7 +15,6 @@ services:
     environment:
       - PYTHONPATH=/app
       - ENVIRONMENT=production
-      # MongoDB connection from environment variables
       - MONGODB_USER=${MONGODB_USER}
       - MONGODB_PASSWORD=${MONGODB_PASSWORD}
       - MONGODB_HOST=${MONGODB_HOST}
