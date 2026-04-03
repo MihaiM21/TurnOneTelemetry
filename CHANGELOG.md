@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.3.3 (2026-04-03)
+
+### Performance Improvements
+
+- Docker files updated
+  ([`862123a`](https://github.com/MihaiM21/TurnOneTelemetry/commit/862123ab35045e4c5ebc64a36a2a5f89447115dd))
+
+
 ## v1.3.2 (2026-04-02)
 
 ### Bug Fixes
