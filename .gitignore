@@ -37,6 +37,7 @@ docs/*
 tests/old/*.txt
 tests/old/*.json
 tests/old
+test.py
 
 # storage parquet files
 *.parquet
