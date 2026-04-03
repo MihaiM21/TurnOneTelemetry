@@ -8,7 +8,7 @@ session_analytics.db
 
 *.ff1pkl
 *.log
-*.json
+outputs/**/*.json
 *.xml
 __pycache__/
 *.pyc
