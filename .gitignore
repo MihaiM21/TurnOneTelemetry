@@ -38,6 +38,7 @@ tests/old/*.txt
 tests/old/*.json
 tests/old
 test.py
+svg_generator.py
 
 # storage parquet files
 *.parquet
