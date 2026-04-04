@@ -26,3 +26,4 @@ api_router.include_router(analysis_v2.router, prefix="/v2")
 # Static endpoints for drivers and teams data
 api_router.include_router(drivers_api.router, prefix="/static")
 api_router.include_router(teams_api.router, prefix="/static")
+api_router.include_router(drivers_api.router, prefix="/static")

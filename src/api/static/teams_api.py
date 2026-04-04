@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from src.utils.logger import get_logger
 from src.utils.rate_limiting import apply_tiered_limit
-from fastapi import Request, Query, HTTPException
+from fastapi import Request, Query, HTTPException, Path
 from src.data_loader.const_loader import get_season_teams, get_team_details_by_name
 
 
@@ -25,12 +25,12 @@ async def get_teams_from_year(
         logger.error(f"Error fetching teams for year {year}: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     
-@router.get('/teams/{team_id}', tags=["Static"])
+@router.get('/teams/{team_name}', tags=["Static"])
 @apply_tiered_limit("data")
 async def get_team_details(
     request: Request,
     year: int = Query(2026, ge=2025, le=2026, description="Season year (2025-2026)"),
-    team_name: str = Query(..., description="Team Name")
+    team_name: str = Path(..., description="Team Name")
 ):
     """Get details for a specific team by Name"""
     try:
