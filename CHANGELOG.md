@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.3.4 (2026-04-07)
+
+### Performance Improvements
+
+- Added static data endpoints for driver and team data
+  ([`24e2aa6`](https://github.com/MihaiM21/TurnOneTelemetry/commit/24e2aa629f3d39e62a9c476b7db8e7071c8cd43c))
+
+
 ## v1.3.3 (2026-04-03)
 
 ### Performance Improvements
