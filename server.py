@@ -1,25 +1,21 @@
 import secrets
 
-from fastapi import FastAPI, Query, HTTPException, Request, Depends, status
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, PlainTextResponse
-from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from contextlib import asynccontextmanager
 import uvicorn
 import asyncio
 from datetime import datetime
-from typing import Optional
 
 # Import configuration and utilities
 from src.utils.config import settings
 from src.utils.logger import get_logger, setup_logging
 from src.utils.validation import HealthCheckResponse
 from src.utils.background_processor import get_processor, start_background_processor, stop_background_processor
-from src.utils.rate_limiting import init_limiter, get_limiter, apply_tiered_limit
+from src.utils.rate_limiting import init_limiter
 
 # Import monitoring and observability
 from src.utils.monitoring import (
@@ -50,6 +46,10 @@ from src.api.v1.seasonal import router as seasonal_router_v1
 # and v2 routers
 from src.api.v2.analysis import router as analysis_router_v2
 from src.api.v2.seasonal import router as seasonal_router_v2
+# Static data router for drivers and teams
+from src.api.static.drivers_api import router as drivers_api_router
+from src.api.static.teams_api import router as teams_api_router
+from src.api.static.circuits_api import router as circuits_api_router
 
 # Initialize session tracker
 try:
@@ -95,6 +95,7 @@ tags_metadata = [
     {"name": "Seasonal Data", "description": "Season-specific data including drivers, teams, and race schedules"},
     {"name": "Simple Analysis", "description": "Analysis focused on general session stats or single driver metrics"},
     {"name": "Driver Comparison", "description": "Head-to-head driver comparisons"},
+    {"name": "Static", "description": "Static data endpoints for drivers, teams, and race schedules"},
 ]
 
 # --- Lifespan Context Manager ---
@@ -252,7 +253,7 @@ async def welcome():
     return {
         "message": "Welcome to the T1API",
         "version": settings.app_version,
-        "docs": "/docs",
+        "docs": "https://docs.t1f1.com",
         "health": "/api/health"
     }
 
@@ -301,6 +302,11 @@ app.include_router(analysis_router_v2)
 
 # Include v2 seasonal router (paths prefixed with /api/v2)
 app.include_router(seasonal_router_v2)
+
+# Include static data router (paths prefixed with /api/static)
+app.include_router(drivers_api_router)
+app.include_router(teams_api_router)
+app.include_router(circuits_api_router)
 
 if __name__ == '__main__':
     logger.info(f"Starting server on {settings.host}:{settings.docker_exposed_port}")

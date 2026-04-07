@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
-from src.static_data.f1_2025_data import f1_2025_races_data
-from src.static_data.f1_2026_data import f1_2026_races_data
+from src.data_loader.const_loader import get_season_events, get_season_drivers_and_teams
 
 
 def get_latest_finished_session():
@@ -13,8 +12,8 @@ def get_latest_finished_session():
 
     # We group the data to allow us to calculate the specific Round Number per season
     datasets = [
-        (2025, f1_2025_races_data),
-        (2026, f1_2026_races_data)
+        (2025, get_season_events(2025)), 
+        (2026, get_season_events(2026)) 
     ]
 
     for year, race_list in datasets:

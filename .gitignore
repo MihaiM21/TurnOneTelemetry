@@ -8,7 +8,7 @@ session_analytics.db
 
 *.ff1pkl
 *.log
-*.json
+outputs/**/*.json
 *.xml
 __pycache__/
 *.pyc
@@ -37,6 +37,8 @@ docs/*
 tests/old/*.txt
 tests/old/*.json
 tests/old
+test.py
+svg_generator.py
 
 # storage parquet files
 *.parquet
