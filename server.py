@@ -253,7 +253,7 @@ async def welcome():
     return {
         "message": "Welcome to the T1API",
         "version": settings.app_version,
-        "docs": "/docs",
+        "docs": "https://docs.t1f1.com",
         "health": "/api/health"
     }
 
