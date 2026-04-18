@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.3.5 (2026-04-18)
+
+### Bug Fixes
+
+- Added cancelled for the bahrain and saudi arabian gps
+  ([`944184e`](https://github.com/MihaiM21/TurnOneTelemetry/commit/944184ef8f4ea337af9726da168ce335c8f0584b))
+
+
 ## v1.3.4 (2026-04-07)
 
 ### Performance Improvements
