@@ -930,6 +930,7 @@ f1_2026_races_data = [
     "grandPrix": "Bahrain Grand Prix",
     "circuit": "Bahrain International Circuit",
     "country": "Bahrain",
+    "cancelled": True,
     "hasSprint": False,
     "sessions": [
       {
@@ -964,6 +965,7 @@ f1_2026_races_data = [
     "grandPrix": "Saudi Arabian Grand Prix",
     "circuit": "Jeddah Corniche Circuit",
     "country": "Saudi Arabia",
+    "cancelled": True,
     "hasSprint": False,
     "sessions": [
       {
