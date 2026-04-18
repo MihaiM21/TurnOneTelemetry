@@ -42,3 +42,6 @@ svg_generator.py
 
 # storage parquet files
 *.parquet
+
+#claude
+claude.md
