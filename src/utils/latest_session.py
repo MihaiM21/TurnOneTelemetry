@@ -21,6 +21,10 @@ def get_latest_finished_session():
         for i, race in enumerate(race_list):
             round_number = i + 1
 
+            # Skip cancelled races
+            if race.get("cancelled"):
+                continue
+
             for session in race["sessions"]:
                 # Check if session is finished
                 if session["endTime"] < now:
