@@ -142,6 +142,9 @@ class Settings(BaseSettings):
     redis_db: int = 0
     redis_password: str = ""
     
+    # F1 Live Timing Proxy (optional — use a Cloudflare Worker URL to bypass VPS IP blocks)
+    f1_proxy_base_url: Optional[str] = None
+
     # Background Processor
     enable_background_processor: bool = True
     processor_check_interval: int = 300  # Check every 5 minutes

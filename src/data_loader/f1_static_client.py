@@ -24,6 +24,8 @@ from urllib.parse import urljoin
 import logging
 import os
 
+from src.utils.config import settings
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -36,8 +38,15 @@ class F1StaticClient:
     """
     Client for fetching Formula 1 static telemetry data from livetiming.formula1.com
     """
-    
-    BASE_URL = "https://livetiming.formula1.com/static/"
+
+    _ORIGIN_BASE_URL = "https://livetiming.formula1.com/static/"
+    DEFAULT_TIMEOUT = 30  # seconds — prevents hung requests from exhausting uvicorn workers
+
+    @property
+    def BASE_URL(self) -> str:
+        if settings.f1_proxy_base_url:
+            return settings.f1_proxy_base_url.rstrip('/') + '/'
+        return self._ORIGIN_BASE_URL
 
     _SESSION_ALIASES = {
         'race': {'r', 'race', 'grand prix'},
@@ -59,8 +68,11 @@ class F1StaticClient:
         """
         self.session = session or requests.Session()
         self.session.headers.update({
-            'User-Agent': 'F1TelemetryClient/1.0',
-            'Accept': 'application/json, text/plain, */*'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Origin': 'https://www.formula1.com',
+            'Referer': 'https://www.formula1.com/',
         })
 
     @staticmethod
@@ -119,9 +131,9 @@ class F1StaticClient:
         url = f"{self.BASE_URL}{year}/Index.json"
         logger.info(f"Fetching season index: {url}")
         
-        response = self.session.get(url)
+        response = self.session.get(url, timeout=self.DEFAULT_TIMEOUT)
         response.raise_for_status()
-        
+
         # F1 JSON files have UTF-8 BOM, decode properly
         content = response.content.decode('utf-8-sig')
         return json.loads(content)
@@ -294,7 +306,7 @@ class F1StaticClient:
         """
         logger.info(f"Fetching and parsing jsonStream: {url}")
         
-        response = self.session.get(url, stream=True)
+        response = self.session.get(url, stream=True, timeout=self.DEFAULT_TIMEOUT)
         response.raise_for_status()
         
         parsed_entries = []
@@ -353,9 +365,9 @@ class F1StaticClient:
         """
         logger.info(f"Fetching and parsing jsonStream (line-by-line): {url}")
         
-        response = self.session.get(url)
+        response = self.session.get(url, timeout=self.DEFAULT_TIMEOUT)
         response.raise_for_status()
-        
+
         # Decode with UTF-8 BOM handling
         content = response.content.decode('utf-8-sig')
         # Handle both CRLF and LF line endings
@@ -432,9 +444,9 @@ class F1StaticClient:
         """
         logger.info(f"Fetching and parsing compressed stream: {url}")
         
-        response = self.session.get(url)
+        response = self.session.get(url, timeout=self.DEFAULT_TIMEOUT)
         response.raise_for_status()
-        
+
         # Handle UTF-8 BOM and normalize line endings
         content = response.content.decode('utf-8-sig')
         lines = content.replace('\r\n', '\n').strip().split('\n')
