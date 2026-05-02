@@ -1,6 +1,11 @@
 import fastf1
 from fastf1 import plotting
 
+_FASTF1_SESSION_NAMES = {
+    'SQ': 'Sprint Qualifying',
+    'S': 'Sprint',
+}
+
 
 class SessionLoader:
     def __init__(self, year, round, event):
@@ -9,7 +14,8 @@ class SessionLoader:
         self.event = event
         plotting.setup_mpl(misc_mpl_mods=False)
         fastf1.Cache.enable_cache('./cache')
-        self.session = fastf1.get_session(self.year, self.round, self.event)
+        fastf1_event = _FASTF1_SESSION_NAMES.get(event, event)
+        self.session = fastf1.get_session(self.year, self.round, fastf1_event)
         self.session.load()
 
     def get_session(self):

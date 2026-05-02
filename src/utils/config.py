@@ -49,6 +49,17 @@ class Settings(BaseSettings):
     docs_username: str = ""
     docs_password: str = ""
     
+    # JWT & Admin Settings
+    jwt_secret_key: str = ""
+    admin_secret_key: str = ""
+    admin_email: str = ""
+    admin_password: str = ""
+    
+    # Stripe Settings (Optional)
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_price_pro: str = ""
+    
     @property
     def allowed_api_keys_list(self) -> List[str]:
         """Parse API keys from comma-separated string"""

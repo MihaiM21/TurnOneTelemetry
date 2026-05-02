@@ -1,10 +1,28 @@
-# Custom modules
+# Custom modules — V1 (FastF1)
 from src.scripts.simple.top_speed import TopSpeedPlot, TopSpeedData
 from src.scripts.simple.throttle_comparison import ThrottleComp, ThrottleCompData
 from src.scripts.quali_practice.qulifying_results import QualiResults, QualiResultsData
 from src.scripts.quali_practice.track_comparison_2drivers import TrackComparisonPlot, TrackComparisonData
 from src.scripts.quali_practice.throttleBrake_comparison_2drivers import throttle_graph, throttle_graph_data
 from src.scripts.simple.laptimes_distribution import LatimesDistribution
+
+# Custom modules — V2 (F1StaticClient, no FastF1 dependency)
+from src.scripts.simple.v2_top_speed import TopSpeedData_Telemetry as V2_TopSpeedData
+from src.scripts.simple.v2_throttle_comparison import ThrottleCompData as V2_ThrottleCompData
+
+
+def _top_speed_with_fallback(year, round_num, session_name):
+    try:
+        return TopSpeedData(year, round_num, session_name)
+    except Exception as v1_err:
+        return V2_TopSpeedData(year, round_num, session_name)
+
+
+def _throttle_with_fallback(year, round_num, session_name):
+    try:
+        return ThrottleCompData(year, round_num, session_name)
+    except Exception as v1_err:
+        return V2_ThrottleCompData(year, round_num, session_name)
 
 
 def get_session_category(session_name):
@@ -63,15 +81,13 @@ def analise_practice(year, round_num, session_name):
         'session_name': session_name
     }
 
-    # Top Speed Analysis
     try:
-        data['top_speed'] = TopSpeedData(year, round_num, session_name)
+        data['top_speed'] = _top_speed_with_fallback(year, round_num, session_name)
     except Exception as e:
         data['top_speed'] = {'error': str(e)}
 
-    # Throttle Comparison Analysis
     try:
-        data['throttle_comparison'] = ThrottleCompData(year, round_num, session_name)
+        data['throttle_comparison'] = _throttle_with_fallback(year, round_num, session_name)
     except Exception as e:
         data['throttle_comparison'] = {'error': str(e)}
 
@@ -90,21 +106,19 @@ def analise_qualifying(year, round_num, session_name):
         'session_name': session_name
     }
 
-    # Qualifying Results
+    # Qualifying results — V1 only (no V2 equivalent yet)
     try:
         data['qualifying_results'] = QualiResultsData(year, round_num, session_name)
     except Exception as e:
-        data['qualifying_results'] = {'error': str(e)}
+        data['qualifying_results'] = {'error': str(e), 'note': 'V2 fallback unavailable for qualifying results'}
 
-    # Top Speed Analysis
     try:
-        data['top_speed'] = TopSpeedData(year, round_num, session_name)
+        data['top_speed'] = _top_speed_with_fallback(year, round_num, session_name)
     except Exception as e:
         data['top_speed'] = {'error': str(e)}
 
-    # Throttle Comparison Analysis
     try:
-        data['throttle_comparison'] = ThrottleCompData(year, round_num, session_name)
+        data['throttle_comparison'] = _throttle_with_fallback(year, round_num, session_name)
     except Exception as e:
         data['throttle_comparison'] = {'error': str(e)}
 
@@ -123,15 +137,13 @@ def analise_sprint(year, round_num, session_name):
         'session_name': session_name
     }
 
-    # Top Speed Analysis
     try:
-        data['top_speed'] = TopSpeedData(year, round_num, session_name)
+        data['top_speed'] = _top_speed_with_fallback(year, round_num, session_name)
     except Exception as e:
         data['top_speed'] = {'error': str(e)}
 
-    # Throttle Comparison Analysis
     try:
-        data['throttle_comparison'] = ThrottleCompData(year, round_num, session_name)
+        data['throttle_comparison'] = _throttle_with_fallback(year, round_num, session_name)
     except Exception as e:
         data['throttle_comparison'] = {'error': str(e)}
 
@@ -155,15 +167,13 @@ def analise_race(year, round_num, session_name):
         'session_name': session_name
     }
 
-    # Top Speed Analysis
     try:
-        data['top_speed'] = TopSpeedData(year, round_num, session_name)
+        data['top_speed'] = _top_speed_with_fallback(year, round_num, session_name)
     except Exception as e:
         data['top_speed'] = {'error': str(e)}
 
-    # Throttle Comparison Analysis
     try:
-        data['throttle_comparison'] = ThrottleCompData(year, round_num, session_name)
+        data['throttle_comparison'] = _throttle_with_fallback(year, round_num, session_name)
     except Exception as e:
         data['throttle_comparison'] = {'error': str(e)}
 
