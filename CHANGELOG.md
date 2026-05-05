@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.3.7 (2026-05-05)
+
+### Bug Fixes
+
+- Pipeline
+  ([`77a2aa7`](https://github.com/MihaiM21/TurnOneTelemetry/commit/77a2aa7f91536d03e5b82167c276413fe3c4c9cf))
+
+
 ## v1.3.6 (2026-05-01)
 
 ### Bug Fixes
