@@ -108,12 +108,11 @@ RUN pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.t
 
 # Creare root user
 RUN mkdir -p /app/cache /app/outputs/plots /app/outputs/data \
-             /app/lib /app/src /app/data /app/logs && \
+             /app/assets /app/src /app/data /app/logs && \
     chmod -R 777 /app/logs /app/cache /app/outputs /app/data
 
 COPY src/ ./src/
-COPY lib/ ./lib/
-COPY docs_auth.py .
+COPY assets/ ./assets/
 COPY server.py .
 
 # Setează volume-uri (după chown!)
