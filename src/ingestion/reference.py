@@ -1,6 +1,83 @@
 from src.domain.data.seasons import f1_2025_races_data, f1_2026_races_data
 import json
 
+from src.core.exceptions import (
+    DataNotAvailableError,
+    SessionNotFoundError,
+    UpstreamUnavailableError,
+)
+from src.core.logging import get_logger
+
+logger = get_logger(__name__)
+
+# Livetiming's static API covers ~2018 onward. Years before that lack the
+# JSON index entirely.
+_MIN_LIVETIMING_YEAR = 2018
+
+# In-memory cache for years synthesized from livetiming.formula1.com.
+# Mapping: year -> list[dict] in the same shape as the curated season files.
+_LIVETIMING_SEASON_CACHE: "dict[int, list[dict]]" = {}
+
+
+def _adapt_livetiming_index_to_season_events(year: int, index: dict) -> list[dict]:
+    """
+    Convert a livetiming Index.json payload into the same shape as the curated
+    f1_YYYY_races_data lists (round, grandPrix, circuit, country, sessions).
+    Missing fields are filled with empty strings — downstream consumers should
+    treat curated data as authoritative when both exist.
+    """
+    events: list[dict] = []
+    for idx, meeting in enumerate(index.get("Meetings", []), start=1):
+        events.append({
+            "round": idx,
+            "grandPrix": meeting.get("Name", ""),
+            "officialName": meeting.get("OfficialName", ""),
+            "circuit": meeting.get("Circuit", {}).get("ShortName", "") if isinstance(meeting.get("Circuit"), dict) else "",
+            "country": meeting.get("Country", {}).get("Name", "") if isinstance(meeting.get("Country"), dict) else "",
+            "code": meeting.get("Code", ""),
+            "key": meeting.get("Key"),
+            "sessions": [
+                {"name": s.get("Name", ""), "startDate": s.get("StartDate", ""), "endDate": s.get("EndDate", "")}
+                for s in meeting.get("Sessions", [])
+            ],
+        })
+    return events
+
+
+def _fetch_season_events_from_livetiming(year: int) -> list[dict]:
+    """
+    Synthesize a season-events list from livetiming.formula1.com for a year
+    not present in the curated data. Cached in-process per year.
+    """
+    if year in _LIVETIMING_SEASON_CACHE:
+        return _LIVETIMING_SEASON_CACHE[year]
+
+    if year < _MIN_LIVETIMING_YEAR:
+        raise SessionNotFoundError(
+            year=year,
+            reason=f"Season {year} is before livetiming coverage ({_MIN_LIVETIMING_YEAR}+).",
+        )
+
+    # Imported here to avoid a circular import at module load time.
+    from src.ingestion.static_client import F1StaticClient
+
+    client = F1StaticClient()
+    try:
+        index = client.fetch_season_index(year)
+    except SessionNotFoundError:
+        raise
+    except (DataNotAvailableError, UpstreamUnavailableError):
+        raise
+    except Exception as exc:
+        logger.exception("Failed to fetch livetiming index for %s", year)
+        raise UpstreamUnavailableError(
+            source="livetiming", reason=f"Could not load season {year}: {exc}"
+        ) from exc
+
+    events = _adapt_livetiming_index_to_season_events(year, index)
+    _LIVETIMING_SEASON_CACHE[year] = events
+    return events
+
 
 # Utils function
 def check_team_name(year, name):
@@ -24,13 +101,19 @@ def check_driver_name(year, name):
     return None
 
 def get_season_events(season_year):
-    """Get season events data for a given season year"""
+    """
+    Get season events for a given year.
+
+    Curated data exists for 2025 and 2026 (with richer metadata). For other
+    years >= 2018 we synthesize the list from livetiming.formula1.com so V2
+    endpoints can serve historical seasons. Years before 2018 raise
+    SessionNotFoundError.
+    """
     if season_year == 2026:
         return f1_2026_races_data
-    elif season_year == 2025:
+    if season_year == 2025:
         return f1_2025_races_data
-    else:
-        raise ValueError(f"Season year {season_year} not found in constants.")
+    return _fetch_season_events_from_livetiming(int(season_year))
 
 def get_season_drivers_and_teams(season_year):
     """Get season drivers and teams data for a given season year"""

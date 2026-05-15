@@ -10,11 +10,18 @@ def get_latest_finished_session():
     now = datetime.now(timezone.utc)
     latest_session = None
 
-    # We group the data to allow us to calculate the specific Round Number per season
-    datasets = [
-        (2025, get_season_events(2025)), 
-        (2026, get_season_events(2026)) 
-    ]
+    # Look at the current year and the previous year so the dashboard keeps
+    # working into a new season without a code change. Older years are
+    # reachable through the V2 historical-season path but not relevant here.
+    current_year = now.year
+    candidate_years = [current_year - 1, current_year]
+    datasets = []
+    for y in candidate_years:
+        try:
+            datasets.append((y, get_season_events(y)))
+        except Exception:
+            # Season may not be published in our curated/livetiming data yet.
+            continue
 
     for year, race_list in datasets:
         # Enumerate gives us the index (0, 1, 2...), so we add 1 to get the Round Number

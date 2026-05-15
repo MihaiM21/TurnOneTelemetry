@@ -23,6 +23,11 @@ from slowapi.errors import RateLimitExceeded
 from src.api.docs_auth import setup_docs_auth
 from src.api.schemas.health import HealthCheckResponse
 from src.core.config import settings
+from src.core.exceptions import (
+    DataNotAvailableError,
+    SessionNotFoundError,
+    UpstreamUnavailableError,
+)
 from src.core.logging import get_logger, setup_logging
 from src.core.observability.monitoring import (
     RequestTracingMiddleware,
@@ -213,6 +218,70 @@ def create_app() -> FastAPI:
             headers=exc.headers,
             content={
                 "detail": exc.detail,
+                "request_id": request_id,
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        )
+
+    @app.exception_handler(DataNotAvailableError)
+    async def data_not_available_handler(request: Request, exc: DataNotAvailableError):
+        request_id = getattr(request.state, "request_id", "unknown")
+        logger.warning(
+            f"[{request_id}] Data not available on {request.url.path}: "
+            f"year={exc.year} gp={exc.gp} session={exc.session} "
+            f"sources_tried={exc.sources_tried} reason={exc.reason}"
+        )
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            headers={"Retry-After": "300"},
+            content={
+                "error": "data_not_available",
+                "detail": exc.reason or "Data for the requested session is not yet available upstream.",
+                "year": exc.year,
+                "gp": exc.gp,
+                "session": exc.session,
+                "sources_tried": exc.sources_tried,
+                "retry_after_seconds": 300,
+                "request_id": request_id,
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        )
+
+    @app.exception_handler(UpstreamUnavailableError)
+    async def upstream_unavailable_handler(request: Request, exc: UpstreamUnavailableError):
+        request_id = getattr(request.state, "request_id", "unknown")
+        logger.error(
+            f"[{request_id}] Upstream unavailable on {request.url.path}: "
+            f"source={exc.source} reason={exc.reason}"
+        )
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            headers={"Retry-After": "60"},
+            content={
+                "error": "upstream_unavailable",
+                "detail": exc.reason or f"Upstream {exc.source} is unavailable.",
+                "source": exc.source,
+                "retry_after_seconds": 60,
+                "request_id": request_id,
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        )
+
+    @app.exception_handler(SessionNotFoundError)
+    async def session_not_found_handler(request: Request, exc: SessionNotFoundError):
+        request_id = getattr(request.state, "request_id", "unknown")
+        logger.info(
+            f"[{request_id}] Session not found on {request.url.path}: "
+            f"year={exc.year} gp={exc.gp} session={exc.session}"
+        )
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "error": "session_not_found",
+                "detail": exc.reason or "The requested session does not exist.",
+                "year": exc.year,
+                "gp": exc.gp,
+                "session": exc.session,
                 "request_id": request_id,
                 "timestamp": datetime.utcnow().isoformat(),
             },

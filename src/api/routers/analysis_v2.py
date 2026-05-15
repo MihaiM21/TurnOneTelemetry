@@ -15,7 +15,23 @@ from src.services.analysis.v2.qualifying_results import QualiResultsPlot, QualiR
 from src.services.analysis.v2.throttle_brake_comparison import ThrottleBrakeComp, ThrottleBrakeCompData
 from src.services.analysis.v2.track_comparison import TrackComparisonPlot, TrackComparisonData
 
+# V1 siblings for transparent fallback when livetiming lacks data.
+from src.services.analysis.v1.top_speed import TopSpeedPlot as V1_TopSpeedPlot, TopSpeedData as V1_TopSpeedData
+from src.services.analysis.v1.throttle_comparison import ThrottleComp as V1_ThrottleComp, ThrottleCompData as V1_ThrottleCompData
+from src.services.analysis.v1.qualifying_results import QualiResults as V1_QualiResults
+from src.services.analysis.v1.speed_distribution import SpeedDistributionPlot as V1_SpeedDistributionPlot, SpeedDistributionData as V1_SpeedDistributionData
+from src.services.analysis.base import with_fallback
+from src.core.exceptions import T1APIError
+
 logger = get_logger(__name__)
+
+
+def _track(event_name, *args):
+    try:
+        from src.core.observability.analytics import SessionTracker
+        SessionTracker().track_session(event_name, *args)
+    except Exception:
+        pass
 
 router = APIRouter(prefix="/api/v2")
 
@@ -31,26 +47,25 @@ async def top_speed_telemetry_plot(
     session: str = Query('Q'),
     api_key: str = Depends(verify_api_key)
 ):
+    logger.info(f"Generating top speed plot: Y{year} GP{gp} {session}")
     try:
-        logger.info(f"Generating top speed plot: Y{year} GP{gp} {session}")
-        output_path = await run_in_threadpool(TopSpeedPlot_Telemetry, year, gp, session)
-
-        # Track session if tracker is available
-        try:
-            from src.core.observability.analytics import SessionTracker
-            session_tracker = SessionTracker()
-            session_tracker.track_session('top-speed', year, gp, session)
-        except:
-            pass
-
+        # V2 only supports integer round numbers for V1 fallback; skip if string.
+        v1_secondary = (lambda: V1_TopSpeedPlot(year, gp, session)) if isinstance(gp, int) else None
+        output_path = await run_in_threadpool(
+            with_fallback,
+            lambda: TopSpeedPlot_Telemetry(year, gp, session),
+            v1_secondary,
+            primary_source="livetiming", secondary_source="fastf1",
+            year=year, gp=gp, session=session, data_type="top_speed",
+        )
+        _track('top-speed', year, gp, session)
         return FileResponse(output_path, media_type="image/png")
+    except T1APIError:
+        raise
     except FileNotFoundError:
         logger.error(f"Plot file not found: Y{year} GP{gp} {session}")
         raise HTTPException(status_code=404, detail="Plot not found")
-    except Exception as e:
-        logger.error(f"Error generating top speed plot: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to generate plot")
-    
+
 @router.get('/top-speed-telemetry-data', tags=["API v2", "Simple Analysis"])
 @apply_tiered_limit("data")
 async def top_speed_telemetry_data(
@@ -60,24 +75,21 @@ async def top_speed_telemetry_data(
     session: str = Query('Q'),
     api_key: str = Depends(verify_api_key)
 ):
+    logger.info(f"Fetching top speed data: Y{year} GP{gp} {session}")
     try:
-        logger.info(f"Fetching top speed data: Y{year} GP{gp} {session}")
-        result = await run_in_threadpool(TopSpeedData_Telemetry, year, gp, session, True)
-        
-        # Track session if tracker is available
-        try:
-            from src.core.observability.analytics import SessionTracker
-            session_tracker = SessionTracker()
-            session_tracker.track_session('top-speed', year, gp, session)
-        except:
-            pass
-        
-        # Data functions now always return list directly (from MongoDB or processed)
+        v1_secondary = (lambda: V1_TopSpeedData(year, gp, session)) if isinstance(gp, int) else None
+        result = await run_in_threadpool(
+            with_fallback,
+            lambda: TopSpeedData_Telemetry(year, gp, session, True),
+            v1_secondary,
+            primary_source="livetiming", secondary_source="fastf1",
+            year=year, gp=gp, session=session, data_type="top_speed",
+        )
+        _track('top-speed', year, gp, session)
         return result
-    except Exception as e:
-        logger.error(f"Error fetching top speed data: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to fetch data")
-    
+    except T1APIError:
+        raise
+
 @router.get('/top-speed-st-plot', tags=["API v2", "Simple Analysis"])
 @apply_tiered_limit("standard")
 async def top_speed_st_plot(
@@ -103,6 +115,8 @@ async def top_speed_st_plot(
     except FileNotFoundError:
         logger.error(f"Plot file not found: Y{year} GP{gp} {session}")
         raise HTTPException(status_code=404, detail="Plot not found")
+    except T1APIError:
+        raise
     except Exception as e:
         logger.error(f"Error generating top speed plot: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to generate plot")
@@ -130,6 +144,8 @@ async def top_speed_st_data(
         
         # Data functions now always return list directly (from MongoDB or processed)
         return result
+    except T1APIError:
+        raise
     except Exception as e:
         logger.error(f"Error fetching top speed data: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch data")
@@ -145,23 +161,21 @@ async def throttle_comparison_plot(
     session: str = Query('Q'),
     api_key: str = Depends(verify_api_key)
 ):
-    """Generate PNG plot comparing throttle application"""
+    """Generate PNG plot comparing throttle application. Falls back to V1 if livetiming lacks data."""
+    logger.info(f"Generating throttle comparison plot: Y{year} GP{gp} {session}")
     try:
-        logger.info(f"Generating throttle comparison plot: Y{year} GP{gp} {session}")
-        output_path = await run_in_threadpool(ThrottleComp, year, gp, session)
-        
-        # Track session if tracker is available
-        try:
-            from src.core.observability.analytics import SessionTracker
-            session_tracker = SessionTracker()
-            session_tracker.track_session('throttle-comparison', year, gp, session)
-        except:
-            pass
-        
+        v1_secondary = (lambda: V1_ThrottleComp(year, gp, session)) if isinstance(gp, int) else None
+        output_path = await run_in_threadpool(
+            with_fallback,
+            lambda: ThrottleComp(year, gp, session),
+            v1_secondary,
+            primary_source="livetiming", secondary_source="fastf1",
+            year=year, gp=gp, session=session, data_type="throttle_comparison",
+        )
+        _track('throttle-comparison', year, gp, session)
         return FileResponse(output_path, media_type='image/png')
-    except Exception as e:
-        logger.error(f"Error generating throttle plot: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to generate plot")
+    except T1APIError:
+        raise
 
 @router.get('/throttle-comparison-data', tags=["API v2", "Simple Analysis"])
 @apply_tiered_limit("data")
@@ -172,27 +186,23 @@ async def throttle_comparison_data(
     session: str = Query('Q'),
     api_key: str = Depends(verify_api_key)
 ):
-    """Get raw JSON data for throttle comparison"""
+    """Get raw JSON data for throttle comparison. Falls back to V1 if livetiming lacks data."""
+    logger.info(f"Fetching throttle comparison data: Y{year} GP{gp} {session}")
     try:
-        logger.info(f"Fetching throttle comparison data: Y{year} GP{gp} {session}")
-        result = await run_in_threadpool(ThrottleCompData, year, gp, session)
-        
-        # Track session if tracker is available
-        try:
-            from src.core.observability.analytics import SessionTracker
-            session_tracker = SessionTracker()
-            session_tracker.track_session('throttle-comparison', year, gp, session)
-        except:
-            pass
-        
-        # Check if result is cached data (dict/list) or file path (str)
+        v1_secondary = (lambda: V1_ThrottleCompData(year, gp, session)) if isinstance(gp, int) else None
+        result = await run_in_threadpool(
+            with_fallback,
+            lambda: ThrottleCompData(year, gp, session),
+            v1_secondary,
+            primary_source="livetiming", secondary_source="fastf1",
+            year=year, gp=gp, session=session, data_type="throttle_comparison",
+        )
+        _track('throttle-comparison', year, gp, session)
         if isinstance(result, (dict, list)):
             return result
-        else:
-            return FileResponse(result, media_type='application/json')
-    except Exception as e:
-        logger.error(f"Error fetching throttle data: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to fetch data")
+        return FileResponse(result, media_type='application/json')
+    except T1APIError:
+        raise
 
 @router.get('/speed-distribution-plot', tags=["API v2", "Simple Analysis"])
 @apply_tiered_limit("standard")
@@ -218,6 +228,8 @@ async def speed_distribution_plot(
             pass
         
         return FileResponse(output_path, media_type='image/png')
+    except T1APIError:
+        raise
     except Exception as e:
         logger.error(f"Error generating speed distribution plot: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to generate plot")
@@ -249,6 +261,8 @@ async def speed_distribution_data(
             return result
         else:
             return FileResponse(result, media_type='application/json')
+    except T1APIError:
+        raise
     except Exception as e:
         logger.error(f"Error fetching speed distribution data: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch data")
@@ -271,6 +285,8 @@ async def laptimes_distribution_data(
         logger.info(f"Fetching lap times distribution: Y{year} GP{gp} {session} Driver={driver}")
         result = await run_in_threadpool(LaptimesDistribution, year, gp, session, driver)
         return result
+    except T1APIError:
+        raise
     except Exception as e:
         logger.error(f"Error fetching lap times distribution: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch data")
@@ -287,20 +303,26 @@ async def qualifying_results_plot(
     session: str = Query('Q'),
     api_key: str = Depends(verify_api_key)
 ):
-    """Generate PNG plot of qualifying results sorted by lap time delta"""
+    """Generate PNG plot of qualifying results sorted by lap time delta. Falls back to V1 if livetiming lacks data."""
+    logger.info(f"Generating qualifying results plot: Y{year} GP{gp} {session}")
     try:
-        logger.info(f"Generating qualifying results plot: Y{year} GP{gp} {session}")
-        output_path = await run_in_threadpool(QualiResultsPlot, year, gp, session)
+        v1_secondary = (lambda: V1_QualiResults(year, gp, session)) if isinstance(gp, int) else None
+        output_path = await run_in_threadpool(
+            with_fallback,
+            lambda: QualiResultsPlot(year, gp, session),
+            v1_secondary,
+            primary_source="livetiming", secondary_source="fastf1",
+            year=year, gp=gp, session=session, data_type="qualifying_results",
+        )
         if not output_path:
             raise HTTPException(status_code=404, detail="No data available for this session")
         return FileResponse(output_path, media_type="image/png")
+    except T1APIError:
+        raise
     except HTTPException:
         raise
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Plot not found")
-    except Exception as e:
-        logger.error(f"Error generating qualifying results plot: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to generate plot")
 
 
 @router.get('/qualifying-results-data', tags=["API v2", "Qualifying"])
@@ -317,6 +339,8 @@ async def qualifying_results_data(
         logger.info(f"Fetching qualifying results data: Y{year} GP{gp} {session}")
         result = await run_in_threadpool(QualiResultsData, year, gp, session)
         return result
+    except T1APIError:
+        raise
     except Exception as e:
         logger.error(f"Error fetching qualifying results data: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch data")
@@ -346,6 +370,8 @@ async def throttle_brake_comparison_plot(
         raise
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Plot not found")
+    except T1APIError:
+        raise
     except Exception as e:
         logger.error(f"Error generating throttle/brake comparison plot: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to generate plot")
@@ -367,6 +393,8 @@ async def throttle_brake_comparison_data(
         logger.info(f"Fetching throttle/brake comparison data: Y{year} GP{gp} {session} {d1} vs {d2}")
         result = await run_in_threadpool(ThrottleBrakeCompData, year, gp, session, d1, d2)
         return result
+    except T1APIError:
+        raise
     except Exception as e:
         logger.error(f"Error fetching throttle/brake comparison data: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch data")
@@ -396,6 +424,8 @@ async def track_comparison_plot(
         raise
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Plot not found")
+    except T1APIError:
+        raise
     except Exception as e:
         logger.error(f"Error generating track comparison plot: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to generate plot")
@@ -417,6 +447,8 @@ async def track_comparison_data(
         logger.info(f"Fetching track comparison data: Y{year} GP{gp} {session} {d1} vs {d2}")
         result = await run_in_threadpool(TrackComparisonData, year, gp, session, d1, d2)
         return result
+    except T1APIError:
+        raise
     except Exception as e:
         logger.error(f"Error fetching track comparison data: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch data")

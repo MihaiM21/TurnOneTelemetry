@@ -10,6 +10,14 @@ from src.services.plotting.colors import team_colors, teams
 from src.repositories.plots import store_plot_data_to_mongo, get_plot_data_from_mongo
 from src.ingestion.static_client import F1StaticClient
 from src.domain.mappings import get_driver_team_mapping
+from src.core.exceptions import (
+    DataNotAvailableError,
+    SessionNotFoundError,
+    UpstreamUnavailableError,
+)
+from src.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def _init(y: int, event_name: str, session_name: str, data_source: str) -> Tuple[str, str, str]:
@@ -72,9 +80,14 @@ def extract_top_speeds_from_telemetry(
         
         return dict(team_max_speeds)
         
+    except (DataNotAvailableError, SessionNotFoundError, UpstreamUnavailableError):
+        raise
     except Exception as e:
-        print(f"Error extracting telemetry: {e}")
-        return {}
+        logger.exception("Error extracting telemetry from %s", car_data_url)
+        raise UpstreamUnavailableError(
+            source="livetiming",
+            reason=f"Failed to extract telemetry: {e}",
+        ) from e
 
 
 def extract_top_speeds_from_speed_trap(
@@ -118,9 +131,14 @@ def extract_top_speeds_from_speed_trap(
 
         return dict(team_st_speeds)
 
+    except (DataNotAvailableError, SessionNotFoundError, UpstreamUnavailableError):
+        raise
     except Exception as e:
-        print(f"Error extracting Speed Trap: {e}")
-        return {}
+        logger.exception("Error extracting Speed Trap from %s", timing_url)
+        raise UpstreamUnavailableError(
+            source="livetiming",
+            reason=f"Failed to extract Speed Trap data: {e}",
+        ) from e
 
 
 # ============================================================================

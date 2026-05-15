@@ -10,19 +10,25 @@ from src.services.analysis.v1.laptimes_distribution import LatimesDistribution
 from src.services.analysis.v2.top_speed import TopSpeedData_Telemetry as V2_TopSpeedData
 from src.services.analysis.v2.throttle_comparison import ThrottleCompData as V2_ThrottleCompData
 
+from src.services.analysis.base import with_fallback
+
 
 def _top_speed_with_fallback(year, round_num, session_name):
-    try:
-        return TopSpeedData(year, round_num, session_name)
-    except Exception as v1_err:
-        return V2_TopSpeedData(year, round_num, session_name)
+    return with_fallback(
+        primary=lambda: TopSpeedData(year, round_num, session_name),
+        secondary=lambda: V2_TopSpeedData(year, round_num, session_name),
+        primary_source="fastf1", secondary_source="livetiming",
+        year=year, gp=round_num, session=session_name, data_type="top_speed",
+    )
 
 
 def _throttle_with_fallback(year, round_num, session_name):
-    try:
-        return ThrottleCompData(year, round_num, session_name)
-    except Exception as v1_err:
-        return V2_ThrottleCompData(year, round_num, session_name)
+    return with_fallback(
+        primary=lambda: ThrottleCompData(year, round_num, session_name),
+        secondary=lambda: V2_ThrottleCompData(year, round_num, session_name),
+        primary_source="fastf1", secondary_source="livetiming",
+        year=year, gp=round_num, session=session_name, data_type="throttle_comparison",
+    )
 
 
 def get_session_category(session_name):

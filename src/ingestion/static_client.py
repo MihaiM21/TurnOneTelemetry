@@ -25,6 +25,11 @@ import logging
 import os
 
 from src.core.config import settings
+from src.core.exceptions import (
+    DataNotAvailableError,
+    SessionNotFoundError,
+    UpstreamUnavailableError,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -130,9 +135,31 @@ class F1StaticClient:
         """
         url = f"{self.BASE_URL}{year}/Index.json"
         logger.info(f"Fetching season index: {url}")
-        
-        response = self.session.get(url, timeout=self.DEFAULT_TIMEOUT)
-        response.raise_for_status()
+
+        try:
+            response = self.session.get(url, timeout=self.DEFAULT_TIMEOUT)
+        except requests.RequestException as exc:
+            logger.exception("Network failure fetching season index for %s", year)
+            raise UpstreamUnavailableError(
+                source="livetiming", reason=f"Failed to fetch {url}: {exc}"
+            ) from exc
+
+        if response.status_code == 404:
+            raise SessionNotFoundError(
+                year=year, reason=f"No livetiming index published for {year}"
+            )
+        if response.status_code >= 500:
+            raise UpstreamUnavailableError(
+                source="livetiming",
+                reason=f"livetiming returned {response.status_code} for {url}",
+            )
+
+        try:
+            response.raise_for_status()
+        except requests.HTTPError as exc:
+            raise UpstreamUnavailableError(
+                source="livetiming", reason=str(exc)
+            ) from exc
 
         # F1 JSON files have UTF-8 BOM, decode properly
         content = response.content.decode('utf-8-sig')
@@ -229,9 +256,14 @@ class F1StaticClient:
                 logger.error(f"Round {round_nr} out of range (1-{len(meetings)})")
                 return None
                 
+        except (DataNotAvailableError, SessionNotFoundError, UpstreamUnavailableError):
+            raise
         except Exception as e:
-            logger.error(f"Failed to get event name for round {round_nr}: {e}")
-            return None
+            logger.exception("Failed to get event name for round %s", round_nr)
+            raise UpstreamUnavailableError(
+                source="livetiming",
+                reason=f"Unexpected error resolving round {round_nr}: {e}",
+            ) from e
     
     def get_event_info(self, year: int, identifier: Union[int, str]) -> Optional[Dict[str, Any]]:
         """
@@ -291,10 +323,15 @@ class F1StaticClient:
             
             logger.error(f"Event identifier '{identifier}' not found in {year} season")
             return None
-                
+
+        except (DataNotAvailableError, SessionNotFoundError, UpstreamUnavailableError):
+            raise
         except Exception as e:
-            logger.error(f"Failed to get event info for identifier {identifier}: {e}")
-            return None
+            logger.exception("Failed to get event info for identifier %s", identifier)
+            raise UpstreamUnavailableError(
+                source="livetiming",
+                reason=f"Unexpected error resolving event {identifier!r}: {e}",
+            ) from e
     
     # ========================================================================
     # TASK 2: THE PARSER
