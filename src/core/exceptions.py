@@ -55,13 +55,28 @@ class UpstreamUnavailableError(T1APIError):
 
 
 class SessionNotFoundError(T1APIError):
-    """The requested session does not exist in the schedule at all."""
+    """The requested session does not exist in the schedule at all.
 
-    def __init__(self, year: Optional[int] = None, gp: Any = None, session: Optional[str] = None, reason: str = ""):
+    Optional ``valid_rounds`` and ``suggestions`` help the client correct
+    the request without making a second round-trip; they are surfaced in
+    the 404 payload by the FastAPI handler in ``src/api/app.py``.
+    """
+
+    def __init__(
+        self,
+        year: Optional[int] = None,
+        gp: Any = None,
+        session: Optional[str] = None,
+        reason: str = "",
+        valid_rounds: Optional[Iterable[int]] = None,
+        suggestions: Optional[Iterable[str]] = None,
+    ):
         self.year = year
         self.gp = gp
         self.session = session
         self.reason = reason
+        self.valid_rounds: list[int] = list(valid_rounds) if valid_rounds else []
+        self.suggestions: list[str] = list(suggestions) if suggestions else []
         super().__init__(
             f"Session not found: year={year} gp={gp} session={session}: {reason}"
         )

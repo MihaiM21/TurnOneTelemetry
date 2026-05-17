@@ -115,6 +115,29 @@ BACKGROUND_JOBS_FAILED = Counter(
     'Total number of failed background jobs'
 )
 
+# Tiered cache + resolver telemetry. ``api_cache_hits_total`` above is the
+# legacy per-endpoint counter; the layered counter below distinguishes which
+# tier served the response so we can tell if Redis is actually pulling its
+# weight after deploy.
+T1API_CACHE_HIT = Counter(
+    't1api_cache_hit_total',
+    'Cache hits / misses by layer (redis / mongo / miss)',
+    ['layer', 'data_type']
+)
+
+T1API_EVENT_RESOLUTION = Counter(
+    't1api_event_resolution_total',
+    'Outcome of EventResolver.resolve() calls',
+    ['outcome']
+)
+
+T1API_MONGO_QUERY_DURATION = Histogram(
+    't1api_mongo_query_duration_seconds',
+    'Latency of MongoDB read operations',
+    ['operation'],
+    buckets=[0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5]
+)
+
 # API Info
 API_INFO = Info('api_info', 'API version and environment information')
 

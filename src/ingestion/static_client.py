@@ -267,71 +267,25 @@ class F1StaticClient:
     
     def get_event_info(self, year: int, identifier: Union[int, str]) -> Optional[Dict[str, Any]]:
         """
-        Get event information for a specific round number, event key, or official name.
-        
-        Args:
-            year: Season year
-            identifier: Round number (1-based index), Event Key (e.g., 1304), or Official Name
-        
-        Returns:
-            Dictionary with event information or None if not found
-        """
-        try:
-            season_index = self.fetch_season_index(year)
-            meetings = season_index.get('Meetings', [])
-            
-            # 1. Try resolving as an integer (Round or Key)
-            if isinstance(identifier, int) or (isinstance(identifier, str) and identifier.isdigit()):
-                num_id = int(identifier)
-                # Small numbers are likely round numbers
-                if 1 <= num_id <= len(meetings) and num_id <= 30:
-                    meeting = meetings[num_id - 1]
-                    logger.info(f"Resolved round {num_id}: {meeting.get('Name')}")
-                    return {
-                        'round_nr': num_id,
-                        'name': meeting.get('Name'),
-                        'official_name': meeting.get('OfficialName'),
-                        'key': meeting.get('Key')
-                    }
-                # Larger numbers are likely Keys
-                else:
-                    for idx, meeting in enumerate(meetings):
-                        if meeting.get('Key') == num_id:
-                            logger.info(f"Resolved Event Key {num_id}: {meeting.get('Name')}")
-                            return {
-                                'round_nr': idx + 1,
-                                'name': meeting.get('Name'),
-                                'official_name': meeting.get('OfficialName'),
-                                'key': meeting.get('Key')
-                            }
-            
-            # 2. Try resolving as a string (Name, Official Name, Code)
-            str_id = str(identifier).lower()
-            for idx, meeting in enumerate(meetings):
-                name = meeting.get('Name', '').lower()
-                official_name = meeting.get('OfficialName', '').lower()
-                code = meeting.get('Code', '').lower()
-                
-                if str_id in name or str_id in official_name or str_id == code:
-                    logger.info(f"Resolved Event String '{identifier}': {meeting.get('Name')}")
-                    return {
-                        'round_nr': idx + 1,
-                        'name': meeting.get('Name'),
-                        'official_name': meeting.get('OfficialName'),
-                        'key': meeting.get('Key')
-                    }
-            
-            logger.error(f"Event identifier '{identifier}' not found in {year} season")
-            return None
+        Resolve a round number, event key, or event name to canonical event info.
 
-        except (DataNotAvailableError, SessionNotFoundError, UpstreamUnavailableError):
-            raise
-        except Exception as e:
-            logger.exception("Failed to get event info for identifier %s", identifier)
-            raise UpstreamUnavailableError(
-                source="livetiming",
-                reason=f"Unexpected error resolving event {identifier!r}: {e}",
-            ) from e
+        Delegates to :class:`~src.ingestion.event_resolver.EventResolver` so all
+        V2 callers share one resolution path. Returns the legacy dict shape for
+        backwards compatibility; raises :class:`SessionNotFoundError` on miss
+        (the FastAPI handler turns this into a 404 with ``suggestions``).
+        """
+        from src.ingestion.event_resolver import resolve_event
+
+        info = resolve_event(year, identifier)
+        return {
+            "round_nr": info.round_nr,
+            "name": info.name,
+            "official_name": info.official_name,
+            "key": info.key,
+            "code": info.code,
+            "circuit": info.circuit,
+            "country": info.country,
+        }
     
     # ========================================================================
     # TASK 2: THE PARSER

@@ -132,6 +132,23 @@ def create_app() -> FastAPI:
         get_request_tracker()
         get_system_monitor()
 
+        # Create MongoDB indexes idempotently. Failures are logged but never
+        # block startup — the API can serve cached responses without indexes,
+        # just slower.
+        try:
+            from src.repositories.mongo import ensure_indexes
+            created = ensure_indexes()
+            logger.info(f"MongoDB indexes ready: {sum(len(v) for v in created.values())} across {len(created)} collections")
+        except Exception as e:
+            logger.warning(f"ensure_indexes() failed: {e}")
+
+        # Initialize Redis response cache (graceful no-op if unavailable).
+        try:
+            from src.core.cache.redis_cache import init_redis_cache
+            await init_redis_cache()
+        except Exception as e:
+            logger.warning(f"Redis cache init failed (continuing without cache): {e}")
+
         processor_task = None
         if settings.enable_background_processor:
             logger.info(f"Starting background processor (interval: {settings.processor_check_interval}s)")
@@ -149,6 +166,11 @@ def create_app() -> FastAPI:
                 await processor_task
             except asyncio.CancelledError:
                 pass
+        try:
+            from src.core.cache.redis_cache import close_redis_cache
+            await close_redis_cache()
+        except Exception:
+            pass
 
     app = FastAPI(
         title=settings.app_name,
@@ -178,6 +200,14 @@ def create_app() -> FastAPI:
         allow_credentials=settings.cors_allow_credentials,
         allow_methods=settings.cors_methods_list,
         allow_headers=[settings.cors_allow_headers],
+    )
+
+    # Weak-ETag short-circuiting + Cache-Control for cacheable V2 GET endpoints.
+    from src.api.middleware.etag import ETagMiddleware
+    app.add_middleware(
+        ETagMiddleware,
+        path_prefixes=("/api/v2/",),
+        cache_control_max_age=settings.cache_ttl_seconds,
     )
 
     @app.exception_handler(Exception)
@@ -274,17 +304,22 @@ def create_app() -> FastAPI:
             f"[{request_id}] Session not found on {request.url.path}: "
             f"year={exc.year} gp={exc.gp} session={exc.session}"
         )
+        payload: dict = {
+            "error": "session_not_found",
+            "detail": exc.reason or "The requested session does not exist.",
+            "year": exc.year,
+            "gp": exc.gp,
+            "session": exc.session,
+            "request_id": request_id,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+        if exc.valid_rounds:
+            payload["valid_rounds"] = exc.valid_rounds
+        if exc.suggestions:
+            payload["suggestions"] = exc.suggestions
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
-            content={
-                "error": "session_not_found",
-                "detail": exc.reason or "The requested session does not exist.",
-                "year": exc.year,
-                "gp": exc.gp,
-                "session": exc.session,
-                "request_id": request_id,
-                "timestamp": datetime.utcnow().isoformat(),
-            },
+            content=payload,
         )
 
     @app.exception_handler(ValueError)

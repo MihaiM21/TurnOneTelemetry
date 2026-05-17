@@ -24,9 +24,10 @@ def get_latest_finished_session():
             continue
 
     for year, race_list in datasets:
-        # Enumerate gives us the index (0, 1, 2...), so we add 1 to get the Round Number
+        # Prefer livetiming-derived round number when available (curated/livetiming
+        # may drift if a race is cancelled or reordered). Falls back to index + 1.
         for i, race in enumerate(race_list):
-            round_number = i + 1
+            round_number = race.get("round") if isinstance(race.get("round"), int) else i + 1
 
             for session in race["sessions"]:
                 # Check if session is finished

@@ -175,10 +175,26 @@ class BackgroundProcessor:
             
             # Mark as processed
             self.processed_sessions.add(session_id)
-            
+
+            # Invalidate Redis response cache for this session so subsequent
+            # API requests get the fresh data rather than stale "no data yet".
+            try:
+                from src.core.cache.redis_cache import get_sync_cache
+                cache = get_sync_cache()
+                if cache.enabled:
+                    patterns = [
+                        f"t1api:v2:plot:{year}:*:{session}:*",
+                        f"t1api:v2:plot:{year}:*:{gp}:*",
+                        "t1api:v2:latest_session",
+                    ]
+                    for p in patterns:
+                        cache.delete_pattern(p) if "*" in p else cache.delete(p)
+            except Exception as exc:
+                logger.debug(f"Redis invalidation skipped after ingest: {exc}")
+
             logger.info(f"✅ Successfully processed Y{year} GP{gp} {session}")
             logger.info(f"   Generated {results.get('success', 0)} plot datasets ({results.get('failed', 0)} failed)")
-            
+
             return {
                 "status": "success",
                 "session": session_id,

@@ -3,6 +3,11 @@ Helper functions to integrate MongoDB storage with F1 telemetry plot generation
 """
 
 from src.repositories.mongo import MongoDBManager, convert_numpy_types
+from src.core.exceptions import (
+    DataNotAvailableError as _DNAErr,
+    SessionNotFoundError as _SNFErr,
+    UpstreamUnavailableError as _UUErr,
+)
 from typing import Dict, Any, Optional, Union
 import json
 
@@ -364,20 +369,15 @@ def get_plot_data_from_mongo(year: int, identifier: Union[int, str], event_name:
         gp_doc = None
         gp_id = None
         
-        # Resolve GP document
+        # Resolve GP document. SessionNotFoundError / DataNotAvailableError /
+        # UpstreamUnavailableError must propagate so the API returns a proper
+        # 404 / 503 instead of swallowing the failure as a cache miss.
         try:
             if version == 'v2':
-                # Use F1StaticClient for v2
-                from src.ingestion.static_client import F1StaticClient
-                client = F1StaticClient()
-                event_info = client.get_event_info(year, identifier)
-                
-                if not event_info:
-                    print(f"✗ Could not get event info for identifier {identifier} using F1StaticClient")
-                    return None
-                    
-                event_full_name = event_info['name']
-                round_nr = event_info['round_nr']
+                from src.ingestion.event_resolver import resolve_event
+                info = resolve_event(year, identifier)
+                event_full_name = info.name
+                round_nr = info.round_nr
                 country_code = get_country_code_from_event_name(event_full_name)
                 gp_id = f"{year}_{country_code}"
                 gp_doc = collection.find_one({"year": year, "gp_id": gp_id})
@@ -394,6 +394,8 @@ def get_plot_data_from_mongo(year: int, identifier: Union[int, str], event_name:
                     country_code = get_country_code_from_event_name(event_full_name)
                     gp_id = f"{year}_{country_code}"
                     gp_doc = collection.find_one({"year": year, "gp_id": gp_id})
+        except (_SNFErr, _DNAErr, _UUErr):
+            raise
         except Exception as e:
             print(f"✗ Could not get event info: {e}")
             return None
@@ -459,6 +461,9 @@ def get_plot_data_from_mongo(year: int, identifier: Union[int, str], event_name:
                     print(f"📋 Available data_types in {session_type}: {data_types}")
             return None
 
+    except (_SNFErr, _DNAErr, _UUErr):
+        # Resolution / upstream errors must surface to the API layer.
+        raise
     except Exception as e:
         print(f"✗ Error retrieving plot data from MongoDB: {e}")
         return None

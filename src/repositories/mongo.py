@@ -1,15 +1,60 @@
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
+from pymongo.errors import OperationFailure, PyMongoError
 from urllib.parse import quote_plus
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 import json
 import os
+import threading
 from dotenv import load_dotenv
 import numpy as np
 
 # Load environment variables
 load_dotenv()
+
+
+# ---------------------------------------------------------------------------
+# Process-wide MongoClient singleton with proper pool wiring.
+# Prior to this, every MongoDBManager() constructed its own client and
+# pool config from src/core/config.py was read but never passed to PyMongo.
+# ---------------------------------------------------------------------------
+_MONGO_CLIENT: Optional[MongoClient] = None
+_MONGO_CLIENT_LOCK = threading.Lock()
+
+
+def _build_mongo_client() -> MongoClient:
+    """Build a properly pooled MongoClient using settings (pool, timeout, appname)."""
+    from src.core.config import settings  # local import to avoid cycles at import time
+
+    username = os.getenv('MONGODB_USER', settings.mongodb_user)
+    password = os.getenv('MONGODB_PASSWORD', settings.mongodb_password)
+    host = os.getenv('MONGODB_HOST', settings.mongodb_host)
+    port = os.getenv('MONGODB_PORT', str(settings.mongodb_port))
+
+    if not password:
+        raise ValueError("MONGODB_PASSWORD environment variable is required")
+
+    encoded_password = quote_plus(password)
+    uri = f"mongodb://{username}:{encoded_password}@{host}:{port}/?directConnection=true"
+    return MongoClient(
+        uri,
+        server_api=ServerApi('1'),
+        maxPoolSize=settings.mongodb_max_pool_size,
+        minPoolSize=settings.mongodb_min_pool_size,
+        serverSelectionTimeoutMS=settings.mongodb_timeout_ms,
+        appname="t1api",
+    )
+
+
+def get_mongo_client() -> MongoClient:
+    """Return the shared, lazily-initialized MongoClient."""
+    global _MONGO_CLIENT
+    if _MONGO_CLIENT is None:
+        with _MONGO_CLIENT_LOCK:
+            if _MONGO_CLIENT is None:
+                _MONGO_CLIENT = _build_mongo_client()
+    return _MONGO_CLIENT
 
 
 class NumpyEncoder(json.JSONEncoder):
@@ -66,24 +111,13 @@ class MongoDBManager:
                     This affects collection naming to prevent data conflicts due to
                     different round number indexing between sources.
         """
-        # Load credentials from environment variables
-        username = os.getenv('MONGODB_USER', 'root')
-        password = os.getenv('MONGODB_PASSWORD')
+        database_name = os.getenv('MONGODB_DATABASE', 'T1API_DB')
         host = os.getenv('MONGODB_HOST', 'localhost')
         port = os.getenv('MONGODB_PORT', '27017')
-        database_name = os.getenv('MONGODB_DATABASE', 'T1API_DB')
 
-        if not password:
-            raise ValueError("MONGODB_PASSWORD environment variable is required")
-
-        # URL encode the password to handle special characters
-        encoded_password = quote_plus(password)
-
-        # Build connection URI
-        uri = f"mongodb://{username}:{encoded_password}@{host}:{port}/?directConnection=true"
-
-        # Initialize MongoDB client
-        self.client = MongoClient(uri, server_api=ServerApi('1'))
+        # Share the process-wide pooled client. Previously each manager
+        # constructed its own MongoClient, defeating connection pooling.
+        self.client = get_mongo_client()
         self.db = self.client[database_name]
 
         # Set collection based on year and version (dynamically switch collections)
@@ -370,25 +404,28 @@ class MongoDBManager:
                 year = int(gp_id.split('_')[0])
 
             collection = self._get_collection(year)
-            gp_doc = collection.find_one({"gp_id": gp_id})
+
+            # Project only the matching session so we don't transfer or iterate
+            # the whole GP document (other sessions can carry megabytes of data).
+            gp_doc = collection.find_one(
+                {"gp_id": gp_id, "sessions.session_type": session_type},
+                {"sessions": {"$elemMatch": {"session_type": session_type}}},
+            )
 
             if not gp_doc:
                 return None
 
-            # Find the session
-            for session in gp_doc.get('sessions', []):
-                if session.get('session_type') == session_type:
-                    if data_type:
-                        # Return specific data type
-                        for data_entry in session.get('data', []):
-                            if data_entry.get('data_type') == data_type:
-                                return data_entry.get('data')
-                        return None
-                    else:
-                        # Return entire session
-                        return session
+            sessions = gp_doc.get("sessions", [])
+            if not sessions:
+                return None
+            session = sessions[0]
 
-            return None
+            if data_type:
+                for data_entry in session.get('data', []):
+                    if data_entry.get('data_type') == data_type:
+                        return data_entry.get('data')
+                return None
+            return session
 
         except Exception as e:
             print(f"✗ Error retrieving session data: {e}")
@@ -466,9 +503,64 @@ class MongoDBManager:
             return []
 
     def close(self):
-        """Close the MongoDB connection"""
-        self.client.close()
-        print("✓ MongoDB connection closed")
+        """Release the manager reference. The shared MongoClient stays open
+        for the life of the process; closing the underlying pool would defeat
+        the singleton and force every subsequent caller to re-handshake."""
+        # Intentionally no-op on the shared client.
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Indexes — created idempotently at app startup.
+# Until this landed there were zero indexes anywhere in the DB, so every
+# read of plot/session data was a collection scan with linear array iteration.
+# ---------------------------------------------------------------------------
+def ensure_indexes(years: Optional[List[int]] = None) -> Dict[str, List[str]]:
+    """Create the indexes the codebase actually queries on.
+
+    Idempotent: re-running on an existing index is a no-op. Errors on
+    individual indexes are logged and swallowed so a single bad collection
+    cannot prevent app startup.
+
+    Args:
+        years: Optional list of season years for which to create the
+            ``{year}_processed_data[_v2]`` indexes. Defaults to the current
+            and previous calendar year (the only collections the API serves
+            in the hot path).
+
+    Returns:
+        Mapping of ``collection -> [index_name, ...]`` created or already
+        present, for diagnostics.
+    """
+    from src.core.logging import get_logger
+    logger = get_logger(__name__)
+
+    if years is None:
+        current = datetime.now().year
+        years = [current - 1, current, current + 1]
+
+    client = get_mongo_client()
+    db = client[os.getenv('MONGODB_DATABASE', 'T1API_DB')]
+    created: Dict[str, List[str]] = {}
+
+    def _safe_create(coll_name: str, keys, **opts):
+        try:
+            name = db[coll_name].create_index(keys, background=True, **opts)
+            created.setdefault(coll_name, []).append(name)
+        except (OperationFailure, PyMongoError) as exc:
+            logger.warning("Index create skipped on %s %s: %s", coll_name, keys, exc)
+
+    for y in years:
+        for suffix in ("processed_data", "processed_data_v2"):
+            coll = f"{y}_{suffix}"
+            _safe_create(coll, [("gp_id", 1)])
+            _safe_create(coll, [("year", 1), ("round_nr", 1)])
+            _safe_create(coll, [("year", 1), ("gp_id", 1)])
+
+    # Seasons + reference data
+    _safe_create("seasons", [("year", 1)], unique=False)
+
+    return created
 
 
 # Convenience function for quick testing
