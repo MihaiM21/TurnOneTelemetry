@@ -560,6 +560,21 @@ def ensure_indexes(years: Optional[List[int]] = None) -> Dict[str, List[str]]:
     # Seasons + reference data
     _safe_create("seasons", [("year", 1)], unique=False)
 
+    # Auth: users, api_keys, api_key_usage. Keyed lookups are on the hot
+    # auth path so these MUST exist; the unique constraints also guard
+    # against accidental duplicates.
+    _safe_create("users", [("email", 1)], unique=True)
+    _safe_create("api_keys", [("key_hash", 1)], unique=True)
+    _safe_create("api_keys", [("owner_id", 1)])
+    _safe_create("api_key_usage", [("key_hash", 1), ("bucket", 1)], unique=True)
+    # TTL on api_key_usage so it self-prunes (90 days).
+    from src.repositories.api_key_usage import USAGE_TTL_DAYS
+    _safe_create(
+        "api_key_usage",
+        [("created_at", 1)],
+        expireAfterSeconds=USAGE_TTL_DAYS * 86400,
+    )
+
     return created
 
 

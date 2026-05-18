@@ -91,6 +91,15 @@ RATE_LIMIT_HITS = Counter(
     ['tier', 'endpoint']
 )
 
+# Per-key request volume — labels are deliberately low-cardinality
+# (``key_prefix`` is only 11 chars, ``tier`` ∈ 4 values, ``status`` is the
+# HTTP code) so this stays safe at Prometheus scale.
+T1API_REQUESTS_BY_KEY = Counter(
+    't1api_requests_by_key_total',
+    'API requests grouped by API key prefix',
+    ['key_prefix', 'tier', 'status']
+)
+
 # Cache metrics (if using cache)
 CACHE_HITS = Counter(
     'api_cache_hits_total',
@@ -373,18 +382,14 @@ class RequestTracingMiddleware(BaseHTTPMiddleware):
         user_agent = request.headers.get("user-agent", "unknown")
         api_key = request.headers.get("x-api-key", None)
         
-        # Determine API tier
-        tier = "unknown"
-        if api_key:
-            from src.core.config import settings
-            if api_key in settings.premium_api_keys_list:
-                tier = "premium"
-            elif api_key in settings.allowed_api_keys_list:
-                tier = "standard"
-            else:
-                tier = "invalid"
-        else:
-            tier = "public"
+        # Determine API tier (env keys + cached DB keys; sync, never blocks).
+        from src.core.security.api_keys import resolve_tier_sync
+        tier, key_hash, key_prefix = resolve_tier_sync(api_key)
+        if api_key and tier == "public":
+            tier = "invalid"  # header was present but key isn't recognised
+        request.state.api_tier = tier
+        request.state.api_key_hash = key_hash
+        request.state.api_key_prefix = key_prefix
         
         # Process request
         response = None
@@ -448,6 +453,32 @@ class RequestTracingMiddleware(BaseHTTPMiddleware):
                     error_type='client_error' if status_code < 500 else 'server_error',
                     status_code=status_code
                 ).inc()
+
+            # Per-key telemetry. ``verify_api_key`` may have just primed the
+            # Redis cache for a DB-backed key, so re-resolve here to catch
+            # the upgrade from "invalid" → real tier.
+            try:
+                final_tier, final_hash, final_prefix = resolve_tier_sync(api_key)
+                if api_key and not final_prefix:
+                    final_prefix = f"raw:{api_key[:6]}"
+                if api_key:
+                    T1API_REQUESTS_BY_KEY.labels(
+                        key_prefix=final_prefix or "unknown",
+                        tier=final_tier,
+                        status=str(status_code),
+                    ).inc()
+                if final_hash:
+                    import asyncio as _asyncio
+                    from src.repositories.api_key_usage import record as _record_usage
+                    try:
+                        loop = _asyncio.get_running_loop()
+                        loop.run_in_executor(
+                            None, _record_usage, final_hash, status_code, duration * 1000.0
+                        )
+                    except RuntimeError:
+                        pass
+            except Exception:
+                pass
             
             # Track response size
             if response and hasattr(response, 'body'):

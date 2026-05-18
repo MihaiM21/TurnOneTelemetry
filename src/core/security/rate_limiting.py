@@ -8,21 +8,20 @@ _limiter_instance = None
 
 def get_rate_limit_key(request):
     """
-    Generate rate limit key based on IP and API tier
-    This allows different rate limits for different authentication levels
+    Generate rate limit key based on IP and API tier.
+
+    Recognises env-supplied keys *and* user-generated DB keys (via the Redis
+    cache primed by ``verify_api_key``). Unknown / uncached keys are billed
+    against the caller's IP at the public tier.
     """
-    api_key = request.headers.get("X-API-Key")
+    from src.core.security.api_keys import resolve_tier_sync
+
+    api_key = request.headers.get(settings.api_key_name)
     ip_address = get_remote_address(request)
-    
-    if not api_key:
+    tier, _key_hash, _prefix = resolve_tier_sync(api_key)
+    if tier == "public":
         return f"public:{ip_address}"
-    
-    if api_key in settings.premium_api_keys_list:
-        return f"premium:{api_key}"
-    elif api_key in settings.allowed_api_keys_list:
-        return f"standard:{api_key}"
-    else:
-        return f"public:{ip_address}"
+    return f"{tier}:{api_key}"
 
 def init_limiter():
     """Initialize the rate limiter - called from server.py"""

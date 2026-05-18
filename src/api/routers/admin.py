@@ -5,16 +5,47 @@ from urllib.parse import quote_plus
 from typing import Dict, Any, Optional, List
 import re
 
+from fastapi.concurrency import run_in_threadpool
+
 from src.core.logging import get_logger
-from src.core.security.api_keys import verify_api_key
+from src.core.security.api_keys import invalidate_key_cache, verify_api_key
 from src.core.security.rate_limiting import apply_tiered_limit
 from src.workers.processor import get_processor
 from src.core.config import settings
+from src.core.observability.monitoring import get_request_tracker
+from src.repositories import api_key_usage as _key_usage
+from src.repositories import api_keys as _keys
+from src.repositories import users as _users
 import src.repositories.populate_seasons
 
 logger = get_logger(__name__)
 
 router = APIRouter()
+
+
+async def require_admin_key(api_key: str = Depends(verify_api_key)) -> str:
+    """Admin gate.
+
+    Env keys are operator-level (treated as admin). A user-generated key
+    is allowed only if it belongs to a user whose ``is_admin`` is true.
+    """
+    # Env keys always pass.
+    if api_key in settings.allowed_api_keys_list or api_key in settings.premium_api_keys_list:
+        return api_key
+    # Dev bypass keeps working.
+    if api_key == "dev-key" and settings.environment == "development":
+        return api_key
+
+    def _is_admin_db_key() -> bool:
+        doc = _keys.find_active_by_hash(_keys.hash_key(api_key))
+        if not doc:
+            return False
+        owner = _users.find_user_by_id(str(doc.get("owner_id")))
+        return bool(owner and owner.get("is_admin"))
+
+    if await run_in_threadpool(_is_admin_db_key):
+        return api_key
+    raise HTTPException(status_code=403, detail="Admin privileges required")
 
 SUPPORTED_MONGO_VERSIONS = {"v1", "v2"}
 
@@ -344,3 +375,105 @@ async def admin_mongodb_sessions_with_data(
     except Exception as e:
         logger.error(f"Error getting MongoDB session coverage: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch MongoDB session coverage")
+
+
+# ============================================================================
+# USER / API-KEY MANAGEMENT
+# ============================================================================
+
+@router.get('/api/admin/users', tags=["General"])
+@apply_tiered_limit("standard")
+async def admin_list_users(
+    request: Request,
+    limit: int = Query(100, ge=1, le=500),
+    skip: int = Query(0, ge=0),
+    api_key: str = Depends(require_admin_key),
+):
+    users = await run_in_threadpool(_users.list_users, limit, skip)
+    return {"count": len(users), "users": users}
+
+
+@router.get('/api/admin/keys', tags=["General"])
+@apply_tiered_limit("standard")
+async def admin_list_keys(
+    request: Request,
+    owner_id: Optional[str] = Query(None),
+    limit: int = Query(200, ge=1, le=1000),
+    api_key: str = Depends(require_admin_key),
+):
+    keys = await run_in_threadpool(_keys.list_all, owner_id, limit)
+    return {"count": len(keys), "keys": keys}
+
+
+@router.post('/api/admin/keys/{key_id}/revoke', tags=["General"])
+@apply_tiered_limit("standard")
+async def admin_revoke_key(
+    request: Request,
+    key_id: str,
+    api_key: str = Depends(require_admin_key),
+):
+    existing = await run_in_threadpool(_keys.find_by_id, key_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Key not found")
+    revoked = await run_in_threadpool(_keys.revoke, key_id, None)
+    if existing.get("key_hash"):
+        invalidate_key_cache(existing["key_hash"])
+    return {"id": key_id, "revoked": bool(revoked)}
+
+
+@router.get('/api/admin/usage/top', tags=["General"])
+@apply_tiered_limit("standard")
+async def admin_usage_top(
+    request: Request,
+    hours: int = Query(24, ge=1, le=720),
+    limit: int = Query(20, ge=1, le=200),
+    api_key: str = Depends(require_admin_key),
+):
+    rows = await run_in_threadpool(_key_usage.top_keys, hours, limit)
+    # Attach key metadata (prefix, owner, tier, label) by joining on key_hash.
+    enriched: List[Dict[str, Any]] = []
+    for row in rows:
+        meta = await run_in_threadpool(_keys.find_active_by_hash, row["key_hash"])
+        enriched.append({
+            **row,
+            "key_prefix": meta.get("key_prefix") if meta else None,
+            "label": meta.get("label") if meta else None,
+            "tier": meta.get("tier") if meta else None,
+            "owner_id": str(meta.get("owner_id")) if meta else None,
+        })
+    return {"window_hours": hours, "count": len(enriched), "rows": enriched}
+
+
+@router.get('/api/admin/usage/keys/{key_id}', tags=["General"])
+@apply_tiered_limit("standard")
+async def admin_usage_for_key(
+    request: Request,
+    key_id: str,
+    hours: int = Query(24, ge=1, le=720),
+    api_key: str = Depends(require_admin_key),
+):
+    doc = await run_in_threadpool(_keys.find_by_id, key_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Key not found")
+    summary = await run_in_threadpool(_key_usage.summary_for_key, doc["key_hash"], hours)
+    return {
+        "key_id": key_id,
+        "key_prefix": doc.get("key_prefix"),
+        "owner_id": str(doc.get("owner_id")),
+        "tier": doc.get("tier"),
+        "label": doc.get("label"),
+        "usage": summary,
+    }
+
+
+@router.get('/api/admin/performance', tags=["General"])
+@apply_tiered_limit("standard")
+async def admin_performance(
+    request: Request,
+    api_key: str = Depends(require_admin_key),
+):
+    tracker = get_request_tracker()
+    return {
+        "summary": tracker.get_summary(),
+        "endpoints": tracker.get_endpoint_stats(),
+    }

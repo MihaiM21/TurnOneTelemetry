@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     
     # JWT & Admin Settings
     jwt_secret_key: str = ""
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = 60 * 24
+    bcrypt_rounds: int = 12
+    api_key_cache_ttl_seconds: int = 60
     admin_secret_key: str = ""
     admin_email: str = ""
     admin_password: str = ""

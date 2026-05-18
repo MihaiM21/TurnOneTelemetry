@@ -100,10 +100,13 @@ def create_app() -> FastAPI:
 
     # Routers MUST be imported after init_limiter() (decorators bind at import).
     from src.api.routers.admin import router as admin_router
+    from src.api.routers.admin_ui import router as admin_ui_router
     from src.api.routers.analysis_v1 import router as analysis_router_v1
     from src.api.routers.analysis_v2 import router as analysis_router_v2
+    from src.api.routers.auth import router as auth_router
     from src.api.routers.circuits_api import router as circuits_api_router
     from src.api.routers.drivers_api import router as drivers_api_router
+    from src.api.routers.keys import router as keys_router
     from src.api.routers.monitoring import router as monitoring_router
     from src.api.routers.seasonal_v1 import router as seasonal_router_v1
     from src.api.routers.seasonal_v2 import router as seasonal_router_v2
@@ -368,6 +371,9 @@ def create_app() -> FastAPI:
 
     app.include_router(monitoring_router)
     app.include_router(admin_router)
+    app.include_router(admin_ui_router)
+    app.include_router(auth_router)
+    app.include_router(keys_router)
     app.include_router(analysis_router_v1)
     app.include_router(seasonal_router_v1)
     app.include_router(analysis_router_v2)

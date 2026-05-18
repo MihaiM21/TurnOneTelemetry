@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>T1API Admin</title>
+<style>
+  :root { --red:#E8002D; --bg:#0C0C0E; --bg2:#131316; --bg3:#1A1A1E; --border:rgba(255,255,255,0.08); --text:#F0F0F2; --muted:rgba(240,240,242,0.55); --good:#00C853; --warn:#FFB300; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter','Helvetica Neue',Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:24px}
+  header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+  h1{font-size:18px;letter-spacing:.12em;text-transform:uppercase}
+  h2{font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin:0 0 12px}
+  a.logout{color:var(--muted);font-size:12px;text-decoration:none;text-transform:uppercase;letter-spacing:.1em}
+  a.logout:hover{color:var(--red)}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+  .stat{background:var(--bg2);border:1px solid var(--border);padding:16px}
+  .stat .v{font-size:24px;font-weight:600;margin-top:6px}
+  .stat .l{font-size:10px;text-transform:uppercase;letter-spacing:.15em;color:var(--muted)}
+  section{background:var(--bg2);border:1px solid var(--border);margin-bottom:20px;padding:18px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--border)}
+  th{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);font-weight:500}
+  tr:hover td{background:var(--bg3)}
+  .tag{display:inline-block;padding:2px 6px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;border:1px solid var(--border);border-radius:2px;color:var(--muted)}
+  .tag.premium{color:var(--red);border-color:rgba(232,0,45,.4)}
+  .tag.standard{color:var(--good);border-color:rgba(0,200,83,.4)}
+  .tag.revoked{color:var(--muted);text-decoration:line-through}
+  form.inline{display:inline}
+  button.danger{background:transparent;color:var(--red);border:1px solid rgba(232,0,45,.5);padding:3px 8px;font-size:11px;cursor:pointer}
+  button.danger:hover{background:rgba(232,0,45,.1)}
+  button.promote{background:transparent;color:var(--warn);border:1px solid rgba(255,179,0,.5);padding:3px 8px;font-size:11px;cursor:pointer}
+  code{font-family:'JetBrains Mono',Menlo,monospace;font-size:12px;color:var(--muted)}
+  .muted{color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <h1>T1API Admin · v{{ version }}</h1>
+  <a class="logout" href="/admin/logout">Logout</a>
+</header>
+
+<div class="grid">
+  <div class="stat"><div class="l">Total requests</div><div class="v">{{ summary.total_requests }}</div></div>
+  <div class="stat"><div class="l">Errors</div><div class="v">{{ summary.total_errors }}</div></div>
+  <div class="stat"><div class="l">Error rate</div><div class="v">{{ summary.error_rate_percent }}%</div></div>
+  <div class="stat"><div class="l">Endpoints</div><div class="v">{{ summary.unique_endpoints }}</div></div>
+</div>
+
+<section>
+  <h2>Top API keys (last 24h)</h2>
+  {% if top_usage %}
+  <table>
+    <thead><tr><th>Prefix</th><th>Label</th><th>Tier</th><th>Requests</th><th>Errors</th><th>Avg ms</th></tr></thead>
+    <tbody>
+    {% for r in top_usage %}
+      <tr>
+        <td><code>{{ r.key_prefix or '—' }}</code></td>
+        <td>{{ r.label or '—' }}</td>
+        <td><span class="tag {{ r.tier }}">{{ r.tier or '—' }}</span></td>
+        <td>{{ r.count }}</td>
+        <td>{{ r.errors }}</td>
+        <td>{{ r.avg_duration_ms }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="muted">No usage recorded yet.</p>{% endif %}
+</section>
+
+<section>
+  <h2>All API keys</h2>
+  <table>
+    <thead><tr><th>Prefix</th><th>Label</th><th>Tier</th><th>Owner</th><th>Created</th><th>Last used</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for k in keys %}
+      <tr>
+        <td><code>{{ k.key_prefix }}</code></td>
+        <td>{{ k.label }}</td>
+        <td><span class="tag {{ k.tier }}">{{ k.tier }}</span></td>
+        <td><code>{{ k.owner_id[:8] }}…</code></td>
+        <td class="muted">{{ k.created_at }}</td>
+        <td class="muted">{{ k.last_used_at or '—' }}</td>
+        <td>{% if k.revoked_at %}<span class="tag revoked">revoked</span>{% else %}<span class="tag standard">active</span>{% endif %}</td>
+        <td>{% if not k.revoked_at %}
+          <form class="inline" method="post" action="/admin/keys/{{ k.id }}/revoke">
+            <button class="danger" type="submit">Revoke</button>
+          </form>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Users</h2>
+  <table>
+    <thead><tr><th>Email</th><th>Created</th><th>Admin</th><th>Disabled</th><th></th></tr></thead>
+    <tbody>
+    {% for u in users %}
+      <tr>
+        <td>{{ u.email }}</td>
+        <td class="muted">{{ u.created_at }}</td>
+        <td>{{ 'yes' if u.is_admin else 'no' }}</td>
+        <td>{{ 'yes' if u.disabled else 'no' }}</td>
+        <td>{% if not u.is_admin %}
+          <form class="inline" method="post" action="/admin/users/{{ u.id }}/promote">
+            <button class="promote" type="submit">Promote</button>
+          </form>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Endpoint performance (in-memory, since boot)</h2>
+  <table>
+    <thead><tr><th>Endpoint</th><th>Requests</th><th>Errors</th><th>Error %</th><th>Avg ms</th><th>Min ms</th><th>Max ms</th></tr></thead>
+    <tbody>
+    {% for p in performance %}
+      <tr>
+        <td><code>{{ p.endpoint }}</code></td>
+        <td>{{ p.total_requests }}</td>
+        <td>{{ p.total_errors }}</td>
+        <td>{{ p.error_rate }}</td>
+        <td>{{ p.avg_duration_ms }}</td>
+        <td>{{ p.min_duration_ms }}</td>
+        <td>{{ p.max_duration_ms }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+</body>
+</html>
