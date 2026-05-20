@@ -56,8 +56,9 @@ def _check_credentials(username: str, password: str) -> bool:
 @router.get("/admin/login", include_in_schema=False)
 async def admin_login_page(request: Request, error: bool = False):
     return templates.TemplateResponse(
+        request,
         "admin/login.html",
-        {"request": request, "error": error, "version": settings.app_version},
+        {"error": error, "version": settings.app_version},
     )
 
 
@@ -112,9 +113,9 @@ async def admin_dashboard(request: Request):
         })
 
     return templates.TemplateResponse(
+        request,
         "admin/dashboard.html",
         {
-            "request": request,
             "version": settings.app_version,
             "summary": tracker.get_summary(),
             "users": users,
