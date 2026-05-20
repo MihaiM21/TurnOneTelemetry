@@ -9,6 +9,7 @@ from src.services.analysis.v1.laptimes_distribution import LatimesDistribution
 # Custom modules — V2 (F1StaticClient, no FastF1 dependency)
 from src.services.analysis.v2.top_speed import TopSpeedData_Telemetry as V2_TopSpeedData
 from src.services.analysis.v2.throttle_comparison import ThrottleCompData as V2_ThrottleCompData
+from src.services.analysis.v2.qualifying_results import QualiResultsData as V2_QualiResultsData
 
 from src.services.analysis.base import with_fallback
 
@@ -191,4 +192,85 @@ def analise_race(year, round_num, session_name):
     # - Race pace comparison
     # - Overtakes analysis
 
+    return data
+
+
+# ============================================================================
+# V2 dashboard dispatch — livetiming-only, no FastF1 fallback.
+# ============================================================================
+
+def latest_session_analised_v2(latest_session):
+    """V2 sibling of :func:`latest_session_analised`. Same response contract,
+    but every data block is produced via the livetiming-only V2 path."""
+    year = latest_session['year']
+    round_num = latest_session['round']
+    session_name = latest_session['session_name']
+
+    category = get_session_category(session_name)
+
+    if category == 'practice':
+        return _analise_practice_v2(year, round_num, session_name)
+    elif category in ['qualifying', 'sprint_qualifying']:
+        return _analise_qualifying_v2(year, round_num, session_name)
+    elif category == 'sprint':
+        return _analise_sprint_v2(year, round_num, session_name)
+    elif category == 'race':
+        return _analise_race_v2(year, round_num, session_name)
+    else:
+        return _analise_practice_v2(year, round_num, session_name)
+
+
+def _analise_practice_v2(year, round_num, session_name):
+    data = {'session_type': 'practice', 'year': year, 'round': round_num, 'session_name': session_name}
+    try:
+        data['top_speed'] = V2_TopSpeedData(year, round_num, session_name)
+    except Exception as e:
+        data['top_speed'] = {'error': str(e)}
+    try:
+        data['throttle_comparison'] = V2_ThrottleCompData(year, round_num, session_name)
+    except Exception as e:
+        data['throttle_comparison'] = {'error': str(e)}
+    return data
+
+
+def _analise_qualifying_v2(year, round_num, session_name):
+    data = {'session_type': 'qualifying', 'year': year, 'round': round_num, 'session_name': session_name}
+    try:
+        data['qualifying_results'] = V2_QualiResultsData(year, round_num, session_name)
+    except Exception as e:
+        data['qualifying_results'] = {'error': str(e)}
+    try:
+        data['top_speed'] = V2_TopSpeedData(year, round_num, session_name)
+    except Exception as e:
+        data['top_speed'] = {'error': str(e)}
+    try:
+        data['throttle_comparison'] = V2_ThrottleCompData(year, round_num, session_name)
+    except Exception as e:
+        data['throttle_comparison'] = {'error': str(e)}
+    return data
+
+
+def _analise_sprint_v2(year, round_num, session_name):
+    data = {'session_type': 'sprint', 'year': year, 'round': round_num, 'session_name': session_name}
+    try:
+        data['top_speed'] = V2_TopSpeedData(year, round_num, session_name)
+    except Exception as e:
+        data['top_speed'] = {'error': str(e)}
+    try:
+        data['throttle_comparison'] = V2_ThrottleCompData(year, round_num, session_name)
+    except Exception as e:
+        data['throttle_comparison'] = {'error': str(e)}
+    return data
+
+
+def _analise_race_v2(year, round_num, session_name):
+    data = {'session_type': 'race', 'year': year, 'round': round_num, 'session_name': session_name}
+    try:
+        data['top_speed'] = V2_TopSpeedData(year, round_num, session_name)
+    except Exception as e:
+        data['top_speed'] = {'error': str(e)}
+    try:
+        data['throttle_comparison'] = V2_ThrottleCompData(year, round_num, session_name)
+    except Exception as e:
+        data['throttle_comparison'] = {'error': str(e)}
     return data

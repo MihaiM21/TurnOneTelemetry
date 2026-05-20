@@ -5,6 +5,8 @@ from typing import Union
 from src.core.logging import get_logger
 from src.core.security.api_keys import verify_api_key
 from src.core.security.rate_limiting import apply_tiered_limit
+from src.services.orchestrator_helpers import get_latest_finished_session_v2
+from src.services.orchestrator import latest_session_analised_v2
 
 # Importing Turn One Core files
 from src.services.analysis.v2.top_speed import TopSpeedPlot_Telemetry, TopSpeedData_Telemetry, TopSpeedPlot_SpeedTrap, TopSpeedData_SpeedTrap
@@ -34,6 +36,34 @@ def _track(event_name, *args):
         pass
 
 router = APIRouter(prefix="/api/v2")
+
+
+@router.get('/dashboard', tags=["API v2", "Latest Session"])
+@apply_tiered_limit("data")
+async def get_dashboard_data_v2(request: Request, api_key: str = Depends(verify_api_key)):
+    """
+    Get main latest session data via the livetiming-only V2 path.
+    Automatically detects the most recent completed session from the F1
+    static index (no FastF1).
+    """
+    try:
+        logger.info("Fetching V2 dashboard data for latest session")
+        latest_session = await run_in_threadpool(get_latest_finished_session_v2)
+
+        if not latest_session:
+            logger.warning("V2: no finished sessions found")
+            raise HTTPException(status_code=404, detail="No finished sessions found")
+
+        result = await run_in_threadpool(latest_session_analised_v2, latest_session)
+        return result
+
+    except HTTPException:
+        raise
+    except T1APIError:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching V2 dashboard data: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch dashboard data")
 
 
 # --- Simple Analysis Endpoints ---

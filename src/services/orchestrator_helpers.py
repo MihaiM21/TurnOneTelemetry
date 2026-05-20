@@ -1,5 +1,10 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from src.ingestion.reference import get_season_events, get_season_drivers_and_teams
+from src.core.logging import get_logger
+
+logger = get_logger(__name__)
+
+_SPRINT_NAME_TOKENS = ("sprint",)
 
 
 def get_latest_finished_session():
@@ -66,3 +71,98 @@ def simplify_session_name(session_name):
         "Race": "R"
     }
     return mapping.get(session_name, session_name)
+
+
+def _parse_gmt_offset(raw: str) -> timedelta:
+    """Parse a livetiming GmtOffset like '11:00:00' or '-04:00:00' into a timedelta."""
+    if not raw:
+        return timedelta(0)
+    sign = 1
+    text = raw.strip()
+    if text.startswith('+'):
+        text = text[1:]
+    elif text.startswith('-'):
+        sign = -1
+        text = text[1:]
+    parts = text.split(':')
+    try:
+        hours = int(parts[0]) if len(parts) > 0 else 0
+        minutes = int(parts[1]) if len(parts) > 1 else 0
+        seconds = int(parts[2]) if len(parts) > 2 else 0
+    except ValueError:
+        return timedelta(0)
+    return sign * timedelta(hours=hours, minutes=minutes, seconds=seconds)
+
+
+def _parse_livetiming_datetime(raw: str, gmt_offset: timedelta) -> "datetime | None":
+    """Parse a 'YYYY-MM-DDTHH:MM:SS' local timestamp and return it as UTC."""
+    if not raw:
+        return None
+    try:
+        local = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    return (local - gmt_offset).replace(tzinfo=timezone.utc)
+
+
+def _meeting_has_sprint(meeting: dict) -> bool:
+    for session in meeting.get('Sessions', []) or []:
+        name = (session.get('Name') or '').lower()
+        type_ = (session.get('Type') or '').lower()
+        if any(token in name or token in type_ for token in _SPRINT_NAME_TOKENS):
+            return True
+    return False
+
+
+def get_latest_finished_session_v2():
+    """
+    V2 equivalent of :func:`get_latest_finished_session` that uses the
+    livetiming static index (F1StaticClient) instead of curated reference
+    data. Returns the same dict shape so :func:`latest_session_analised_v2`
+    can consume it interchangeably.
+    """
+    # Imported lazily to avoid a circular import at module load time.
+    from src.ingestion.static_client import F1StaticClient
+
+    now = datetime.now(timezone.utc)
+    current_year = now.year
+    candidate_years = [current_year - 1, current_year]
+
+    client = F1StaticClient()
+    latest_session = None
+
+    for year in candidate_years:
+        try:
+            index = client.fetch_season_index(year)
+        except Exception as exc:
+            logger.debug("V2 latest-session: skipping %s (%s)", year, exc)
+            continue
+
+        meetings = index.get('Meetings', []) or []
+        for idx, meeting in enumerate(meetings, start=1):
+            gmt_offset = _parse_gmt_offset(meeting.get('GmtOffset', ''))
+            has_sprint = _meeting_has_sprint(meeting)
+
+            for session in meeting.get('Sessions', []) or []:
+                end_utc = _parse_livetiming_datetime(session.get('EndDate', ''), gmt_offset)
+                if end_utc is None or end_utc >= now:
+                    continue
+
+                if latest_session is None or end_utc > latest_session['endTime']:
+                    start_utc = _parse_livetiming_datetime(session.get('StartDate', ''), gmt_offset)
+                    session_name = simplify_session_name(session.get('Name', ''))
+                    circuit = meeting.get('Circuit') or {}
+                    country = meeting.get('Country') or {}
+                    latest_session = {
+                        "year": year,
+                        "round": idx,
+                        "grandPrix": meeting.get('Name', ''),
+                        "circuit": circuit.get('ShortName', '') if isinstance(circuit, dict) else '',
+                        "country": country.get('Name', '') if isinstance(country, dict) else '',
+                        "session_name": session_name,
+                        "startTime": start_utc,
+                        "endTime": end_utc,
+                        "is_sprint_weekend": has_sprint,
+                    }
+
+    return latest_session
