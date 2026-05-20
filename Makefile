@@ -1,4 +1,4 @@
-.PHONY: help install test test-unit test-integration test-fast test-cov lint clean build run deploy
+.PHONY: help install test test-unit test-integration test-fast test-cov lint clean build run deploy deploy-dev
 
 help:
 	@echo "F1 Telemetry API - Available Commands"
@@ -8,6 +8,8 @@ help:
 	@echo "  make lint       Check code quality"
 	@echo "  make clean      Clean generated files"
 	@echo "  make build      Build Docker image"
+	@echo "  make run-image  Run API using Docker image with env vars from .env"
+	@echo "  make deploy-dev Run API + MongoDB with docker-compose.dev.yml"
 	@echo "  make run        Run API locally"
 	@echo "  make deploy     Deploy with Docker Compose"
 	@echo ""
@@ -44,8 +46,14 @@ clean:
 build:
 	docker build -t t1api:latest .
 
+run-image:
+	docker run --env-file .env -p 5000:5000 t1api:latest
+
 run:
 	python server.py
 
 deploy:
 	docker-compose up -d
+
+deploy-dev:
+	docker-compose -f docker-compose.dev.yml up --build
