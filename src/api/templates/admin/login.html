@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<meta name="referrer" content="no-referrer">
 <title>T1API Admin — Login</title>
 <style>
   :root { --red:#E8002D; --bg:#0C0C0E; --bg2:#131316; --border:rgba(255,255,255,0.08); --text:#F0F0F2; --muted:rgba(240,240,242,0.5); }
@@ -23,9 +25,9 @@
   <p class="sub">T1API v{{ version }}</p>
   {% if error %}<div class="err">Invalid credentials.</div>{% endif %}
   <label>Username</label>
-  <input name="username" autofocus required>
+  <input name="username" autocomplete="username" autofocus required>
   <label>Password</label>
-  <input name="password" type="password" required>
+  <input name="password" type="password" autocomplete="current-password" required>
   <button type="submit">Sign in</button>
 </form>
 </body>

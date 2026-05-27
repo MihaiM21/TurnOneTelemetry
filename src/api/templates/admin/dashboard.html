@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<meta name="referrer" content="no-referrer">
 <title>T1API Admin</title>
 <style>
   :root { --red:#E8002D; --bg:#0C0C0E; --bg2:#131316; --bg3:#1A1A1E; --border:rgba(255,255,255,0.08); --text:#F0F0F2; --muted:rgba(240,240,242,0.55); --good:#00C853; --warn:#FFB300; }
@@ -177,6 +179,7 @@
         <td>{% if k.revoked_at %}<span class="tag revoked">revoked</span>{% else %}<span class="tag standard">active</span>{% endif %}</td>
         <td>{% if not k.revoked_at %}
           <form class="inline" method="post" action="/admin/keys/{{ k.id }}/revoke">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="danger" type="submit">Revoke</button>
           </form>{% endif %}
         </td>
@@ -199,6 +202,7 @@
         <td>{{ 'yes' if u.disabled else 'no' }}</td>
         <td>{% if not u.is_admin %}
           <form class="inline" method="post" action="/admin/users/{{ u.id }}/promote">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="promote" type="submit">Promote</button>
           </form>{% endif %}
         </td>

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, HTTPException, Depends, Query
+from fastapi import APIRouter, Request, Response, HTTPException, Depends, Query
 from fastapi.concurrency import run_in_threadpool
 from pymongo import MongoClient
 from urllib.parse import quote_plus
@@ -7,6 +7,11 @@ import re
 
 from fastapi.concurrency import run_in_threadpool
 
+from src.api.admin_security import (
+    NO_INDEX_HEADERS,
+    enforce_ip_allowlist,
+    enforce_ui_rate_limit,
+)
 from src.core.logging import get_logger
 from src.core.security.api_keys import invalidate_key_cache, verify_api_key
 from src.core.security.rate_limiting import apply_tiered_limit, limits_for_tier
@@ -20,7 +25,15 @@ import src.repositories.populate_seasons
 
 logger = get_logger(__name__)
 
-router = APIRouter()
+def _admin_api_gate(request: Request, response: Response) -> None:
+    """Apply IP allowlist + per-IP rate limit + noindex headers to every admin API call."""
+    enforce_ip_allowlist(request)
+    enforce_ui_rate_limit(request)
+    for k, v in NO_INDEX_HEADERS.items():
+        response.headers[k] = v
+
+
+router = APIRouter(dependencies=[Depends(_admin_api_gate)])
 
 
 async def require_admin_key(api_key: str = Depends(verify_api_key)) -> str:

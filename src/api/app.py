@@ -339,6 +339,15 @@ def create_app() -> FastAPI:
             },
         )
 
+    @app.get("/robots.txt", include_in_schema=False)
+    async def robots_txt():
+        from starlette.responses import PlainTextResponse
+        body = "User-agent: *\nDisallow: /admin\nDisallow: /api/admin\nDisallow: /docs\nDisallow: /redoc\n"
+        return PlainTextResponse(
+            body,
+            headers={"Cache-Control": "public, max-age=86400", "X-Robots-Tag": "noindex"},
+        )
+
     @app.get("/", tags=["General"])
     async def welcome():
         return {
