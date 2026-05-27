@@ -105,6 +105,11 @@ class Settings(BaseSettings):
     # Data endpoints (more intensive)
     rate_limit_data_per_minute: int = 60
     rate_limit_data_per_hour: int = 1000
+
+    # Monthly quotas per tier (reporting only, not enforced)
+    quota_public_monthly: int = 5_000
+    quota_standard_monthly: int = 100_000
+    quota_premium_monthly: int = 1_000_000
     
     # Premium API keys (comma-separated list for higher rate limits)
     premium_api_keys: str = ""

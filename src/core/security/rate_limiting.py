@@ -35,6 +35,31 @@ def get_limiter():
         raise RuntimeError("Rate limiter not initialized. Call init_limiter() first.")
     return _limiter_instance
 
+def limits_for_tier(tier: str) -> dict:
+    """Return the per-minute / per-hour / monthly-quota limits for a tier.
+
+    Used by dashboard endpoints to surface "what your tier gets you" without
+    duplicating the numbers from ``settings``.
+    """
+    if tier == "premium":
+        return {
+            "per_minute": settings.rate_limit_premium_per_minute,
+            "per_hour": settings.rate_limit_premium_per_hour,
+            "monthly_quota": settings.quota_premium_monthly,
+        }
+    if tier == "standard":
+        return {
+            "per_minute": settings.rate_limit_standard_per_minute,
+            "per_hour": settings.rate_limit_standard_per_hour,
+            "monthly_quota": settings.quota_standard_monthly,
+        }
+    return {
+        "per_minute": settings.rate_limit_public_per_minute,
+        "per_hour": settings.rate_limit_public_per_hour,
+        "monthly_quota": settings.quota_public_monthly,
+    }
+
+
 def apply_tiered_limit(endpoint_type: str = "standard"):
     """
     Apply tiered rate limiting based on endpoint type

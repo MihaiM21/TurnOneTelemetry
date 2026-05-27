@@ -31,6 +31,28 @@
   button.promote{background:transparent;color:var(--warn);border:1px solid rgba(255,179,0,.5);padding:3px 8px;font-size:11px;cursor:pointer}
   code{font-family:'JetBrains Mono',Menlo,monospace;font-size:12px;color:var(--muted)}
   .muted{color:var(--muted)}
+  .totals{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+  .totals .card{background:var(--bg2);border:1px solid var(--border);padding:14px}
+  .totals .card .l{font-size:10px;text-transform:uppercase;letter-spacing:.15em;color:var(--muted)}
+  .totals .card .v{font-size:22px;font-weight:600;margin-top:4px}
+  .totals .card .sub{font-size:11px;color:var(--muted);margin-top:6px}
+  .peakbars{display:flex;align-items:flex-end;gap:2px;height:120px;padding:8px 0;border-bottom:1px solid var(--border)}
+  .peakbars .bar{flex:1;background:var(--red);opacity:.7;min-height:1px;position:relative}
+  .peakbars .bar.peak{opacity:1}
+  .peakbars .bar:hover::after{content:attr(data-tip);position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:var(--bg3);border:1px solid var(--border);padding:3px 6px;font-size:10px;white-space:nowrap;color:var(--text)}
+  .peakaxis{display:flex;justify-content:space-between;font-size:9px;color:var(--muted);margin-top:4px;letter-spacing:.05em}
+  .bar-cell{position:relative;background:var(--bg3);height:14px;border-radius:2px;overflow:hidden;min-width:60px}
+  .bar-cell .fill{position:absolute;left:0;top:0;bottom:0;background:var(--good)}
+  .bar-cell .fill.warn{background:var(--warn)}
+  .bar-cell .fill.danger{background:var(--red)}
+  .searchbar{display:flex;gap:8px;margin-bottom:16px;align-items:center}
+  .searchbar input[type=text]{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 10px;font-size:13px;min-width:280px;font-family:inherit;border-radius:2px}
+  .searchbar input[type=text]:focus{outline:none;border-color:var(--red)}
+  .searchbar button{background:var(--red);color:#fff;border:none;padding:7px 14px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;border-radius:2px}
+  .searchbar a.clear{color:var(--muted);font-size:12px;text-decoration:none}
+  .searchbar a.clear:hover{color:var(--text)}
+  a.cellink{color:var(--text);text-decoration:none;border-bottom:1px dotted var(--border)}
+  a.cellink:hover{color:var(--red);border-color:var(--red)}
 </style>
 </head>
 <body>
@@ -45,6 +67,69 @@
   <div class="stat"><div class="l">Error rate</div><div class="v">{{ summary.error_rate_percent }}%</div></div>
   <div class="stat"><div class="l">Endpoints</div><div class="v">{{ summary.unique_endpoints }}</div></div>
 </div>
+
+<section>
+  <h2>Platform usage (UTC)</h2>
+  <div class="totals">
+    <div class="card">
+      <div class="l">Today</div>
+      <div class="v">{{ global_stats.today.requests }}</div>
+      <div class="sub">{{ global_stats.today.errors }} errors · {{ global_stats.today.error_rate_percent }}% · avg {{ global_stats.today.avg_ms }} ms</div>
+    </div>
+    <div class="card">
+      <div class="l">Last 7 days</div>
+      <div class="v">{{ global_stats.last_7_days.requests }}</div>
+      <div class="sub">{{ global_stats.last_7_days.errors }} errors · {{ global_stats.last_7_days.error_rate_percent }}%</div>
+    </div>
+    <div class="card">
+      <div class="l">Current month</div>
+      <div class="v">{{ global_stats.current_month.requests }}</div>
+      <div class="sub">resets {{ global_stats.month_resets_at }}</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Peak hours (UTC, last 30 days)</h2>
+  {% if peak_max > 0 %}
+  <p class="muted" style="margin-bottom:10px;font-size:12px">Peak at <strong style="color:var(--text)">{{ '%02d:00'|format(peak_hour.hour) }} UTC</strong> · {{ peak_hour.count }} requests</p>
+  <div class="peakbars">
+    {% for h in peak_series %}
+      <div class="bar {% if h.hour == peak_hour.hour %}peak{% endif %}"
+           style="height: {{ ((h.count / peak_max) * 100) if peak_max else 0 }}%"
+           data-tip="{{ '%02d:00'|format(h.hour) }} · {{ h.count }} req"></div>
+    {% endfor %}
+  </div>
+  <div class="peakaxis"><span>00</span><span>06</span><span>12</span><span>18</span><span>23</span></div>
+  {% else %}<p class="muted">No request data in the last 30 days.</p>{% endif %}
+</section>
+
+<section>
+  <h2>Monthly quota usage</h2>
+  {% if quota_rows %}
+  <table>
+    <thead><tr><th>Prefix</th><th>Label</th><th>Tier</th><th>Used / Limit</th><th>Remaining</th><th>% used</th></tr></thead>
+    <tbody>
+    {% for q in quota_rows %}
+      <tr>
+        <td><code>{{ q.key_prefix or '—' }}</code></td>
+        <td>{{ q.label or '—' }}</td>
+        <td><span class="tag {{ q.tier }}">{{ q.tier }}</span></td>
+        <td>{{ q.used_this_month }} / {{ q.monthly_limit }}</td>
+        <td>{{ q.remaining }}</td>
+        <td>
+          <div class="bar-cell">
+            <div class="fill {% if q.percent_used >= 90 %}danger{% elif q.percent_used >= 70 %}warn{% endif %}"
+                 style="width: {{ q.percent_used }}%"></div>
+          </div>
+          <span class="muted" style="font-size:11px">{{ q.percent_used }}%</span>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="muted">No active keys with usage.</p>{% endif %}
+</section>
 
 <section>
   <h2>Top API keys (last 24h)</h2>
@@ -68,16 +153,25 @@
 </section>
 
 <section>
+  <h2>Search</h2>
+  <form class="searchbar" method="get" action="/admin">
+    <input type="text" name="q" value="{{ q }}" placeholder="email, key prefix, or label" autocomplete="off">
+    <button type="submit">Search</button>
+    {% if q %}<a class="clear" href="/admin">Clear</a><span class="muted" style="font-size:11px">filtering by "{{ q }}"</span>{% endif %}
+  </form>
+</section>
+
+<section>
   <h2>All API keys</h2>
   <table>
     <thead><tr><th>Prefix</th><th>Label</th><th>Tier</th><th>Owner</th><th>Created</th><th>Last used</th><th>Status</th><th></th></tr></thead>
     <tbody>
     {% for k in keys %}
       <tr>
-        <td><code>{{ k.key_prefix }}</code></td>
+        <td><a class="cellink" href="/admin/keys/{{ k.id }}/analytics"><code>{{ k.key_prefix }}</code></a></td>
         <td>{{ k.label }}</td>
         <td><span class="tag {{ k.tier }}">{{ k.tier }}</span></td>
-        <td><code>{{ k.owner_id[:8] }}…</code></td>
+        <td><a class="cellink" href="/admin/users/{{ k.owner_id }}"><code>{{ k.owner_id[:8] }}…</code></a></td>
         <td class="muted">{{ k.created_at }}</td>
         <td class="muted">{{ k.last_used_at or '—' }}</td>
         <td>{% if k.revoked_at %}<span class="tag revoked">revoked</span>{% else %}<span class="tag standard">active</span>{% endif %}</td>
@@ -99,7 +193,7 @@
     <tbody>
     {% for u in users %}
       <tr>
-        <td>{{ u.email }}</td>
+        <td><a class="cellink" href="/admin/users/{{ u.id }}">{{ u.email }}</a></td>
         <td class="muted">{{ u.created_at }}</td>
         <td>{{ 'yes' if u.is_admin else 'no' }}</td>
         <td>{{ 'yes' if u.disabled else 'no' }}</td>

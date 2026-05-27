@@ -72,10 +72,11 @@ def _resolve_db_sync(api_key: str) -> dict:
     try:
         doc = find_active_by_hash(key_hash)
     except Exception as exc:
-        logger.warning("api_keys lookup failed: %s", exc)
+        logger.warning("api_keys DB lookup failed for prefix %s...: %s", api_key[:11], exc)
         return {"valid": False}
 
     if not doc:
+        logger.warning("api_keys lookup miss: key prefix %s... not found in DB", api_key[:11])
         result = {"valid": False}
         _cache_set(key_hash, result, ttl=_NEG_TTL)
         return result

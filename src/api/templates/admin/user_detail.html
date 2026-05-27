@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>T1API Admin · {{ user.email }}</title>
+<style>
+  :root { --red:#E8002D; --bg:#0C0C0E; --bg2:#131316; --bg3:#1A1A1E; --border:rgba(255,255,255,0.08); --text:#F0F0F2; --muted:rgba(240,240,242,0.55); --good:#00C853; --warn:#FFB300; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter','Helvetica Neue',Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:24px}
+  header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+  h1{font-size:18px;letter-spacing:.12em;text-transform:uppercase}
+  h2{font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin:0 0 12px}
+  a{color:var(--muted);text-decoration:none}
+  a:hover{color:var(--red)}
+  a.back{font-size:12px;text-transform:uppercase;letter-spacing:.1em}
+  section{background:var(--bg2);border:1px solid var(--border);margin-bottom:20px;padding:18px}
+  .meta{display:flex;gap:24px;flex-wrap:wrap;font-size:13px;margin-bottom:8px}
+  .meta .item .l{font-size:10px;text-transform:uppercase;letter-spacing:.15em;color:var(--muted);display:block}
+  .meta .item .v{margin-top:2px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--border)}
+  th{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);font-weight:500}
+  tr:hover td{background:var(--bg3)}
+  .tag{display:inline-block;padding:2px 6px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;border:1px solid var(--border);border-radius:2px;color:var(--muted)}
+  .tag.premium{color:var(--red);border-color:rgba(232,0,45,.4)}
+  .tag.standard{color:var(--good);border-color:rgba(0,200,83,.4)}
+  .tag.revoked{color:var(--muted);text-decoration:line-through}
+  .tag.admin{color:var(--warn);border-color:rgba(255,179,0,.5)}
+  code{font-family:'JetBrains Mono',Menlo,monospace;font-size:12px;color:var(--muted)}
+  .muted{color:var(--muted)}
+  .totals{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:8px}
+  .totals .card{background:var(--bg3);border:1px solid var(--border);padding:14px}
+  .totals .card .l{font-size:10px;text-transform:uppercase;letter-spacing:.15em;color:var(--muted)}
+  .totals .card .v{font-size:22px;font-weight:600;margin-top:4px}
+  .totals .card .sub{font-size:11px;color:var(--muted);margin-top:6px}
+  .peakbars{display:flex;align-items:flex-end;gap:2px;height:120px;padding:8px 0;border-bottom:1px solid var(--border)}
+  .peakbars .bar{flex:1;background:var(--red);opacity:.7;min-height:1px;position:relative}
+  .peakbars .bar.peak{opacity:1}
+  .peakbars .bar:hover::after{content:attr(data-tip);position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:var(--bg3);border:1px solid var(--border);padding:3px 6px;font-size:10px;white-space:nowrap;color:var(--text);z-index:10}
+  .peakaxis{display:flex;justify-content:space-between;font-size:9px;color:var(--muted);margin-top:4px;letter-spacing:.05em}
+  .windowsel{display:flex;gap:6px;margin-bottom:14px;align-items:center;flex-wrap:wrap}
+  .windowsel a{display:inline-block;padding:5px 10px;border:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);border-radius:2px}
+  .windowsel a.active{color:var(--text);border-color:var(--red);background:rgba(232,0,45,.08)}
+  .windowsel a:hover{color:var(--text)}
+  .windowsel form{display:inline-flex;gap:6px;align-items:center}
+  .windowsel input{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:5px 8px;font-size:12px;width:80px;font-family:inherit;border-radius:2px}
+  .windowsel button{background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 10px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;cursor:pointer;border-radius:2px}
+  .windowsel button:hover{color:var(--text);border-color:var(--text)}
+  a.cellink{color:var(--text);border-bottom:1px dotted var(--border)}
+  a.cellink:hover{color:var(--red);border-color:var(--red)}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>User · {{ user.email }}</h1>
+    <div class="muted" style="font-size:11px;margin-top:6px">
+      <a class="back" href="/admin">&larr; Admin</a>
+    </div>
+  </div>
+  <a class="back" href="/admin/logout">Logout</a>
+</header>
+
+<section>
+  <h2>Account</h2>
+  <div class="meta">
+    <div class="item"><span class="l">User ID</span><span class="v"><code>{{ user.id }}</code></span></div>
+    <div class="item"><span class="l">Email</span><span class="v">{{ user.email }}</span></div>
+    <div class="item"><span class="l">Created</span><span class="v muted">{{ user.created_at }}</span></div>
+    <div class="item"><span class="l">Admin</span><span class="v">{% if user.is_admin %}<span class="tag admin">admin</span>{% else %}no{% endif %}</span></div>
+    <div class="item"><span class="l">Disabled</span><span class="v">{{ 'yes' if user.disabled else 'no' }}</span></div>
+    <div class="item"><span class="l">Total keys</span><span class="v">{{ keys|length }}</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>Aggregate usage (across all active keys)</h2>
+  <div class="windowsel">
+    <span class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.1em">Window:</span>
+    <a href="?hours=24" class="{% if hours == 24 %}active{% endif %}">24h</a>
+    <a href="?hours=168" class="{% if hours == 168 %}active{% endif %}">7d</a>
+    <a href="?hours=720" class="{% if hours == 720 %}active{% endif %}">30d</a>
+    <a href="?hours=2160" class="{% if hours == 2160 %}active{% endif %}">90d</a>
+    <form method="get">
+      <input type="number" name="hours" value="{{ hours }}" min="1" max="2160" placeholder="hours">
+      <button type="submit">Custom</button>
+    </form>
+  </div>
+  <div class="totals">
+    <div class="card">
+      <div class="l">{{ window_label }}</div>
+      <div class="v">{{ aggregate.window.requests if aggregate.window else 0 }}</div>
+      <div class="sub">{{ aggregate.window.errors if aggregate.window else 0 }} errors · {{ aggregate.window.error_rate_percent if aggregate.window else 0 }}% · avg {{ aggregate.window.avg_ms if aggregate.window else 0 }} ms</div>
+    </div>
+    <div class="card">
+      <div class="l">Today</div>
+      <div class="v">{{ aggregate.today.requests }}</div>
+      <div class="sub">{{ aggregate.today.errors }} errors · {{ aggregate.today.error_rate_percent }}%</div>
+    </div>
+    <div class="card">
+      <div class="l">Last 7 days</div>
+      <div class="v">{{ aggregate.last_7_days.requests }}</div>
+      <div class="sub">{{ aggregate.last_7_days.errors }} errors · {{ aggregate.last_7_days.error_rate_percent }}%</div>
+    </div>
+    <div class="card">
+      <div class="l">Current month</div>
+      <div class="v">{{ aggregate.current_month.requests }}</div>
+      <div class="sub">resets {{ aggregate.month_resets_at }}</div>
+    </div>
+  </div>
+  {% if bucket_max > 0 %}
+    <h2 style="margin-top:18px">Hourly ({{ window_label }})</h2>
+    <div class="peakbars">
+      {% for b in aggregate.buckets %}
+        <div class="bar"
+             style="height: {{ ((b.count / bucket_max) * 100) if bucket_max else 0 }}%"
+             data-tip="{{ b.bucket }} · {{ b.count }} req · {{ b.errors }} err"></div>
+      {% endfor %}
+    </div>
+  {% else %}<p class="muted" style="margin-top:14px">No usage in selected window.</p>{% endif %}
+</section>
+
+<section>
+  <h2>Peak hours (UTC, last 30 days)</h2>
+  {% if peak_max > 0 %}
+  <p class="muted" style="margin-bottom:10px;font-size:12px">Peak at <strong style="color:var(--text)">{{ '%02d:00'|format(peak_hour.hour) }} UTC</strong> · {{ peak_hour.count }} requests</p>
+  <div class="peakbars">
+    {% for h in peak_series %}
+      <div class="bar {% if h.hour == peak_hour.hour %}peak{% endif %}"
+           style="height: {{ ((h.count / peak_max) * 100) if peak_max else 0 }}%"
+           data-tip="{{ '%02d:00'|format(h.hour) }} · {{ h.count }} req"></div>
+    {% endfor %}
+  </div>
+  <div class="peakaxis"><span>00</span><span>06</span><span>12</span><span>18</span><span>23</span></div>
+  {% else %}<p class="muted">No request data in the last 30 days.</p>{% endif %}
+</section>
+
+<section>
+  <h2>Keys ({{ keys|length }})</h2>
+  {% if keys %}
+  <table>
+    <thead><tr><th>Prefix</th><th>Label</th><th>Tier</th><th>Status</th><th>Today</th><th>7d</th><th>Month</th><th>Created</th><th>Last used</th></tr></thead>
+    <tbody>
+    {% for k in keys %}
+      <tr>
+        <td><a class="cellink" href="/admin/keys/{{ k.id }}/analytics"><code>{{ k.key_prefix }}</code></a></td>
+        <td>{{ k.label or '—' }}</td>
+        <td><span class="tag {{ k.tier }}">{{ k.tier }}</span></td>
+        <td>{% if k.revoked_at %}<span class="tag revoked">revoked</span>{% else %}<span class="tag standard">active</span>{% endif %}</td>
+        <td>{{ k.today.requests }}</td>
+        <td>{{ k.last_7_days.requests }}</td>
+        <td>{{ k.current_month.requests }}</td>
+        <td class="muted">{{ k.created_at }}</td>
+        <td class="muted">{{ k.last_used_at or '—' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="muted">This user has no API keys.</p>{% endif %}
+</section>
+
+</body>
+</html>

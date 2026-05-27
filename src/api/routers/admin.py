@@ -9,7 +9,7 @@ from fastapi.concurrency import run_in_threadpool
 
 from src.core.logging import get_logger
 from src.core.security.api_keys import invalidate_key_cache, verify_api_key
-from src.core.security.rate_limiting import apply_tiered_limit
+from src.core.security.rate_limiting import apply_tiered_limit, limits_for_tier
 from src.workers.processor import get_processor
 from src.core.config import settings
 from src.core.observability.monitoring import get_request_tracker
@@ -405,6 +405,59 @@ async def admin_list_keys(
     return {"count": len(keys), "keys": keys}
 
 
+@router.get('/api/admin/keys/verify', tags=["General"])
+@apply_tiered_limit("standard")
+async def admin_verify_key(
+    request: Request,
+    raw_key: str = Query(..., description="The raw API key to verify"),
+    api_key: str = Depends(require_admin_key),
+):
+    """Check whether a raw API key exists and is active in MongoDB.
+
+    Useful for diagnosing 'Invalid API key' errors — confirms if the key
+    is stored and not revoked, bypassing the Redis auth cache.
+    """
+    from src.repositories.api_keys import find_active_by_hash, hash_key as _hash_key
+    from src.core.security.api_keys import _cache_get
+
+    key_hash = _hash_key(raw_key)
+
+    def _lookup():
+        try:
+            return find_active_by_hash(key_hash)
+        except Exception as exc:
+            return {"_error": str(exc)}
+
+    doc = await run_in_threadpool(_lookup)
+
+    if isinstance(doc, dict) and "_error" in doc:
+        return {
+            "found": False,
+            "error": doc["_error"],
+            "cached": _cache_get(key_hash),
+            "key_prefix": raw_key[:11],
+        }
+
+    cached = _cache_get(key_hash)
+    if not doc:
+        return {
+            "found": False,
+            "cached": cached,
+            "key_prefix": raw_key[:11],
+            "hint": "Key not in MongoDB. Was it created on a different server/database?",
+        }
+
+    return {
+        "found": True,
+        "key_prefix": doc.get("key_prefix"),
+        "tier": doc.get("tier"),
+        "revoked": doc.get("revoked_at") is not None,
+        "owner_id": str(doc.get("owner_id")),
+        "created_at": str(doc.get("created_at")),
+        "cached": cached,
+    }
+
+
 @router.post('/api/admin/keys/{key_id}/revoke', tags=["General"])
 @apply_tiered_limit("standard")
 async def admin_revoke_key(
@@ -463,6 +516,184 @@ async def admin_usage_for_key(
         "tier": doc.get("tier"),
         "label": doc.get("label"),
         "usage": summary,
+    }
+
+
+@router.get('/api/admin/dashboard', tags=["General"])
+@apply_tiered_limit("standard")
+async def admin_dashboard(
+    request: Request,
+    top_n: int = Query(10, ge=1, le=100),
+    api_key: str = Depends(require_admin_key),
+):
+    """Platform-wide usage dashboard: today/7d/month totals + top keys."""
+    stats = await run_in_threadpool(_key_usage.global_dashboard)
+    top = await run_in_threadpool(_key_usage.top_keys, 24, top_n)
+    enriched: List[Dict[str, Any]] = []
+    for row in top:
+        meta = await run_in_threadpool(_keys.find_active_by_hash, row["key_hash"])
+        enriched.append({
+            **row,
+            "key_prefix": meta.get("key_prefix") if meta else None,
+            "label": meta.get("label") if meta else None,
+            "tier": meta.get("tier") if meta else None,
+        })
+    tracker = get_request_tracker()
+    return {
+        "totals": {
+            "today": stats["today"],
+            "last_7_days": stats["last_7_days"],
+            "current_month": stats["current_month"],
+        },
+        "month_resets_at": stats["month_resets_at"],
+        "top_keys_24h": enriched,
+        "request_tracker_summary": tracker.get_summary(),
+    }
+
+
+@router.get('/api/admin/peak-hours', tags=["General"])
+@apply_tiered_limit("standard")
+async def admin_peak_hours(
+    request: Request,
+    days: int = Query(30, ge=1, le=90),
+    api_key: str = Depends(require_admin_key),
+):
+    """Platform-wide hour-of-day (UTC) request distribution."""
+    series = await run_in_threadpool(_key_usage.global_peak_hours, days)
+    peak = max(series, key=lambda r: r["count"]) if series else {"hour": 0, "count": 0}
+    return {"days": days, "peak_hour_utc": peak, "by_hour": series}
+
+
+@router.get('/api/admin/quota-usage', tags=["General"])
+@apply_tiered_limit("standard")
+async def admin_quota_usage(
+    request: Request,
+    limit: int = Query(200, ge=1, le=1000),
+    api_key: str = Depends(require_admin_key),
+):
+    """Per-key monthly quota usage; flags keys approaching or over the cap."""
+    keys = await run_in_threadpool(_keys.list_all, None, limit)
+    rows: List[Dict[str, Any]] = []
+    for k in keys:
+        key_id = k.get("id")
+        if k.get("revoked_at") or not key_id:
+            continue
+        raw = await run_in_threadpool(_keys.find_by_id, key_id)
+        key_hash = raw.get("key_hash") if raw else None
+        if not key_hash:
+            continue
+        stats = await run_in_threadpool(_key_usage.dashboard_for_key, key_hash)
+        tier = k.get("tier") or "standard"
+        monthly_limit = limits_for_tier(tier)["monthly_quota"]
+        used = stats["current_month"]["requests"]
+        remaining = max(0, monthly_limit - used)
+        percent = round(min(100.0, (used / monthly_limit * 100)), 2) if monthly_limit else 0.0
+        rows.append({
+            "key_id": key_id,
+            "key_prefix": k.get("key_prefix"),
+            "label": k.get("label"),
+            "tier": tier,
+            "monthly_limit": monthly_limit,
+            "used_this_month": used,
+            "remaining": remaining,
+            "percent_used": percent,
+        })
+    rows.sort(key=lambda r: r["percent_used"], reverse=True)
+    return {"count": len(rows), "rows": rows}
+
+
+@router.get('/api/admin/users/{user_id}/usage', tags=["General"])
+@apply_tiered_limit("standard")
+async def admin_user_usage(
+    request: Request,
+    user_id: str,
+    hours: int = Query(24, ge=1, le=2160),
+    api_key: str = Depends(require_admin_key),
+):
+    """Per-user aggregated usage across all their keys + per-key breakdown."""
+    user = await run_in_threadpool(_users.find_user_by_id, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    serialized_keys = await run_in_threadpool(_keys.list_all, user_id, 500)
+
+    # Collect key hashes from raw docs (serialized form omits key_hash).
+    key_rows: List[Dict[str, Any]] = []
+    key_hashes: List[str] = []
+    for k in serialized_keys:
+        raw = await run_in_threadpool(_keys.find_by_id, k["id"])
+        key_hash = raw.get("key_hash") if raw else None
+        if not key_hash:
+            continue
+        per_key = await run_in_threadpool(_key_usage.dashboard_for_key, key_hash)
+        key_rows.append({
+            "id": k["id"],
+            "key_prefix": k.get("key_prefix"),
+            "label": k.get("label"),
+            "tier": k.get("tier"),
+            "revoked_at": k.get("revoked_at"),
+            "today": per_key["today"],
+            "last_7_days": per_key["last_7_days"],
+            "current_month": per_key["current_month"],
+        })
+        if not k.get("revoked_at"):
+            key_hashes.append(key_hash)
+
+    aggregate = await run_in_threadpool(_key_usage.dashboard_for_keys, key_hashes, hours)
+    peak = await run_in_threadpool(_key_usage.peak_hours_for_keys, key_hashes, 30)
+
+    return {
+        "user": user,
+        "window_hours": hours,
+        "aggregate": aggregate,
+        "peak_hours": peak,
+        "keys": key_rows,
+    }
+
+
+@router.get('/api/admin/keys/{key_id}/analytics', tags=["General"])
+@apply_tiered_limit("standard")
+async def admin_key_analytics(
+    request: Request,
+    key_id: str,
+    hours: int = Query(24, ge=1, le=2160),
+    api_key: str = Depends(require_admin_key),
+):
+    """Single-key analytics: dashboard, hourly window, peak hour-of-day."""
+    doc = await run_in_threadpool(_keys.find_by_id, key_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Key not found")
+    key_hash = doc["key_hash"]
+    dashboard = await run_in_threadpool(_key_usage.dashboard_for_key, key_hash)
+    summary = await run_in_threadpool(_key_usage.summary_for_key, key_hash, hours)
+    peak = await run_in_threadpool(_key_usage.peak_hours_for_key, key_hash, 30)
+    owner = await run_in_threadpool(_users.find_user_by_id, str(doc.get("owner_id")))
+    tier = doc.get("tier") or "standard"
+    monthly_limit = limits_for_tier(tier)["monthly_quota"]
+    used = dashboard["current_month"]["requests"]
+    percent = round(min(100.0, (used / monthly_limit * 100)), 2) if monthly_limit else 0.0
+    return {
+        "key": {
+            "id": key_id,
+            "key_prefix": doc.get("key_prefix"),
+            "label": doc.get("label"),
+            "tier": tier,
+            "created_at": str(doc.get("created_at")),
+            "last_used_at": str(doc.get("last_used_at")) if doc.get("last_used_at") else None,
+            "revoked_at": str(doc.get("revoked_at")) if doc.get("revoked_at") else None,
+            "owner_id": str(doc.get("owner_id")),
+        },
+        "owner": owner,
+        "window_hours": hours,
+        "dashboard": dashboard,
+        "window_summary": summary,
+        "peak_hours": peak,
+        "quota": {
+            "monthly_limit": monthly_limit,
+            "used_this_month": used,
+            "remaining": max(0, monthly_limit - used),
+            "percent_used": percent,
+        },
     }
 
 

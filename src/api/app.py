@@ -15,6 +15,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 
 from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
@@ -106,7 +107,7 @@ def create_app() -> FastAPI:
     from src.api.routers.auth import router as auth_router
     from src.api.routers.circuits_api import router as circuits_api_router
     from src.api.routers.drivers_api import router as drivers_api_router
-    from src.api.routers.keys import router as keys_router
+    from src.api.routers.keys import router as keys_router, me_router
     from src.api.routers.monitoring import router as monitoring_router
     from src.api.routers.seasonal_v1 import router as seasonal_router_v1
     from src.api.routers.seasonal_v2 import router as seasonal_router_v2
@@ -352,15 +353,27 @@ def create_app() -> FastAPI:
     async def health_check(request: Request):
         try:
             processor = get_processor()
+
+            def _mongo_ping():
+                try:
+                    from src.repositories.mongo import get_mongo_client
+                    get_mongo_client().admin.command("ping")
+                    return "healthy"
+                except Exception as exc:
+                    return f"unreachable: {exc}"
+
+            mongo_status = await run_in_threadpool(_mongo_ping)
             checks = {
                 "api": "healthy",
+                "mongodb": mongo_status,
                 "session_tracker": "healthy" if session_tracker else "unavailable",
                 "background_processor": "running" if processor.running else "stopped",
                 "processed_sessions": len(processor.processed_sessions),
                 "environment": settings.environment,
             }
+            overall = "healthy" if mongo_status == "healthy" else "degraded"
             return {
-                "status": "healthy",
+                "status": overall,
                 "version": settings.app_version,
                 "environment": settings.environment,
                 "checks": checks,
@@ -374,6 +387,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_ui_router)
     app.include_router(auth_router)
     app.include_router(keys_router)
+    app.include_router(me_router)
     app.include_router(analysis_router_v1)
     app.include_router(seasonal_router_v1)
     app.include_router(analysis_router_v2)
