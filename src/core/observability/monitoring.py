@@ -433,18 +433,23 @@ class RequestTracingMiddleware(BaseHTTPMiddleware):
             # Decrement active requests
             ACTIVE_REQUESTS.dec()
             
+            # If verify_api_key resolved a DB-backed key during the request,
+            # use that tier for metrics instead of the early "invalid" guess.
+            stashed = getattr(request.state, "api_key_resolution", None)
+            metric_tier = stashed["tier"] if stashed else tier
+
             # Update metrics
             REQUEST_COUNT.labels(
                 method=method,
                 endpoint=path,
                 status=status_code,
-                tier=tier
+                tier=metric_tier
             ).inc()
-            
+
             REQUEST_DURATION.labels(
                 method=method,
                 endpoint=path,
-                tier=tier
+                tier=metric_tier
             ).observe(duration)
             
             if status_code >= 400:
@@ -454,11 +459,16 @@ class RequestTracingMiddleware(BaseHTTPMiddleware):
                     status_code=status_code
                 ).inc()
 
-            # Per-key telemetry. ``verify_api_key`` may have just primed the
-            # Redis cache for a DB-backed key, so re-resolve here to catch
-            # the upgrade from "invalid" → real tier.
+            # Per-key telemetry. ``verify_api_key`` stashes the resolved key
+            # on request.state; prefer that over re-resolving via Redis (which
+            # silently no-ops if Redis is disabled/unreachable, losing usage).
             try:
-                final_tier, final_hash, final_prefix = resolve_tier_sync(api_key)
+                if stashed:
+                    final_tier = stashed["tier"]
+                    final_hash = stashed["key_hash"]
+                    final_prefix = stashed["key_prefix"]
+                else:
+                    final_tier, final_hash, final_prefix = resolve_tier_sync(api_key)
                 if api_key and not final_prefix:
                     final_prefix = f"raw:{api_key[:6]}"
                 if api_key:

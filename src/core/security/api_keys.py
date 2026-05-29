@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Optional, Tuple
 
-from fastapi import HTTPException, Security, status
+from fastapi import HTTPException, Request, Security, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.security import APIKeyHeader
 
@@ -92,13 +92,38 @@ def _resolve_db_sync(api_key: str) -> dict:
     return result
 
 
-async def verify_api_key(api_key: Optional[str] = Security(api_key_header)) -> str:
+def _stash_resolution(
+    request: Optional[Request],
+    *,
+    tier: str,
+    key_hash: Optional[str],
+    key_prefix: Optional[str],
+) -> None:
+    """Stash the resolved key info on request.state so the monitoring
+    middleware can record per-key usage without re-querying Redis. Critical
+    for environments where Redis is disabled/unavailable — without this the
+    middleware's sync resolve falls through to ``public`` and usage writes
+    are skipped."""
+    if request is None:
+        return
+    request.state.api_key_resolution = {
+        "tier": tier,
+        "key_hash": key_hash,
+        "key_prefix": key_prefix,
+    }
+
+
+async def verify_api_key(
+    api_key: Optional[str] = Security(api_key_header),
+    request: Optional[Request] = None,
+) -> str:
     """Validate an API key from the request header.
 
     Resolution order: dev bypass → env keys → DB keys (via Redis).
     """
     if settings.environment == "development" and not settings.allowed_api_keys_list:
         logger.debug("Development mode: API key check bypassed")
+        _stash_resolution(request, tier="standard", key_hash=None, key_prefix="dev")
         return "dev-key"
 
     if not api_key:
@@ -109,11 +134,21 @@ async def verify_api_key(api_key: Optional[str] = Security(api_key_header)) -> s
             headers={"WWW-Authenticate": "ApiKey"},
         )
 
-    if _resolve_env_tier(api_key):
+    env_tier = _resolve_env_tier(api_key)
+    if env_tier:
+        _stash_resolution(
+            request, tier=env_tier, key_hash=None, key_prefix=f"env:{api_key[:6]}"
+        )
         return api_key
 
     resolved = await run_in_threadpool(_resolve_db_sync, api_key)
     if resolved.get("valid"):
+        _stash_resolution(
+            request,
+            tier=resolved.get("tier", "standard"),
+            key_hash=resolved.get("key_hash"),
+            key_prefix=resolved.get("key_prefix"),
+        )
         return api_key
 
     logger.warning("Invalid API key attempted: %s...", api_key[:8])
@@ -141,20 +176,33 @@ def get_optional_api_key(api_key: Optional[str] = Security(api_key_header)) -> O
     return None
 
 
-async def get_api_key_tier(api_key: Optional[str] = Security(api_key_header)) -> Tuple[Optional[str], str]:
+async def get_api_key_tier(
+    api_key: Optional[str] = Security(api_key_header),
+    request: Optional[Request] = None,
+) -> Tuple[Optional[str], str]:
     """Return ``(api_key, tier)`` for rate limiting / metrics."""
     if not api_key:
         return None, "public"
 
     if settings.environment == "development" and not settings.allowed_api_keys_list:
+        _stash_resolution(request, tier="standard", key_hash=None, key_prefix="dev")
         return "dev-key", "standard"
 
     env_tier = _resolve_env_tier(api_key)
     if env_tier:
+        _stash_resolution(
+            request, tier=env_tier, key_hash=None, key_prefix=f"env:{api_key[:6]}"
+        )
         return api_key, env_tier
 
     resolved = await run_in_threadpool(_resolve_db_sync, api_key)
     if resolved.get("valid"):
+        _stash_resolution(
+            request,
+            tier=resolved.get("tier", "standard"),
+            key_hash=resolved.get("key_hash"),
+            key_prefix=resolved.get("key_prefix"),
+        )
         return api_key, resolved["tier"]
 
     raise HTTPException(
