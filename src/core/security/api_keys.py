@@ -115,7 +115,7 @@ def _stash_resolution(
 
 async def verify_api_key(
     api_key: Optional[str] = Security(api_key_header),
-    request: Optional[Request] = None,
+    request: Request = None,  # type: ignore[assignment]
 ) -> str:
     """Validate an API key from the request header.
 
@@ -178,7 +178,7 @@ def get_optional_api_key(api_key: Optional[str] = Security(api_key_header)) -> O
 
 async def get_api_key_tier(
     api_key: Optional[str] = Security(api_key_header),
-    request: Optional[Request] = None,
+    request: Request = None,  # type: ignore[assignment]
 ) -> Tuple[Optional[str], str]:
     """Return ``(api_key, tier)`` for rate limiting / metrics."""
     if not api_key:
