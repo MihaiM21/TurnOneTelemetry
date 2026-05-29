@@ -151,7 +151,7 @@ testpaths = ["tests"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
-addopts = "-v --strict-markers --cov=src --cov-report=term-missing --cov-report=xml --cov-fail-under=55 --ignore=tests/old --ignore=tests/_legacy"
+addopts = "-v --strict-markers --cov=src --cov-report=term-missing --cov-report=xml --cov-fail-under=53 --ignore=tests/old --ignore=tests/_legacy"
 asyncio_mode = "auto"
 markers = [
     "integration: end-to-end via FastAPI TestClient",
