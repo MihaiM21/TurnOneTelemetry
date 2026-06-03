@@ -1,4 +1,4 @@
-.PHONY: help install test lint clean build run deploy
+.PHONY: help install test test-unit test-integration test-fast test-cov lint clean build run deploy deploy-dev
 
 help:
 	@echo "F1 Telemetry API - Available Commands"
@@ -8,6 +8,8 @@ help:
 	@echo "  make lint       Check code quality"
 	@echo "  make clean      Clean generated files"
 	@echo "  make build      Build Docker image"
+	@echo "  make run-image  Run API using Docker image with env vars from .env"
+	@echo "  make deploy-dev Run API + MongoDB with docker-compose.dev.yml"
 	@echo "  make run        Run API locally"
 	@echo "  make deploy     Deploy with Docker Compose"
 	@echo ""
@@ -15,9 +17,23 @@ help:
 install:
 	pip install --upgrade pip
 	pip install -r requirements.txt
+	pip install -e ".[dev]"
 
 test:
 	pytest tests/ -v
+
+# Fast targets bypass the coverage gate (and don't require pytest-cov to be installed).
+test-unit:
+	pytest tests/unit -v -o addopts=
+
+test-integration:
+	pytest tests/integration -v -o addopts=
+
+test-fast:
+	pytest -m "not slow" -n auto -o addopts=
+
+test-cov:
+	pytest --cov-report=html
 
 lint:
 	flake8 src/ server.py --max-line-length=120
@@ -28,10 +44,16 @@ clean:
 	rm -rf .pytest_cache htmlcov .coverage
 
 build:
-	docker build -t f1-telemetry-api:latest .
+	docker build -t t1api:latest .
+
+run-image:
+	docker run --env-file .env -p 5000:5000 t1api:latest
 
 run:
 	python server.py
 
 deploy:
 	docker-compose up -d
+
+deploy-dev:
+	docker-compose -f docker-compose.dev.yml up --build
