@@ -2,6 +2,40 @@
 
 <!-- version list -->
 
+## v1.4.0 (2026-06-03)
+
+### Bug Fixes
+
+- 2
+  ([`a6d2dd7`](https://github.com/MihaiM21/TurnOneTelemetry/commit/a6d2dd7be7ebc819f68a250f3172bdeeb4d6c34e))
+
+- Admin can view usage of the keys/users
+  ([`6318ff9`](https://github.com/MihaiM21/TurnOneTelemetry/commit/6318ff941f0a53f08ae5c4e7f5d7c1d6a059991f))
+
+- Admin page
+  ([`e8209e2`](https://github.com/MihaiM21/TurnOneTelemetry/commit/e8209e262fb47b41737806c94ad4410fb8e036e1))
+
+- Admin security
+  ([`8b086cd`](https://github.com/MihaiM21/TurnOneTelemetry/commit/8b086cdd54287f968b3a9f2769894651e1ac5c5b))
+
+- Implemented redis cache
+  ([`4a32999`](https://github.com/MihaiM21/TurnOneTelemetry/commit/4a32999806fafed67ab9a2a855b7b92fde4cf109))
+
+- Makefile and requirements.txt
+  ([`536b568`](https://github.com/MihaiM21/TurnOneTelemetry/commit/536b568038bbc822bdccbd1c45e4f0a022641521))
+
+- Pipeline and test coverage threshold
+  ([`1cdf3b9`](https://github.com/MihaiM21/TurnOneTelemetry/commit/1cdf3b9653c2d2a28cc361ab6d27e3b3df896b63))
+
+### Features
+
+- Admin keys/users usage view
+  ([`231dbbb`](https://github.com/MihaiM21/TurnOneTelemetry/commit/231dbbb1c0664c4182f49ce162536156d6ec53eb))
+
+- Implemented api key creation and user db
+  ([`d1a40fb`](https://github.com/MihaiM21/TurnOneTelemetry/commit/d1a40fbe30e5baf08d2b8fee8ad954b5aede4b37))
+
+
 ## v1.3.7 (2026-05-05)
 
 ### Bug Fixes
