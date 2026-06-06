@@ -5,7 +5,7 @@ from typing import Union
 from src.core.logging import get_logger
 from src.core.security.api_keys import verify_api_key
 from src.core.security.rate_limiting import apply_tiered_limit
-from src.services.orchestrator_helpers import get_latest_finished_session_v2
+from src.services.orchestrator_helpers import get_latest_finished_session
 from src.services.orchestrator import latest_session_analised_v2
 
 # Importing Turn One Core files
@@ -48,7 +48,7 @@ async def get_dashboard_data_v2(request: Request, api_key: str = Depends(verify_
     """
     try:
         logger.info("Fetching V2 dashboard data for latest session")
-        latest_session = await run_in_threadpool(get_latest_finished_session_v2)
+        latest_session = await run_in_threadpool(get_latest_finished_session)
 
         if not latest_session:
             logger.warning("V2: no finished sessions found")
