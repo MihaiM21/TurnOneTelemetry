@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.4.1 (2026-06-06)
+
+### Bug Fixes
+
+- Latest session more accurate finding
+  ([`9de8dd2`](https://github.com/MihaiM21/TurnOneTelemetry/commit/9de8dd27531a9543ee7de717f18a679651f36fab))
+
+
 ## v1.4.0 (2026-06-03)
 
 ### Bug Fixes
