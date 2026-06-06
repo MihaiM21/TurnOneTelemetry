@@ -12,7 +12,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /build
 
-# Instalează build tools (rămân DOAR în builder)
+# Install build tools (only in builder)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip + compilează wheel-uri
+# Upgrade pip + compile wheels for all dependencies (including transitive)
 COPY requirements.txt .
 RUN pip install --upgrade pip && \
     pip wheel --no-cache-dir --wheel-dir=/wheels -r requirements.txt
@@ -36,18 +36,18 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Instalează doar ce e necesar la runtime (curl pentru healthcheck)
+# Install only runtime dependencies (no build tools) using precompiled wheels
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copiază wheel-urile compilate din builder și instalează fără compilare
+# Copy the precompiled wheels and install dependencies without recompilation
 COPY --from=builder /wheels /wheels
 COPY --from=builder /build/requirements.txt .
 RUN pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.txt \
     && rm -rf /wheels
 
-# Creare root user
+# Create root user
 RUN mkdir -p /app/cache /app/outputs/plots /app/outputs/data \
              /app/assets /app/src /app/data /app/logs && \
     chmod -R 777 /app/logs /app/cache /app/outputs /app/data
@@ -56,7 +56,7 @@ COPY src/ ./src/
 COPY assets/ ./assets/
 COPY server.py .
 
-# Setează volume-uri (după chown!)
+# Set volume directories (after chown!)
 VOLUME ["/app/cache", "/app/outputs", "/app/data", "/app/logs"]
 
 EXPOSE ${APP_PORT}
