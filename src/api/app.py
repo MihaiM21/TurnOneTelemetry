@@ -102,6 +102,7 @@ def create_app() -> FastAPI:
     # Routers MUST be imported after init_limiter() (decorators bind at import).
     from src.api.routers.admin import router as admin_router
     from src.api.routers.admin_ui import router as admin_ui_router
+    from src.api.routers.backup_admin import router as backup_admin_router
     from src.api.routers.analysis_v1 import router as analysis_router_v1
     from src.api.routers.analysis_v2 import router as analysis_router_v2
     from src.api.routers.auth import router as auth_router
@@ -160,6 +161,17 @@ def create_app() -> FastAPI:
         else:
             logger.info("Background processor disabled in configuration")
 
+        backup_scheduler = None
+        if settings.backup_enabled:
+            try:
+                from src.services.backup.scheduler import get_scheduler
+                backup_scheduler = get_scheduler()
+                await backup_scheduler.start()
+            except Exception as e:
+                logger.error(f"Backup scheduler failed to start: {e}", exc_info=True)
+        else:
+            logger.info("Backup scheduler disabled (BACKUP_ENABLED=false)")
+
         yield
 
         logger.info(f"Shutting down {settings.app_name}")
@@ -170,6 +182,8 @@ def create_app() -> FastAPI:
                 await processor_task
             except asyncio.CancelledError:
                 pass
+        if backup_scheduler:
+            await backup_scheduler.stop()
         try:
             from src.core.cache.redis_cache import close_redis_cache
             await close_redis_cache()
@@ -394,6 +408,7 @@ def create_app() -> FastAPI:
     app.include_router(monitoring_router)
     app.include_router(admin_router)
     app.include_router(admin_ui_router)
+    app.include_router(backup_admin_router)
     app.include_router(auth_router)
     app.include_router(keys_router)
     app.include_router(me_router)
