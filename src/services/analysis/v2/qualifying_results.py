@@ -100,7 +100,7 @@ def QualiResultsPlot(y: int, identifier: Union[int, str], e: str) -> str:
     if cached:
         data = cached['data']
     else:
-        base_url = client.get_event_session_url(y, event_name, e)
+        base_url = client.get_event_session_url(y, event_name, e, round_nr=round_nr)
         if not base_url:
             return ""
         data = _process_data(base_url, client)
@@ -131,7 +131,7 @@ def QualiResultsData(y: int, identifier: Union[int, str], e: str,
     event_name = event_info['name']
     round_nr = event_info['round_nr']
 
-    base_url = client.get_event_session_url(y, event_name, e)
+    base_url = client.get_event_session_url(y, event_name, e, round_nr=round_nr)
     if not base_url:
         return []
 

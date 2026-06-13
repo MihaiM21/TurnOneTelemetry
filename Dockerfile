@@ -36,9 +36,18 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install only runtime dependencies (no build tools) using precompiled wheels
+# Install only runtime dependencies (no build tools) using precompiled wheels.
+# ``mongodb-database-tools`` provides ``mongodump``/``mongorestore`` for the
+# backup subsystem.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    gnupg \
+    ca-certificates \
+    && curl -fsSL https://pgp.mongodb.com/server-7.0.asc | gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor \
+    && echo "deb [arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg] http://repo.mongodb.org/apt/debian bookworm/mongodb-org/7.0 main" \
+        > /etc/apt/sources.list.d/mongodb-org-7.0.list \
+    && apt-get update && apt-get install -y --no-install-recommends mongodb-database-tools \
+    && apt-get purge -y --auto-remove gnupg \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the precompiled wheels and install dependencies without recompilation

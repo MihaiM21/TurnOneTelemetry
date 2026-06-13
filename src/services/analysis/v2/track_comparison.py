@@ -191,7 +191,7 @@ def TrackComparisonPlot(y: int, identifier: Union[int, str], e: str, d1: str, d2
     if cached:
         data = cached['data']
     else:
-        base_url = client.get_event_session_url(y, event_name, e)
+        base_url = client.get_event_session_url(y, event_name, e, round_nr=round_nr)
         if not base_url:
             return ""
         data = _process_data(base_url, client, d1, d2, y, event_name, e)
@@ -224,7 +224,7 @@ def TrackComparisonData(y: int, identifier: Union[int, str], e: str, d1: str, d2
     event_name = event_info['name']
     round_nr = event_info['round_nr']
 
-    base_url = client.get_event_session_url(y, event_name, e)
+    base_url = client.get_event_session_url(y, event_name, e, round_nr=round_nr)
     if not base_url:
         return {}
 

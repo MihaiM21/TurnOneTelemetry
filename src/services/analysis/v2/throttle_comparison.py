@@ -142,8 +142,9 @@ def process_throttle_data(y: int, identifier: Union[int, str], e: str, client: F
     event_info = client.get_event_info(y, identifier)
     if not event_info: raise ValueError(f"Event info nu a fost gasit pt {identifier}")
     event_name = event_info['name']
-    
-    base_url = client.get_event_session_url(y, event_name, e)
+    round_nr = event_info['round_nr']
+
+    base_url = client.get_event_session_url(y, event_name, e, round_nr=round_nr)
     if not base_url: raise ValueError("URL sesiune negăsit")
         
     driver_codes = get_all_driver_codes(base_url, client)

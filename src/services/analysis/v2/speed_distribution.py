@@ -153,8 +153,9 @@ def process_speed_distribution_data(y: int, identifier: Union[int, str], e: str,
     event_info = client.get_event_info(y, identifier)
     if not event_info: raise ValueError(f"Event info not found for {identifier}")
     event_name = event_info['name']
-    
-    base_url = client.get_event_session_url(y, event_name, e)
+    round_nr = event_info['round_nr']
+
+    base_url = client.get_event_session_url(y, event_name, e, round_nr=round_nr)
     if not base_url: raise ValueError("Session URL not found")
         
     df_windows = get_fastest_lap_windows_pandas(base_url, client)

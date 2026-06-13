@@ -131,7 +131,7 @@ def LaptimesDistribution(y: int, identifier: Union[int, str], e: str, driver: st
     event_name = event_info['name']
     round_nr = event_info['round_nr']
 
-    base_url = client.get_event_session_url(y, event_name, e)
+    base_url = client.get_event_session_url(y, event_name, e, round_nr=round_nr)
     if not base_url:
         raise ValueError(f"Session not found: {y} {event_name} {e}")
 

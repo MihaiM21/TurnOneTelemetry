@@ -169,6 +169,27 @@ class Settings(BaseSettings):
     enable_background_processor: bool = True
     processor_check_interval: int = 300  # Check every 5 minutes
     processor_auto_process_completed: bool = True  # Auto-process when sessions complete
+
+    # Backup System (MongoDB + SQLite + optional volumes -> S3-compatible storage)
+    backup_enabled: bool = False
+    backup_s3_endpoint: str = ""           # blank => AWS default; set for B2/R2/MinIO
+    backup_s3_region: str = "us-east-1"
+    backup_s3_bucket: str = ""
+    backup_s3_access_key: str = ""
+    backup_s3_secret_key: str = ""
+    backup_s3_prefix: str = "t1api"
+    backup_s3_force_path_style: bool = True  # required by MinIO/B2/R2
+    backup_encryption_key: str = ""         # base64-encoded 32 bytes (urlsafe ok)
+    backup_schedule_hour_utc: int = 2       # daily run hour
+    backup_schedule_minute_utc: int = 0
+    backup_retention_daily: int = 7
+    backup_retention_weekly: int = 4
+    backup_retention_monthly: int = 6
+    backup_include_volumes: bool = False    # tar.gz of outputs/ (skip cache/, logs/)
+    backup_sqlite_path: str = "data/session_analytics.db"
+    backup_tmp_dir: str = "/tmp/t1api-backup"
+    backup_mongodump_bin: str = "mongodump"
+    backup_mongorestore_bin: str = "mongorestore"
     
     class Config:
         env_file = ".env"
