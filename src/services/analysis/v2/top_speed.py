@@ -244,16 +244,16 @@ def TopSpeedPlot_Telemetry(y: int, identifier: Union[int, str], e: str, store_to
         
     event_name = event_info['name']
     round_nr = event_info['round_nr']
-    
-    base_url = client.get_event_session_url(y, event_name, e)
-    
+
+    base_url = client.get_event_session_url(y, event_name, e, round_nr=round_nr)
+
     if not base_url:
         raise ValueError(f"Could not find session: {y} Event {event_name} {e}")
-    
+
     # Setup
     setup_theme.setup_turnone_theme()
     location, name, name_json = _init(y, event_name, e, "Telemetry")
-    
+
     # Check for existing file
     # path = dirOrg.checkForFile(location, name)
     # if path != "NULL":
@@ -340,8 +340,8 @@ def TopSpeedData_Telemetry(y: int, identifier: Union[int, str], e: str, store_to
     event_name = event_info['name']
     round_nr = event_info['round_nr']
     
-    base_url = client.get_event_session_url(y, event_name, e)
-    
+    base_url = client.get_event_session_url(y, event_name, e, round_nr=round_nr)
+
     if not base_url:
         raise ValueError(f"Could not find session: {y} Event {event_name} {e}")
     
@@ -441,8 +441,8 @@ def TopSpeedPlot_SpeedTrap(y: int, identifier: Union[int, str], e: str) -> str:
     event_name = event_info['name']
     round_nr = event_info['round_nr']
     
-    base_url = client.get_event_session_url(y, event_name, e)
-    
+    base_url = client.get_event_session_url(y, event_name, e, round_nr=round_nr)
+
     if not base_url:
         raise ValueError(f"Could not find session: {y} Event {event_name} {e}")
     
@@ -536,8 +536,8 @@ def TopSpeedData_SpeedTrap(y: int, identifier: Union[int, str], e: str, store_to
     event_name = event_info['name']
     round_nr = event_info['round_nr']
     
-    base_url = client.get_event_session_url(y, event_name, e)
-    
+    base_url = client.get_event_session_url(y, event_name, e, round_nr=round_nr)
+
     if not base_url:
         raise ValueError(f"Could not find session: {y} Event {event_name} {e}")
     

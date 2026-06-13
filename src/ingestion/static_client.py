@@ -166,26 +166,40 @@ class F1StaticClient:
         return json.loads(content)
     
     def get_event_session_url(
-        self, 
-        year: int, 
-        event_name: str, 
-        session_name: str
+        self,
+        year: int,
+        event_name: str,
+        session_name: str,
+        round_nr: Optional[int] = None,
     ) -> Optional[str]:
         """
         Construct the base URL for a specific event session.
+
+        ``round_nr`` (1-based) is the most reliable lookup key and should be
+        passed whenever available.  Falls back to normalized name matching so
+        the method still works for callers that only have a name.
         """
         season_index = self.fetch_season_index(year)
-        
-        # Find the event
+        meetings = season_index.get('Meetings', [])
+
+        # Primary: direct positional lookup by round number (most reliable).
         event_data = None
-        for meeting in season_index.get('Meetings', []):
-            if event_name.lower() in meeting.get('Name', '').lower():
-                event_data = meeting
-                logger.info(f"Found event: {meeting.get('Name')}")
-                break
-        
+        if round_nr is not None and 1 <= round_nr <= len(meetings):
+            event_data = meetings[round_nr - 1]
+            logger.info(f"Found event by round {round_nr}: {event_data.get('Name')}")
+
+        # Fallback: normalized name matching (strips diacritics / hyphens).
+        if event_data is None:
+            normalized_target = self._normalize_text(event_name)
+            for meeting in meetings:
+                normalized_candidate = self._normalize_text(meeting.get('Name', ''))
+                if normalized_target in normalized_candidate or normalized_candidate in normalized_target:
+                    event_data = meeting
+                    logger.info(f"Found event by name match: {meeting.get('Name')}")
+                    break
+
         if not event_data:
-            logger.error(f"Event '{event_name}' not found in {year} season")
+            logger.error(f"Event '{event_name}' (round_nr={round_nr}) not found in {year} season")
             return None
         
         # Find the session within the event's sessions
