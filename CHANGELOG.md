@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.4.2 (2026-06-13)
+
+### Bug Fixes
+
+- Data aqcuisition
+  ([`fe690c0`](https://github.com/MihaiM21/TurnOneTelemetry/commit/fe690c06c6fb341dee4678f3e275d75694a3c76a))
+
+
 ## v1.4.1 (2026-06-06)
 
 ### Bug Fixes
