@@ -15,13 +15,19 @@ from src.services.analysis.v2.speed_distribution import SpeedDistributionPlot, S
 from src.services.analysis.v2.laptimes_distribution import LaptimesDistribution
 from src.services.analysis.v2.qualifying_results import QualiResultsPlot, QualiResultsData
 from src.services.analysis.v2.throttle_brake_comparison import ThrottleBrakeComp, ThrottleBrakeCompData
+from src.services.analysis.v2.lap_time_analysis import LapTimeAnalysisPlot, LapTimeAnalysisData
 from src.services.analysis.v2.track_comparison import TrackComparisonPlot, TrackComparisonData
+from src.services.analysis.v2.driver_pace import DriverPacePlot, DriverPaceData
+from src.services.analysis.v2.teams_pace import TeamsPacePlot, TeamsPaceData
 
 # V1 siblings for transparent fallback when livetiming lacks data.
 from src.services.analysis.v1.top_speed import TopSpeedPlot as V1_TopSpeedPlot, TopSpeedData as V1_TopSpeedData
 from src.services.analysis.v1.throttle_comparison import ThrottleComp as V1_ThrottleComp, ThrottleCompData as V1_ThrottleCompData
 from src.services.analysis.v1.qualifying_results import QualiResults as V1_QualiResults
 from src.services.analysis.v1.speed_distribution import SpeedDistributionPlot as V1_SpeedDistributionPlot, SpeedDistributionData as V1_SpeedDistributionData
+from src.services.analysis.v1.driver_pace import DriverPacePlot as V1_DriverPacePlot, DriverPaceData as V1_DriverPaceData
+from src.services.analysis.v1.teams_pace import TeamsPacePlot as V1_TeamsPacePlot, TeamsPaceData as V1_TeamsPaceData
+from src.services.analysis.v1.lap_time_analysis import LapTimeAnalysisPlot as V1_LapTimeAnalysisPlot, LapTimeAnalysisData as V1_LapTimeAnalysisData
 from src.services.analysis.base import with_fallback
 from src.core.exceptions import T1APIError
 
@@ -482,3 +488,177 @@ async def track_comparison_data(
     except Exception as e:
         logger.error(f"Error fetching track comparison data: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch data")
+
+
+# --- Lap Time Analysis (2 drivers) ---
+
+@router.get('/lap-time-analysis-plot', tags=["API v2", "Qualifying"])
+@apply_tiered_limit("standard")
+async def lap_time_analysis_plot(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('Q'),
+    d1: str = Query(..., description="First driver TLA (e.g., VER)"),
+    d2: str = Query(..., description="Second driver TLA (e.g., NOR)"),
+    api_key: str = Depends(verify_api_key)
+):
+    """Generate Speed / Delta time / Throttle comparison for two drivers' fastest laps. Falls back to V1."""
+    logger.info(f"Generating lap time analysis plot: Y{year} GP{gp} {session} {d1} vs {d2}")
+    try:
+        v1_secondary = (lambda: V1_LapTimeAnalysisPlot(year, gp, session, d1, d2)) if isinstance(gp, int) else None
+        output_path = await run_in_threadpool(
+            with_fallback,
+            lambda: LapTimeAnalysisPlot(year, gp, session, d1, d2),
+            v1_secondary,
+            primary_source="livetiming", secondary_source="fastf1",
+            year=year, gp=gp, session=session, data_type="lap_time_analysis",
+        )
+        if not output_path:
+            raise HTTPException(status_code=404, detail="No data available for this session/drivers")
+        _track('lap-time-analysis', year, gp, session, d1, d2)
+        return FileResponse(output_path, media_type="image/png")
+    except HTTPException:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Plot not found")
+    except T1APIError:
+        raise
+
+
+@router.get('/lap-time-analysis-data', tags=["API v2", "Qualifying"])
+@apply_tiered_limit("data")
+async def lap_time_analysis_data(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('Q'),
+    d1: str = Query(..., description="First driver TLA (e.g., VER)"),
+    d2: str = Query(..., description="Second driver TLA (e.g., NOR)"),
+    api_key: str = Depends(verify_api_key)
+):
+    """Get Speed/Throttle telemetry + delta-time series for two drivers' fastest laps. Falls back to V1."""
+    logger.info(f"Fetching lap time analysis data: Y{year} GP{gp} {session} {d1} vs {d2}")
+    try:
+        v1_secondary = (lambda: V1_LapTimeAnalysisData(year, gp, session, d1, d2)) if isinstance(gp, int) else None
+        result = await run_in_threadpool(
+            with_fallback,
+            lambda: LapTimeAnalysisData(year, gp, session, d1, d2),
+            v1_secondary,
+            primary_source="livetiming", secondary_source="fastf1",
+            year=year, gp=gp, session=session, data_type="lap_time_analysis",
+        )
+        _track('lap-time-analysis', year, gp, session, d1, d2)
+        return result
+    except T1APIError:
+        raise
+
+
+# --- Pace Analysis ---
+
+@router.get('/driver-pace-plot', tags=["API v2", "Pace Analysis"])
+@apply_tiered_limit("standard")
+async def driver_pace_plot_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('R'),
+    api_key: str = Depends(verify_api_key)
+):
+    """Box-and-whisker pace plot per driver (107% quicklap filter). Falls back to V1 if available."""
+    logger.info(f"Generating driver pace plot: Y{year} GP{gp} {session}")
+    try:
+        v1_secondary = (lambda: V1_DriverPacePlot(year, gp, session)) if isinstance(gp, int) else None
+        output_path = await run_in_threadpool(
+            with_fallback,
+            lambda: DriverPacePlot(year, gp, session),
+            v1_secondary,
+            primary_source="livetiming", secondary_source="fastf1",
+            year=year, gp=gp, session=session, data_type="driver_pace",
+        )
+        _track('driver-pace', year, gp, session)
+        return FileResponse(output_path, media_type='image/png')
+    except T1APIError:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Plot not found")
+
+
+@router.get('/driver-pace-data', tags=["API v2", "Pace Analysis"])
+@apply_tiered_limit("data")
+async def driver_pace_data_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('R'),
+    api_key: str = Depends(verify_api_key)
+):
+    """JSON pace distribution per driver: lap times + min/q1/median/q3/max. Falls back to V1."""
+    logger.info(f"Fetching driver pace data: Y{year} GP{gp} {session}")
+    try:
+        v1_secondary = (lambda: V1_DriverPaceData(year, gp, session)) if isinstance(gp, int) else None
+        result = await run_in_threadpool(
+            with_fallback,
+            lambda: DriverPaceData(year, gp, session, True),
+            v1_secondary,
+            primary_source="livetiming", secondary_source="fastf1",
+            year=year, gp=gp, session=session, data_type="driver_pace",
+        )
+        _track('driver-pace', year, gp, session)
+        return result
+    except T1APIError:
+        raise
+
+
+@router.get('/teams-pace-plot', tags=["API v2", "Pace Analysis"])
+@apply_tiered_limit("standard")
+async def teams_pace_plot_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('R'),
+    api_key: str = Depends(verify_api_key)
+):
+    """Box-and-whisker pace plot per team (laps from both drivers aggregated). Falls back to V1."""
+    logger.info(f"Generating teams pace plot: Y{year} GP{gp} {session}")
+    try:
+        v1_secondary = (lambda: V1_TeamsPacePlot(year, gp, session)) if isinstance(gp, int) else None
+        output_path = await run_in_threadpool(
+            with_fallback,
+            lambda: TeamsPacePlot(year, gp, session),
+            v1_secondary,
+            primary_source="livetiming", secondary_source="fastf1",
+            year=year, gp=gp, session=session, data_type="teams_pace",
+        )
+        _track('teams-pace', year, gp, session)
+        return FileResponse(output_path, media_type='image/png')
+    except T1APIError:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Plot not found")
+
+
+@router.get('/teams-pace-data', tags=["API v2", "Pace Analysis"])
+@apply_tiered_limit("data")
+async def teams_pace_data_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('R'),
+    api_key: str = Depends(verify_api_key)
+):
+    """JSON pace distribution per team. Falls back to V1."""
+    logger.info(f"Fetching teams pace data: Y{year} GP{gp} {session}")
+    try:
+        v1_secondary = (lambda: V1_TeamsPaceData(year, gp, session)) if isinstance(gp, int) else None
+        result = await run_in_threadpool(
+            with_fallback,
+            lambda: TeamsPaceData(year, gp, session, True),
+            v1_secondary,
+            primary_source="livetiming", secondary_source="fastf1",
+            year=year, gp=gp, session=session, data_type="teams_pace",
+        )
+        _track('teams-pace', year, gp, session)
+        return result
+    except T1APIError:
+        raise
