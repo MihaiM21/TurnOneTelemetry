@@ -120,6 +120,13 @@ class F1StaticClient:
 
         requested_normalized = self._normalize_text(requested_session)
         candidate_normalized = self._normalize_text(candidate_session)
+
+        # Substring fallback only for sufficiently long labels. Short codes like
+        # "r"/"q"/"s"/"p1" must match via the alias token path above; otherwise a
+        # single letter spuriously matches inside a word (e.g. "r" in "pRactice").
+        if len(requested_normalized) < 3 or len(candidate_normalized) < 3:
+            return False
+
         return (
             requested_normalized in candidate_normalized
             or candidate_normalized in requested_normalized
@@ -301,6 +308,68 @@ class F1StaticClient:
             "country": info.country,
         }
     
+    # ========================================================================
+    # CHAMPIONSHIP STANDINGS (best-effort; falls back to Ergast)
+    # ========================================================================
+    #
+    # livetiming.formula1.com does not publish a clean standings JSON. We
+    # attempt a small set of plausible static paths; on any failure we raise
+    # UpstreamUnavailableError so `with_fallback` switches to Ergast cleanly.
+    # SessionNotFoundError is deliberately NOT raised here — it would suppress
+    # the fallback per `_FALLBACK_TRIGGERS` in services/analysis/base.py.
+
+    def _attempt_standings_endpoints(self, candidate_urls: List[str]) -> Dict[str, Any]:
+        last_reason = "no candidate endpoint returned standings"
+        for url in candidate_urls:
+            try:
+                resp = self.session.get(url, timeout=self.DEFAULT_TIMEOUT)
+            except requests.RequestException as exc:
+                last_reason = f"network failure on {url}: {exc}"
+                continue
+            if resp.status_code != 200:
+                last_reason = f"{url} returned {resp.status_code}"
+                continue
+            try:
+                return json.loads(resp.content.decode("utf-8-sig"))
+            except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                last_reason = f"{url} returned non-JSON: {exc}"
+                continue
+        raise UpstreamUnavailableError(source="livetiming", reason=last_reason)
+
+    def fetch_drivers_standings(
+        self, year: int, round_nr: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        suffix = f"/{round_nr}" if round_nr is not None else ""
+        candidates = [
+            f"{self.BASE_URL}{year}{suffix}/DriverStandings.json",
+            f"{self.BASE_URL}{year}/DriverStandings.json",
+        ]
+        payload = self._attempt_standings_endpoints(candidates)
+        rows = payload.get("Standings") or payload.get("DriverStandings") or []
+        if not isinstance(rows, list) or not rows:
+            raise UpstreamUnavailableError(
+                source="livetiming",
+                reason=f"empty drivers standings payload for {year} round={round_nr}",
+            )
+        return rows
+
+    def fetch_constructors_standings(
+        self, year: int, round_nr: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        suffix = f"/{round_nr}" if round_nr is not None else ""
+        candidates = [
+            f"{self.BASE_URL}{year}{suffix}/ConstructorStandings.json",
+            f"{self.BASE_URL}{year}/ConstructorStandings.json",
+        ]
+        payload = self._attempt_standings_endpoints(candidates)
+        rows = payload.get("Standings") or payload.get("ConstructorStandings") or []
+        if not isinstance(rows, list) or not rows:
+            raise UpstreamUnavailableError(
+                source="livetiming",
+                reason=f"empty constructors standings payload for {year} round={round_nr}",
+            )
+        return rows
+
     # ========================================================================
     # TASK 2: THE PARSER
     # ========================================================================

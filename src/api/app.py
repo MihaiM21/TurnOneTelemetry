@@ -112,6 +112,7 @@ def create_app() -> FastAPI:
     from src.api.routers.monitoring import router as monitoring_router
     from src.api.routers.seasonal_v1 import router as seasonal_router_v1
     from src.api.routers.seasonal_v2 import router as seasonal_router_v2
+    from src.api.routers.standings_v2 import router as standings_router_v2
     from src.api.routers.teams_api import router as teams_api_router
 
     try:
@@ -416,6 +417,7 @@ def create_app() -> FastAPI:
     app.include_router(seasonal_router_v1)
     app.include_router(analysis_router_v2)
     app.include_router(seasonal_router_v2)
+    app.include_router(standings_router_v2)
     app.include_router(drivers_api_router)
     app.include_router(teams_api_router)
     app.include_router(circuits_api_router)
