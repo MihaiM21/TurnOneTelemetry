@@ -113,3 +113,19 @@ def get_driver_color(driver):
 
     # If the driver is not found the color will be white
     return "#FFFFFF"
+
+
+compound_colors = {
+    "SOFT": "#FF3333",
+    "MEDIUM": "#FFD93D",
+    "HARD": "#F0F0F0",
+    "INTERMEDIATE": "#3DCC4A",
+    "WET": "#3DA5FF",
+    "UNKNOWN": "#777777",
+}
+
+
+def get_compound_color(compound: str) -> str:
+    if not compound:
+        return compound_colors["UNKNOWN"]
+    return compound_colors.get(compound.upper(), compound_colors["UNKNOWN"])

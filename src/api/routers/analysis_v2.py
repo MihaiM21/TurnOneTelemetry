@@ -19,6 +19,7 @@ from src.services.analysis.v2.lap_time_analysis import LapTimeAnalysisPlot, LapT
 from src.services.analysis.v2.track_comparison import TrackComparisonPlot, TrackComparisonData
 from src.services.analysis.v2.driver_pace import DriverPacePlot, DriverPaceData
 from src.services.analysis.v2.teams_pace import TeamsPacePlot, TeamsPaceData
+from src.services.analysis.v2.tyre_stint_usage import TyreStintUsagePlot, TyreStintUsageData
 
 # V1 siblings for transparent fallback when livetiming lacks data.
 from src.services.analysis.v1.top_speed import TopSpeedPlot as V1_TopSpeedPlot, TopSpeedData as V1_TopSpeedData
@@ -28,6 +29,7 @@ from src.services.analysis.v1.speed_distribution import SpeedDistributionPlot as
 from src.services.analysis.v1.driver_pace import DriverPacePlot as V1_DriverPacePlot, DriverPaceData as V1_DriverPaceData
 from src.services.analysis.v1.teams_pace import TeamsPacePlot as V1_TeamsPacePlot, TeamsPaceData as V1_TeamsPaceData
 from src.services.analysis.v1.lap_time_analysis import LapTimeAnalysisPlot as V1_LapTimeAnalysisPlot, LapTimeAnalysisData as V1_LapTimeAnalysisData
+from src.services.analysis.v1.tyre_stint_usage import TyreStintUsagePlot as V1_TyreStintUsagePlot, TyreStintUsageData as V1_TyreStintUsageData
 from src.services.analysis.base import with_fallback
 from src.core.exceptions import T1APIError
 
@@ -659,6 +661,60 @@ async def teams_pace_data_v2(
             year=year, gp=gp, session=session, data_type="teams_pace",
         )
         _track('teams-pace', year, gp, session)
+        return result
+    except T1APIError:
+        raise
+
+
+@router.get('/tyre-stint-usage-plot', tags=["API v2", "Race Analysis"])
+@apply_tiered_limit("standard")
+async def tyre_stint_usage_plot_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('R'),
+    api_key: str = Depends(verify_api_key)
+):
+    """Stint strategy timeline: per-driver compound stints across the race. Falls back to V1."""
+    logger.info(f"Generating tyre stint usage plot (V2): Y{year} GP{gp} {session}")
+    try:
+        v1_secondary = (lambda: V1_TyreStintUsagePlot(year, gp, session)) if isinstance(gp, int) else None
+        output_path = await run_in_threadpool(
+            with_fallback,
+            lambda: TyreStintUsagePlot(year, gp, session),
+            v1_secondary,
+            primary_source="livetiming", secondary_source="fastf1",
+            year=year, gp=gp, session=session, data_type="tyre_stint_usage",
+        )
+        _track('tyre-stint-usage', year, gp, session)
+        return FileResponse(output_path, media_type='image/png')
+    except T1APIError:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Plot not found")
+
+
+@router.get('/tyre-stint-usage-data', tags=["API v2", "Race Analysis"])
+@apply_tiered_limit("data")
+async def tyre_stint_usage_data_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('R'),
+    api_key: str = Depends(verify_api_key)
+):
+    """JSON per-stint records (driver, compound, start_lap, end_lap, lap_count). Falls back to V1."""
+    logger.info(f"Fetching tyre stint usage data (V2): Y{year} GP{gp} {session}")
+    try:
+        v1_secondary = (lambda: V1_TyreStintUsageData(year, gp, session)) if isinstance(gp, int) else None
+        result = await run_in_threadpool(
+            with_fallback,
+            lambda: TyreStintUsageData(year, gp, session, True),
+            v1_secondary,
+            primary_source="livetiming", secondary_source="fastf1",
+            year=year, gp=gp, session=session, data_type="tyre_stint_usage",
+        )
+        _track('tyre-stint-usage', year, gp, session)
         return result
     except T1APIError:
         raise

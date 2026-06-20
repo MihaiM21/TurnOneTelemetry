@@ -66,6 +66,97 @@ def get_driver_tla_from_num(base_url: str, client: F1StaticClient, num: str) -> 
     return str(num)
 
 
+def _to_int(value, default=None):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def extract_stints(base_url: str, client: F1StaticClient, driver_num: str) -> List[Dict]:
+    """
+    Returns per-stint records for a driver from TimingAppData.jsonStream:
+    [{stint_number, compound, start_lap, end_lap, lap_count, tyre_life_end}, ...]
+
+    Race-lap boundaries are derived by accumulation, not from the raw fields.
+    Each stint snapshot exposes:
+      * StartLaps - the tyre's age (laps already on it) when the stint began
+      * TotalLaps - the tyre's age at the end of the stint
+    So laps driven in a stint = TotalLaps - StartLaps, and the cumulative sum of
+    those lengths gives the race-lap window for each stint. (StartLaps is tyre
+    age, NOT a race lap number - using it as a lap was the original bug.)
+    """
+    try:
+        data = client.parse_jsonstream_simple(base_url + "TimingAppData.jsonStream")
+    except Exception as exc:
+        print(f"Error fetching TimingAppData for {driver_num}: {exc}")
+        return []
+
+    # Merge the incremental updates into one final snapshot per stint index.
+    snaps: Dict[str, Dict] = {}
+    for entry in data:
+        lines = entry.get('Lines', {})
+        if driver_num not in lines:
+            continue
+        drv_data = lines[driver_num]
+        if not isinstance(drv_data, dict):
+            continue
+        drv_stints = drv_data.get('Stints')
+        if not drv_stints:
+            continue
+        # Stints arrives as either a dict keyed by stint index or a list.
+        if isinstance(drv_stints, list):
+            drv_stints = {str(i): s for i, s in enumerate(drv_stints) if isinstance(s, dict)}
+        for stint_idx, stint_data in drv_stints.items():
+            if not isinstance(stint_data, dict):
+                continue
+            snaps.setdefault(str(stint_idx), {}).update(stint_data)
+
+    records: List[Dict] = []
+    cursor = 0  # race laps completed by the end of the previous stint
+    for idx in sorted(snaps.keys(), key=lambda x: int(x)):
+        s = snaps[idx]
+        compound = str(s.get('Compound', 'UNKNOWN') or 'UNKNOWN').upper()
+        total_laps = _to_int(s.get('TotalLaps'))
+        start_age = _to_int(s.get('StartLaps'), 0) or 0
+        if total_laps is None:
+            continue
+        laps_in_stint = total_laps - start_age
+        if laps_in_stint <= 0:
+            continue
+        start_lap = cursor + 1
+        end_lap = cursor + laps_in_stint
+        cursor = end_lap
+        records.append({
+            'stint_number': len(records) + 1,
+            'compound': compound,
+            'start_lap': start_lap,
+            'end_lap': end_lap,
+            'lap_count': laps_in_stint,
+            'tyre_life_end': total_laps,
+        })
+    return records
+
+
+def get_finishing_order(base_url: str, client: F1StaticClient) -> Dict[str, int]:
+    """Returns {car_number: finishing_position} from the final TimingData positions."""
+    order: Dict[str, int] = {}
+    try:
+        data = client.parse_jsonstream_simple(base_url + "TimingData.jsonStream")
+    except Exception as exc:
+        print(f"Error fetching TimingData for finishing order: {exc}")
+        return order
+
+    for entry in data:
+        for drv, line in entry.get('Lines', {}).items():
+            if not isinstance(line, dict):
+                continue
+            pos = _to_int(line.get('Position'))
+            if pos and pos > 0:
+                order[str(drv)] = pos
+    return order
+
+
 def get_driver_team_from_list(base_url: str, client: F1StaticClient) -> Dict[str, Dict]:
     """Returns {car_number: {'tla': ..., 'team': ...}}"""
     result = {}
