@@ -3,7 +3,12 @@ from typing import Dict, List, Optional, Union
 from src.services.plotting import output as dirOrg
 from src.repositories.plots import store_data_dict_to_mongo, get_plot_data_from_mongo
 from src.ingestion.static_client import F1StaticClient
-from src.services.analysis.v2._helpers import parse_f1_time, get_all_driver_codes, format_lap_time
+from src.services.analysis.v2._helpers import (
+    parse_f1_time,
+    get_all_driver_codes,
+    format_lap_time,
+    extract_stints,
+)
 
 
 def _init(y: int, event_name: str, session_name: str, driver: str):
@@ -62,49 +67,12 @@ def _extract_all_lap_times(base_url: str, client: F1StaticClient, driver_num: st
 
 def _extract_compounds(base_url: str, client: F1StaticClient, driver_num: str) -> Dict[int, str]:
     """Returns {lap_number: compound} from TimingAppData.jsonStream stints."""
+    stints = extract_stints(base_url, client, driver_num)
     compound_map: Dict[int, str] = {}
-    try:
-        data = client.parse_jsonstream_simple(base_url + "TimingAppData.jsonStream")
-        stints: Dict[str, Dict] = {}
-
-        for entry in data:
-            lines = entry.get('Lines', {})
-            if driver_num not in lines:
-                continue
-
-            drv_data = lines[driver_num]
-            if not isinstance(drv_data, dict):
-                continue
-
-            drv_stints = drv_data.get('Stints', {})
-            if not drv_stints:
-                continue
-
-            for stint_idx, stint_data in drv_stints.items():
-                if not isinstance(stint_data, dict):
-                    continue
-                if stint_idx not in stints:
-                    stints[stint_idx] = {}
-                stints[stint_idx].update(stint_data)
-
-        # Build ordered list of (start_lap, compound)
-        stint_list = []
-        for idx in sorted(stints.keys(), key=lambda x: int(x)):
-            s = stints[idx]
-            compound = s.get('Compound', 'UNKNOWN')
-            start_lap = s.get('LapNumber', s.get('StartLaps'))
-            if start_lap is not None:
-                stint_list.append((int(start_lap), compound))
-
-        stint_list.sort()
-        for i, (start_lap, compound) in enumerate(stint_list):
-            end_lap = stint_list[i + 1][0] - 1 if i + 1 < len(stint_list) else 9999
-            for lap_n in range(start_lap, end_lap + 1):
-                compound_map[lap_n] = compound
-
-    except Exception as e:
-        print(f"Error extracting compounds: {e}")
-
+    for stint in stints:
+        end_lap = stint['end_lap'] if stint['end_lap'] is not None else 9999
+        for lap_n in range(stint['start_lap'], end_lap + 1):
+            compound_map[lap_n] = stint['compound']
     return compound_map
 
 
