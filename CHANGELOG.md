@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.5.0 (2026-06-20)
+
+### Features
+
+- Driver and team standings + teams and drivers pace analisys
+  ([`f249a94`](https://github.com/MihaiM21/TurnOneTelemetry/commit/f249a9401939ad68d5707271843fcf76aa2cc504))
+
+
 ## v1.4.2 (2026-06-13)
 
 ### Bug Fixes
