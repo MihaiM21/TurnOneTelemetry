@@ -1,0 +1,67 @@
+{
+ "Messages": [
+  {
+   "Utc": "2025-03-16T03:15:05",
+   "Lap": 1,
+   "Category": "Other",
+   "Message": "LOW GRIP CONDITIONS"
+  },
+  {
+   "Utc": "2025-03-16T03:15:08",
+   "Lap": 1,
+   "Category": "Drs",
+   "Status": "DISABLED",
+   "Message": "DRS DISABLED"
+  },
+  {
+   "Utc": "2025-03-16T03:20:01",
+   "Lap": 1,
+   "Category": "Flag",
+   "Flag": "GREEN",
+   "Scope": "Track",
+   "Message": "GREEN LIGHT - PIT EXIT OPEN"
+  },
+  {
+   "Utc": "2025-03-16T03:25:03",
+   "Lap": 1,
+   "Category": "Flag",
+   "Flag": "YELLOW",
+   "Scope": "Sector",
+   "Sector": 17,
+   "Message": "YELLOW IN TRACK SECTOR 17"
+  },
+  {
+   "Utc": "2025-03-16T03:25:08",
+   "Lap": 1,
+   "Category": "Flag",
+   "Flag": "CLEAR",
+   "Scope": "Sector",
+   "Sector": 17,
+   "Message": "CLEAR IN TRACK SECTOR 17"
+  },
+  {
+   "Utc": "2025-03-16T03:30:01",
+   "Lap": 1,
+   "Category": "Other",
+   "Message": "PIT EXIT CLOSED"
+  },
+  {
+   "Utc": "2025-03-16T03:41:43",
+   "Lap": 1,
+   "Category": "Flag",
+   "Flag": "DOUBLE YELLOW",
+   "Scope": "Sector",
+   "Sector": 10,
+   "Message": "DOUBLE YELLOW IN TRACK SECTOR 10"
+  },
+  {
+   "Utc": "2025-03-16T03:42:22",
+   "Lap": 1,
+   "Category": "Flag",
+   "Flag": "YELLOW",
+   "Scope": "Sector",
+   "Sector": 9,
+   "Message": "YELLOW IN TRACK SECTOR 9"
+  }
+ ]
+}

@@ -20,6 +20,10 @@ os.environ["DOCS_USERNAME"] = "testdocs"
 os.environ["DOCS_PASSWORD"] = "testpw"
 os.environ["DOCS_AUTH_ALWAYS"] = "false"
 os.environ["ENABLE_BACKGROUND_PROCESSOR"] = "false"
+# Keep unit tests fully offline and deterministic: never touch a real Redis.
+# Otherwise a warm response cache leaks state across tests (e.g. a shared
+# livetiming stream key served stale data between fixtures).
+os.environ["ENABLE_RESPONSE_CACHE"] = "false"
 os.environ["FASTF1_CACHE_DIR"] = "./cache"
 os.environ["LOG_LEVEL"] = "WARNING"
 os.environ["LOG_FILE"] = "logs/test.log"

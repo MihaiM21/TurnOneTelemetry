@@ -29,6 +29,11 @@ from src.services.analysis.v1.throttle_brake_comparison import throttle_graph_da
 from src.services.analysis.v2.top_speed import TopSpeedData_Telemetry, TopSpeedData_SpeedTrap
 from src.services.analysis.v2.throttle_comparison import ThrottleCompData as ThrottleCompData_V2
 from src.services.analysis.v2.speed_distribution import SpeedDistributionData as SpeedDistributionData_V2
+from src.services.analysis.v2.position_changes import PositionChangesData
+from src.services.analysis.v2.race_gaps import RaceGapsData
+from src.services.analysis.v2.tyre_degradation import TyreDegradationData
+from src.services.analysis.v2.pit_strategy import PitStrategyData
+from src.services.analysis.v2.session_weather import SessionWeatherData
 
 # Import database utilities
 from src.repositories.mongo import MongoDBManager
@@ -278,7 +283,81 @@ class PlotDataGenerator:
             self.results['failed'].append(f"V2 Speed Distribution - Y{year} R{round_num} {session_name}: {str(e)}")
             return False
 
-    def generate_all_session_data(self, year: int, round_num: int, session_name: str, 
+    def generate_position_changes_v2(self, year: int, round_num, session_name: str) -> bool:
+        """Generate V2 position changes (Race/Sprint only)"""
+        try:
+            print(f"  → [V2] Generating position changes...")
+            data = PositionChangesData()(year, round_num, session_name)
+            if data:
+                self.results['success'].append(f"V2 Position Changes - Y{year} R{round_num} {session_name}")
+                return True
+            return False
+        except Exception as e:
+            print(f"    ✗ Error: {e}")
+            self.results['failed'].append(f"V2 Position Changes - Y{year} R{round_num} {session_name}: {str(e)}")
+            return False
+
+    def generate_race_gaps_v2(self, year: int, round_num, session_name: str, reference: str = 'leader') -> bool:
+        """Generate V2 race gaps for a given reference mode (Race/Sprint only)"""
+        try:
+            print(f"  → [V2] Generating race gaps (reference={reference})...")
+            data = RaceGapsData()(year, round_num, session_name, reference, None)
+            if data:
+                self.results['success'].append(
+                    f"V2 Race Gaps ({reference}) - Y{year} R{round_num} {session_name}"
+                )
+                return True
+            return False
+        except Exception as e:
+            print(f"    ✗ Error: {e}")
+            self.results['failed'].append(
+                f"V2 Race Gaps ({reference}) - Y{year} R{round_num} {session_name}: {str(e)}"
+            )
+            return False
+
+    def generate_tyre_degradation_v2(self, year: int, round_num, session_name: str) -> bool:
+        """Generate V2 tyre degradation (overall, no driver filter, Race/Sprint only)"""
+        try:
+            print(f"  → [V2] Generating tyre degradation...")
+            data = TyreDegradationData()(year, round_num, session_name, None, False)
+            if data:
+                self.results['success'].append(f"V2 Tyre Degradation - Y{year} R{round_num} {session_name}")
+                return True
+            return False
+        except Exception as e:
+            print(f"    ✗ Error: {e}")
+            self.results['failed'].append(f"V2 Tyre Degradation - Y{year} R{round_num} {session_name}: {str(e)}")
+            return False
+
+    def generate_pit_strategy_v2(self, year: int, round_num, session_name: str) -> bool:
+        """Generate V2 pit strategy & undercuts (Race/Sprint only)"""
+        try:
+            print(f"  → [V2] Generating pit strategy...")
+            data = PitStrategyData()(year, round_num, session_name)
+            if data:
+                self.results['success'].append(f"V2 Pit Strategy - Y{year} R{round_num} {session_name}")
+                return True
+            return False
+        except Exception as e:
+            print(f"    ✗ Error: {e}")
+            self.results['failed'].append(f"V2 Pit Strategy - Y{year} R{round_num} {session_name}: {str(e)}")
+            return False
+
+    def generate_session_weather_v2(self, year: int, round_num, session_name: str) -> bool:
+        """Generate V2 session weather timeline (all session types)"""
+        try:
+            print(f"  → [V2] Generating session weather...")
+            data = SessionWeatherData()(year, round_num, session_name)
+            if data:
+                self.results['success'].append(f"V2 Session Weather - Y{year} R{round_num} {session_name}")
+                return True
+            return False
+        except Exception as e:
+            print(f"    ✗ Error: {e}")
+            self.results['failed'].append(f"V2 Session Weather - Y{year} R{round_num} {session_name}: {str(e)}")
+            return False
+
+    def generate_all_session_data(self, year: int, round_num: int, session_name: str,
                                   include_driver_comparisons: bool = False,
                                   driver_pairs: Optional[List[Tuple[str, str]]] = None,
                                   drivers_for_laptimes: Optional[List[str]] = None,
@@ -338,6 +417,17 @@ class PlotDataGenerator:
             self.generate_speed_distribution_v2,   # V2 speed distribution (overall)
         ]
 
+        # Race/Sprint-only V2 features (position changes, race gaps, tyre
+        # degradation, pit strategy). Session weather is meaningful for every
+        # session type, so it's added unconditionally below.
+        is_race_or_sprint = session_name.strip().upper() in ('R', 'RACE', 'S', 'SPRINT')
+        if is_race_or_sprint:
+            v2_session_generators.extend([
+                self.generate_position_changes_v2,   # V2 position changes
+                self.generate_pit_strategy_v2,       # V2 pit strategy & undercuts
+                self.generate_tyre_degradation_v2,   # V2 tyre degradation (overall)
+            ])
+
         print("\n>> V2 Generators (F1StaticClient)")
         print(f"   Using identifier: '{v2_identifier}'")
         for generator in v2_session_generators:
@@ -349,6 +439,29 @@ class PlotDataGenerator:
             except Exception as e:
                 print(f"    ✗ Unexpected error: {e}")
                 failed_count += 1
+
+        # Race gaps take an extra 'reference' arg (leader/average); pre-generate
+        # both so the cache is warm for either query variant. Race/Sprint only.
+        if is_race_or_sprint:
+            for reference in ('leader', 'average'):
+                try:
+                    if self.generate_race_gaps_v2(year, v2_identifier, session_name, reference):
+                        success_count += 1
+                    else:
+                        failed_count += 1
+                except Exception as e:
+                    print(f"    ✗ Unexpected error: {e}")
+                    failed_count += 1
+
+        # Session weather is meaningful for every session type (R/S/Q/SQ/FP1-3).
+        try:
+            if self.generate_session_weather_v2(year, v2_identifier, session_name):
+                success_count += 1
+            else:
+                failed_count += 1
+        except Exception as e:
+            print(f"    ✗ Unexpected error: {e}")
+            failed_count += 1
 
         # ---- Optional driver-specific V1 comparisons ----
         if include_driver_comparisons:

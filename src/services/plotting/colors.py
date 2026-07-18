@@ -116,11 +116,11 @@ def get_driver_color(driver):
 
 
 compound_colors = {
-    "SOFT": "#FF3333",
-    "MEDIUM": "#FFD93D",
-    "HARD": "#F0F0F0",
-    "INTERMEDIATE": "#3DCC4A",
-    "WET": "#3DA5FF",
+    "SOFT": "#da291c",
+    "MEDIUM": "#ffd12e",
+    "HARD": "#f0f0ec",
+    "INTERMEDIATE": "#43b02a",
+    "WET": "#0067ad",
     "UNKNOWN": "#777777",
 }
 

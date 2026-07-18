@@ -10,35 +10,38 @@ decorators bind to the limiter at import time.
 """
 from __future__ import annotations
 
-import asyncio
-from contextlib import asynccontextmanager
-from datetime import datetime
+import matplotlib
+matplotlib.use("Agg")  # Must precede any import that could pull in pyplot.
 
-from fastapi import FastAPI, HTTPException, Request, status
-from fastapi.concurrency import run_in_threadpool
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
+import asyncio  # noqa: E402
+from contextlib import asynccontextmanager  # noqa: E402
+from datetime import datetime  # noqa: E402
 
-from src.api.docs_auth import setup_docs_auth
-from src.api.schemas.health import HealthCheckResponse
-from src.core.config import settings
-from src.core.exceptions import (
+from fastapi import FastAPI, HTTPException, Request, status  # noqa: E402
+from fastapi.concurrency import run_in_threadpool  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from fastapi.responses import JSONResponse, ORJSONResponse  # noqa: E402
+from slowapi import _rate_limit_exceeded_handler  # noqa: E402
+from slowapi.errors import RateLimitExceeded  # noqa: E402
+
+from src.api.docs_auth import setup_docs_auth  # noqa: E402
+from src.api.schemas.health import HealthCheckResponse  # noqa: E402
+from src.core.config import settings  # noqa: E402
+from src.core.exceptions import (  # noqa: E402
     DataNotAvailableError,
     SessionNotFoundError,
     UpstreamUnavailableError,
 )
-from src.core.logging import get_logger, setup_logging
-from src.core.observability.monitoring import (
+from src.core.logging import get_logger, setup_logging  # noqa: E402
+from src.core.observability.monitoring import (  # noqa: E402
     RequestTracingMiddleware,
     get_request_tracker,
     get_system_monitor,
     set_api_info,
 )
-from src.core.observability.analytics import SessionTracker
-from src.core.security.rate_limiting import init_limiter
-from src.workers.processor import (
+from src.core.observability.analytics import SessionTracker  # noqa: E402
+from src.core.security.rate_limiting import init_limiter  # noqa: E402
+from src.workers.processor import (  # noqa: E402
     get_processor,
     start_background_processor,
     stop_background_processor,
@@ -195,6 +198,7 @@ def create_app() -> FastAPI:
         title=settings.app_name,
         description=DESCRIPTION,
         version=settings.app_version,
+        default_response_class=ORJSONResponse,
         lifespan=lifespan,
         contact={
             "name": "Turn One Hub Support",
@@ -221,12 +225,14 @@ def create_app() -> FastAPI:
         allow_headers=[settings.cors_allow_headers],
     )
 
-    # Weak-ETag short-circuiting + Cache-Control for cacheable V2 GET endpoints.
+    # Weak-ETag short-circuiting + immutable Cache-Control for cacheable V2 GET
+    # endpoints (historical F1 session data never changes once processed).
+    from src.api.http_cache import DEFAULT_MAX_AGE_SECONDS
     from src.api.middleware.etag import ETagMiddleware
     app.add_middleware(
         ETagMiddleware,
         path_prefixes=("/api/v2/",),
-        cache_control_max_age=settings.cache_ttl_seconds,
+        cache_control_max_age=DEFAULT_MAX_AGE_SECONDS,
     )
 
     @app.exception_handler(Exception)

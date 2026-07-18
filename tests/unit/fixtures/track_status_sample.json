@@ -1,0 +1,102 @@
+[
+ {
+  "Status": "1",
+  "Message": "AllClear",
+  "_timestamp": "00:00:24.491"
+ },
+ {
+  "Status": "2",
+  "Message": "Yellow",
+  "_timestamp": "00:17:40.825"
+ },
+ {
+  "Status": "1",
+  "Message": "AllClear",
+  "_timestamp": "00:17:45.814"
+ },
+ {
+  "Status": "2",
+  "Message": "Yellow",
+  "_timestamp": "00:34:20.843"
+ },
+ {
+  "Status": "1",
+  "Message": "AllClear",
+  "_timestamp": "00:35:54.306"
+ },
+ {
+  "Status": "2",
+  "Message": "Yellow",
+  "_timestamp": "00:41:37.243"
+ },
+ {
+  "Status": "1",
+  "Message": "AllClear",
+  "_timestamp": "00:42:24.684"
+ },
+ {
+  "Status": "2",
+  "Message": "Yellow",
+  "_timestamp": "00:53:36.416"
+ },
+ {
+  "Status": "1",
+  "Message": "AllClear",
+  "_timestamp": "00:57:54.535"
+ },
+ {
+  "Status": "2",
+  "Message": "Yellow",
+  "_timestamp": "01:12:05.120"
+ },
+ {
+  "Status": "4",
+  "Message": "SCDeployed",
+  "_timestamp": "01:12:08.954"
+ },
+ {
+  "Status": "1",
+  "Message": "AllClear",
+  "_timestamp": "01:27:50.163"
+ },
+ {
+  "Status": "2",
+  "Message": "Yellow",
+  "_timestamp": "02:07:26.655"
+ },
+ {
+  "Status": "4",
+  "Message": "SCDeployed",
+  "_timestamp": "02:07:47.268"
+ },
+ {
+  "Status": "1",
+  "Message": "AllClear",
+  "_timestamp": "02:25:02.727"
+ },
+ {
+  "Status": "2",
+  "Message": "Yellow",
+  "_timestamp": "02:29:25.516"
+ },
+ {
+  "Status": "1",
+  "Message": "AllClear",
+  "_timestamp": "02:30:51.142"
+ },
+ {
+  "Status": "2",
+  "Message": "Yellow",
+  "_timestamp": "02:33:14.868"
+ },
+ {
+  "Status": "4",
+  "Message": "SCDeployed",
+  "_timestamp": "02:33:43.734"
+ },
+ {
+  "Status": "1",
+  "Message": "AllClear",
+  "_timestamp": "02:43:55.069"
+ }
+]

@@ -64,6 +64,7 @@ def QualiResults(y,r,e):
         fig.figimage(logo, 575, 575, zorder=3, alpha=.6)
         setup_theme.add_glow(ax)
         plt.savefig(location + "/" + name)
+        plt.close(fig)
         return location + "/" + name
 
     # If not in cache, load session and continue with normal generation
@@ -152,6 +153,7 @@ def QualiResults(y,r,e):
     setup_theme.add_glow(ax)
 
     plt.savefig(location + "/" + name)
+    plt.close(fig)
     return location + "/" + name
 
 def QualiResultsData(y,r,e, store_to_mongo=True):

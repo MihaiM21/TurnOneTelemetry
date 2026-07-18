@@ -2,9 +2,10 @@ import json
 import pandas as pd
 import numpy as np
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from src.ingestion.static_client import F1StaticClient
+from src.ingestion.circuits_loader import get_circuit_data_by_id
 
 
 CHANNEL_NAMES = {
@@ -73,9 +74,18 @@ def _to_int(value, default=None):
         return default
 
 
-def extract_stints(base_url: str, client: F1StaticClient, driver_num: str) -> List[Dict]:
+def extract_stints_from_data(
+    timing_app_data: List[Dict], driver_num: str
+) -> List[Dict]:
     """
-    Returns per-stint records for a driver from TimingAppData.jsonStream:
+    Compute per-stint records for a driver from already-parsed TimingAppData.
+
+    Same contract as :func:`extract_stints` but takes the parsed
+    ``TimingAppData.jsonStream`` entries directly (or the entries exposed by
+    ``SessionDataStore.timing_app_data()``), so the caller can parse the stream
+    once and reuse it across every driver instead of re-fetching per driver.
+
+    Returns per-stint records for a driver:
     [{stint_number, compound, start_lap, end_lap, lap_count, tyre_life_end}, ...]
 
     Race-lap boundaries are derived by accumulation, not from the raw fields.
@@ -86,11 +96,7 @@ def extract_stints(base_url: str, client: F1StaticClient, driver_num: str) -> Li
     those lengths gives the race-lap window for each stint. (StartLaps is tyre
     age, NOT a race lap number - using it as a lap was the original bug.)
     """
-    try:
-        data = client.parse_jsonstream_simple(base_url + "TimingAppData.jsonStream")
-    except Exception as exc:
-        print(f"Error fetching TimingAppData for {driver_num}: {exc}")
-        return []
+    data = timing_app_data or []
 
     # Merge the incremental updates into one final snapshot per stint index.
     snaps: Dict[str, Dict] = {}
@@ -136,6 +142,23 @@ def extract_stints(base_url: str, client: F1StaticClient, driver_num: str) -> Li
             'tyre_life_end': total_laps,
         })
     return records
+
+
+def extract_stints(base_url: str, client: F1StaticClient, driver_num: str) -> List[Dict]:
+    """
+    Backwards-compatible wrapper: fetch+parse TimingAppData then delegate to
+    :func:`extract_stints_from_data`.
+
+    Kept so the existing V2 modules that call ``extract_stints(base_url, client,
+    num)`` are untouched. New callers with a :class:`SessionDataStore` should
+    parse the stream once and use ``extract_stints_from_data`` directly.
+    """
+    try:
+        data = client.parse_jsonstream_simple(base_url + "TimingAppData.jsonStream")
+    except Exception as exc:
+        print(f"Error fetching TimingAppData for {driver_num}: {exc}")
+        return []
+    return extract_stints_from_data(data, driver_num)
 
 
 def get_finishing_order(base_url: str, client: F1StaticClient) -> Dict[str, int]:
@@ -387,3 +410,195 @@ def merge_distance_onto_telemetry(df_tel: pd.DataFrame, df_pos: pd.DataFrame) ->
 
     merged = pd.merge_asof(df_tel_sorted, df_pos_dist, on='Time', direction='nearest')
     return merged
+
+
+def get_fastest_lap_telemetry(base_url: str, client: F1StaticClient, driver_num: str,
+                               channels: Optional[List[str]] = None) -> pd.DataFrame:
+    """Fastest-lap telemetry for one driver, with Distance + X/Y merged on.
+
+    Composes the existing single-purpose helpers:
+      ``get_fastest_lap_windows`` -> the driver's personal-best lap window,
+      ``extract_telemetry_for_lap`` + ``extract_position_for_lap`` -> raw
+      channel / position samples inside that window,
+      ``compute_distance`` -> cumulative track distance from X/Y,
+      ``merge_distance_onto_telemetry`` -> nearest-time merge of Distance onto
+      the telemetry frame.
+
+    X/Y are merged onto the telemetry frame the same way (nearest-time
+    ``merge_asof``) so a single frame carries Time, Distance, X, Y and every
+    requested channel column.
+
+    Returns an empty DataFrame if no fastest lap / telemetry / position data
+    is available for the driver.
+    """
+    if channels is None:
+        channels = ['2']
+
+    df_windows = get_fastest_lap_windows(base_url, client, target_driver_num=driver_num)
+    if df_windows.empty:
+        return pd.DataFrame()
+
+    row = df_windows.iloc[0]
+    start_t, end_t = row['StartTime'], row['EndTime']
+
+    df_tel = extract_telemetry_for_lap(base_url, client, driver_num, start_t, end_t, channels=channels)
+    if df_tel.empty:
+        return pd.DataFrame()
+
+    df_pos = extract_position_for_lap(base_url, client, driver_num, start_t, end_t)
+    if df_pos.empty:
+        df_tel = df_tel.copy()
+        df_tel['Distance'] = 0.0
+        df_tel['X'] = 0.0
+        df_tel['Y'] = 0.0
+        return df_tel
+
+    df_pos = compute_distance(df_pos)
+    df_tel = merge_distance_onto_telemetry(df_tel, df_pos)
+
+    df_pos_xy = df_pos[['Time', 'X', 'Y']].sort_values('Time')
+    df_tel_sorted = df_tel.sort_values('Time')
+    merged = pd.merge_asof(df_tel_sorted, df_pos_xy, on='Time', direction='nearest')
+    merged['LapTime'] = float(row['LapTime'])
+    return merged
+
+
+def detect_corners(df: pd.DataFrame, min_separation_m: float = 50.0,
+                    min_drop_kmh: float = 10.0) -> List[Dict[str, float]]:
+    """Detect corner apexes from a Distance/Speed telemetry frame.
+
+    Pure function, fully offline-testable: smooths ``Speed`` with a rolling
+    median (~5 samples) to reduce sensor noise, then walks the smoothed trace
+    looking for local minima ("apexes") preceded by a local maximum ("entry")
+    where the drop from that entry speed exceeds ``min_drop_kmh``. Detected
+    apexes closer together than ``min_separation_m`` are collapsed, keeping the
+    slower (more pronounced) apex.
+
+    Returns a list of ``{"distance_m", "min_speed_kmh", "entry_speed_kmh"}``
+    dicts sorted by ``distance_m``. Returns ``[]`` if the frame lacks the
+    required columns or has too few points.
+    """
+    if df is None or df.empty or 'Distance' not in df.columns or 'Speed' not in df.columns:
+        return []
+
+    frame = df[['Distance', 'Speed']].dropna().sort_values('Distance').reset_index(drop=True)
+    if len(frame) < 5:
+        return []
+
+    smoothed = frame['Speed'].rolling(window=5, center=True, min_periods=1).median()
+    distances = frame['Distance'].to_numpy()
+    speeds = smoothed.to_numpy()
+
+    n = len(speeds)
+    candidates: List[Dict[str, float]] = []
+
+    running_max = speeds[0]
+    for i in range(1, n - 1):
+        # Track the local maximum ("entry speed") seen since the last apex.
+        if speeds[i] > running_max:
+            running_max = speeds[i]
+
+        is_local_min = speeds[i] <= speeds[i - 1] and speeds[i] <= speeds[i + 1]
+        if not is_local_min:
+            continue
+
+        drop = running_max - speeds[i]
+        if drop < min_drop_kmh:
+            continue
+
+        candidates.append({
+            "distance_m": float(distances[i]),
+            "min_speed_kmh": float(speeds[i]),
+            "entry_speed_kmh": float(running_max),
+        })
+        # Reset the running max search after an apex so the next entry speed
+        # is measured from the corner exit onward.
+        running_max = speeds[i]
+
+    if not candidates:
+        return []
+
+    # Enforce minimum separation, keeping the slower (more pronounced) apex
+    # when two candidates fall within the window.
+    candidates.sort(key=lambda c: c["distance_m"])
+    merged: List[Dict[str, float]] = [candidates[0]]
+    for cand in candidates[1:]:
+        prev = merged[-1]
+        if cand["distance_m"] - prev["distance_m"] < min_separation_m:
+            if cand["min_speed_kmh"] < prev["min_speed_kmh"]:
+                merged[-1] = cand
+            continue
+        merged.append(cand)
+
+    merged.sort(key=lambda c: c["distance_m"])
+    return merged
+
+
+def get_circuit_info_for_session(store: Any) -> Optional[Dict[str, Any]]:
+    """Circuit rotation + corner + outline data for a session, or ``None``.
+
+    Reads ``store.session_info()['Meeting']['Circuit']['Key']`` and looks the
+    circuit up via ``circuits_loader.get_circuit_data_by_id``, falling back
+    across a small set of known years (the session's own year first, then
+    2024/2025/2026) since not every circuit JSON is duplicated every season.
+
+    Never raises: any failure (missing session info, unknown circuit, missing
+    file, malformed JSON) results in ``None`` so callers can render an
+    unrotated map / fall back to sequential corner numbering.
+    """
+    try:
+        info = store.session_info()
+    except Exception:
+        return None
+    if not isinstance(info, dict):
+        return None
+
+    circuit_key = None
+    try:
+        circuit_key = info.get('Meeting', {}).get('Circuit', {}).get('Key')
+    except Exception:
+        circuit_key = None
+    if circuit_key is None:
+        return None
+
+    years_to_try = []
+    session_year = getattr(store, 'year', None)
+    if session_year is not None:
+        years_to_try.append(session_year)
+    for y in (2024, 2025, 2026):
+        if y not in years_to_try:
+            years_to_try.append(y)
+
+    circuit = None
+    for y in years_to_try:
+        try:
+            circuit = get_circuit_data_by_id(circuit_key, y)
+        except Exception:
+            circuit = None
+        if circuit:
+            break
+
+    if not circuit:
+        return None
+
+    try:
+        race_data = circuit.get('race_data', {}) if isinstance(circuit, dict) else {}
+        corners_raw = race_data.get('corners') or []
+        corners = []
+        for c in corners_raw:
+            if not isinstance(c, dict):
+                continue
+            pos = c.get('trackPosition') or {}
+            corners.append({
+                "number": c.get('number'),
+                "x": pos.get('x'),
+                "y": pos.get('y'),
+            })
+        return {
+            "rotation": int(race_data.get('rotation') or 0),
+            "corners": corners,
+            "x": list(race_data.get('x') or []),
+            "y": list(race_data.get('y') or []),
+        }
+    except Exception:
+        return None
