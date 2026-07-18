@@ -1,0 +1,188 @@
+00:00:04.219{"Lines": {"4": {"Position": "1", "LastLapTime": {"Value": "", "Status": 0, "OverallFastest": false, "PersonalFastest": false}, "InPit": true, "Retired": false, "PitOut": false}, "1": {"Position": "3", "LastLapTime": {"Value": "", "Status": 0, "OverallFastest": false, "PersonalFastest": false}, "InPit": true, "Retired": false, "PitOut": false}}}
+00:12:43.327{"Lines": {"1": {"InPit": false}}}
+00:12:56.122{"Lines": {"4": {"InPit": false}}}
+00:14:43.521{"Lines": {"1": {"InPit": true}}}
+00:15:01.373{"Lines": {"1": {"InPit": false}}}
+00:15:11.783{"Lines": {"4": {"InPit": true}}}
+00:15:29.913{"Lines": {"4": {"InPit": false}}}
+00:17:16.773{"Lines": {"1": {"InPit": true}}}
+00:17:35.206{"Lines": {"4": {"InPit": true}}}
+00:17:40.437{"Lines": {"1": {"InPit": false}}}
+00:19:13.998{"Lines": {"4": {"InPit": false}}}
+00:19:45.802{"Lines": {"1": {"InPit": true}}}
+00:20:05.821{"Lines": {"1": {"InPit": false}}}
+01:11:17.872{"Lines": {"1": {"Position": "2"}}}
+01:12:57.784{"Lines": {"4": {"NumberOfLaps": 1}}}
+01:13:00.058{"Lines": {"1": {"NumberOfLaps": 1}}}
+01:15:36.644{"Lines": {"4": {"NumberOfPitStops": 1, "InPit": true}}}
+01:15:38.205{"Lines": {"1": {"NumberOfPitStops": 1, "InPit": true}}}
+01:15:47.721{"Lines": {"4": {"LastLapTime": {"Value": "2:49.888"}, "NumberOfLaps": 2}}}
+01:15:49.446{"Lines": {"1": {"LastLapTime": {"Value": "2:49.322"}, "NumberOfLaps": 2}}}
+01:15:50.143{"Lines": {"4": {"InPit": false, "PitOut": true}}}
+01:15:51.658{"Lines": {"1": {"InPit": false, "PitOut": true}}}
+01:16:44.192{"Lines": {"4": {"PitOut": false}}}
+01:16:45.667{"Lines": {"1": {"PitOut": false}}}
+01:18:18.691{"Lines": {"4": {"NumberOfPitStops": 2, "InPit": true}}}
+01:18:20.223{"Lines": {"1": {"NumberOfPitStops": 2, "InPit": true}}}
+01:18:29.450{"Lines": {"4": {"LastLapTime": {"Value": "2:41.723"}, "NumberOfLaps": 3}}}
+01:18:31.544{"Lines": {"4": {"InPit": false, "PitOut": true}}}
+01:18:31.643{"Lines": {"1": {"LastLapTime": {"Value": "2:42.145"}, "NumberOfLaps": 3}}}
+01:18:34.029{"Lines": {"1": {"InPit": false, "PitOut": true}}}
+01:19:24.745{"Lines": {"4": {"PitOut": false}}}
+01:19:26.041{"Lines": {"1": {"PitOut": false}}}
+01:20:54.690{"Lines": {"4": {"NumberOfPitStops": 3, "InPit": true}}}
+01:20:56.543{"Lines": {"1": {"NumberOfPitStops": 3, "InPit": true}}}
+01:21:05.559{"Lines": {"4": {"LastLapTime": {"Value": "2:36.053"}, "NumberOfLaps": 4}}}
+01:21:07.378{"Lines": {"1": {"LastLapTime": {"Value": "2:35.775"}, "NumberOfLaps": 4}}}
+01:21:07.473{"Lines": {"4": {"InPit": false, "PitOut": true}}}
+01:21:09.534{"Lines": {"1": {"InPit": false, "PitOut": true}}}
+01:21:59.491{"Lines": {"4": {"PitOut": false}}}
+01:22:00.892{"Lines": {"1": {"PitOut": false}}}
+01:23:29.131{"Lines": {"4": {"LastLapTime": {"Value": "2:23.648"}, "NumberOfLaps": 5}}}
+01:23:31.049{"Lines": {"1": {"LastLapTime": {"Value": "2:23.609"}, "NumberOfLaps": 5}}}
+01:25:49.512{"Lines": {"4": {"LastLapTime": {"Value": "2:20.423", "OverallFastest": true, "PersonalFastest": true}, "NumberOfLaps": 6}}}
+01:25:50.560{"Lines": {"4": {"LastLapTime": {"OverallFastest": false}}, "1": {"LastLapTime": {"Value": "2:19.654", "OverallFastest": true, "PersonalFastest": true}, "NumberOfLaps": 6}}}
+01:25:53.680{"Lines": {"1": {"LastLapTime": {"OverallFastest": false}}}}
+01:28:06.647{"Lines": {"4": {"LastLapTime": {"Value": "2:17.108", "OverallFastest": true}, "NumberOfLaps": 7}}}
+01:28:07.022{"Lines": {"4": {"LastLapTime": {"OverallFastest": false}}, "1": {"LastLapTime": {"Value": "2:16.447", "OverallFastest": true}, "NumberOfLaps": 7}}}
+01:28:07.695{"Lines": {"1": {"LastLapTime": {"OverallFastest": false}}}}
+01:29:42.909{"Lines": {"4": {"LastLapTime": {"Value": "1:36.278", "OverallFastest": true}, "NumberOfLaps": 8}}}
+01:29:43.920{"Lines": {"1": {"LastLapTime": {"Value": "1:36.830"}, "NumberOfLaps": 8}}}
+01:31:17.615{"Lines": {"4": {"LastLapTime": {"Value": "1:34.638"}, "NumberOfLaps": 9}}}
+01:31:18.365{"Lines": {"4": {"LastLapTime": {"OverallFastest": false}}, "1": {"LastLapTime": {"Value": "1:34.315", "OverallFastest": true}, "NumberOfLaps": 9}}}
+01:32:49.951{"Lines": {"4": {"LastLapTime": {"Value": "1:32.130", "OverallFastest": true}, "NumberOfLaps": 10}, "1": {"LastLapTime": {"OverallFastest": false}}}}
+01:32:51.127{"Lines": {"1": {"LastLapTime": {"Value": "1:32.650"}, "NumberOfLaps": 10}}}
+01:34:21.928{"Lines": {"4": {"LastLapTime": {"Value": "1:32.189", "OverallFastest": false, "PersonalFastest": false}, "NumberOfLaps": 11}}}
+01:34:23.395{"Lines": {"1": {"LastLapTime": {"Value": "1:32.453"}, "NumberOfLaps": 11}}}
+01:35:53.826{"Lines": {"4": {"LastLapTime": {"Value": "1:31.778", "OverallFastest": true, "PersonalFastest": true}, "NumberOfLaps": 12}}}
+01:35:55.099{"Lines": {"4": {"LastLapTime": {"OverallFastest": false}}, "1": {"LastLapTime": {"Value": "1:31.591", "OverallFastest": true}, "NumberOfLaps": 12}}}
+01:35:55.600{"Lines": {"1": {"LastLapTime": {"OverallFastest": false}}}}
+01:37:25.132{"Lines": {"4": {"LastLapTime": {"Value": "1:31.318"}, "NumberOfLaps": 13}}}
+01:37:26.212{"Lines": {"1": {"LastLapTime": {"Value": "1:31.271", "OverallFastest": true}, "NumberOfLaps": 13}}}
+01:38:55.932{"Lines": {"4": {"LastLapTime": {"Value": "1:30.795", "OverallFastest": true}, "NumberOfLaps": 14}, "1": {"LastLapTime": {"OverallFastest": false}}}}
+01:38:56.954{"Lines": {"4": {"LastLapTime": {"OverallFastest": false}}, "1": {"LastLapTime": {"Value": "1:30.639", "OverallFastest": true}, "NumberOfLaps": 14}}}
+01:38:57.558{"Lines": {"1": {"LastLapTime": {"OverallFastest": false}}}}
+01:40:25.980{"Lines": {"4": {"LastLapTime": {"Value": "1:30.226", "OverallFastest": true}, "NumberOfLaps": 15}}}
+01:40:27.158{"Lines": {"1": {"LastLapTime": {"Value": "1:30.328"}, "NumberOfLaps": 15}}}
+01:41:56.016{"Lines": {"4": {"LastLapTime": {"Value": "1:29.952"}, "NumberOfLaps": 16}}}
+01:41:57.799{"Lines": {"1": {"LastLapTime": {"Value": "1:30.592", "PersonalFastest": false}, "NumberOfLaps": 16}}}
+01:43:10.248{"Lines": {"1": {"Position": "3"}}}
+01:43:26.271{"Lines": {"4": {"LastLapTime": {"Value": "1:30.264", "OverallFastest": false, "PersonalFastest": false}, "NumberOfLaps": 17}}}
+01:43:31.146{"Lines": {"1": {"LastLapTime": {"Value": "1:33.392"}, "NumberOfLaps": 17}}}
+01:44:56.431{"Lines": {"4": {"LastLapTime": {"Value": "1:30.146"}, "NumberOfLaps": 18}}}
+01:45:03.356{"Lines": {"1": {"LastLapTime": {"Value": "1:32.169"}, "NumberOfLaps": 18}}}
+01:46:27.038{"Lines": {"4": {"LastLapTime": {"Value": "1:30.551"}, "NumberOfLaps": 19}}}
+01:46:35.302{"Lines": {"1": {"LastLapTime": {"Value": "1:31.939"}, "NumberOfLaps": 19}}}
+01:47:57.763{"Lines": {"4": {"LastLapTime": {"Value": "1:30.710"}, "NumberOfLaps": 20}}}
+01:48:06.921{"Lines": {"1": {"LastLapTime": {"Value": "1:31.598"}, "NumberOfLaps": 20}}}
+01:49:27.963{"Lines": {"4": {"LastLapTime": {"Value": "1:30.234"}, "NumberOfLaps": 21}}}
+01:49:38.051{"Lines": {"1": {"LastLapTime": {"Value": "1:31.177"}, "NumberOfLaps": 21}}}
+01:50:58.255{"Lines": {"4": {"LastLapTime": {"Value": "1:30.300"}, "NumberOfLaps": 22}}}
+01:51:09.020{"Lines": {"1": {"LastLapTime": {"Value": "1:31.040"}, "NumberOfLaps": 22}}}
+01:52:28.142{"Lines": {"4": {"LastLapTime": {"Value": "1:29.922", "PersonalFastest": true}, "NumberOfLaps": 23}}}
+01:52:39.779{"Lines": {"1": {"LastLapTime": {"Value": "1:30.686"}, "NumberOfLaps": 23}}}
+01:53:57.918{"Lines": {"4": {"LastLapTime": {"Value": "1:29.687", "OverallFastest": true}, "NumberOfLaps": 24}}}
+01:53:59.668{"Lines": {"4": {"LastLapTime": {"OverallFastest": false}}}}
+01:54:10.800{"Lines": {"1": {"LastLapTime": {"Value": "1:30.978"}, "NumberOfLaps": 24}}}
+01:55:27.511{"Lines": {"4": {"LastLapTime": {"Value": "1:29.601", "OverallFastest": true}, "NumberOfLaps": 25}}}
+01:55:29.012{"Lines": {"4": {"LastLapTime": {"OverallFastest": false}}}}
+01:55:41.648{"Lines": {"1": {"LastLapTime": {"Value": "1:30.845"}, "NumberOfLaps": 25}}}
+01:56:56.734{"Lines": {"4": {"LastLapTime": {"Value": "1:29.160", "OverallFastest": true}, "NumberOfLaps": 26}}}
+01:56:58.134{"Lines": {"4": {"LastLapTime": {"OverallFastest": false}}}}
+01:57:11.919{"Lines": {"1": {"LastLapTime": {"Value": "1:30.293", "PersonalFastest": true}, "NumberOfLaps": 26}}}
+01:58:25.864{"Lines": {"4": {"LastLapTime": {"Value": "1:29.250", "PersonalFastest": false}, "NumberOfLaps": 27}}}
+01:58:41.596{"Lines": {"1": {"LastLapTime": {"Value": "1:29.731"}, "NumberOfLaps": 27}}}
+01:59:55.073{"Lines": {"4": {"LastLapTime": {"Value": "1:29.097", "PersonalFastest": true}, "NumberOfLaps": 28}}}
+02:00:11.067{"Lines": {"1": {"LastLapTime": {"Value": "1:29.411"}, "NumberOfLaps": 28}}}
+02:01:23.283{"Lines": {"4": {"LastLapTime": {"Value": "1:28.357", "OverallFastest": true}, "NumberOfLaps": 29}}}
+02:01:23.935{"Lines": {"4": {"LastLapTime": {"OverallFastest": false}}}}
+02:01:40.287{"Lines": {"1": {"LastLapTime": {"Value": "1:29.043"}, "NumberOfLaps": 29}}}
+02:02:51.465{"Lines": {"4": {"LastLapTime": {"Value": "1:28.032", "OverallFastest": true}, "NumberOfLaps": 30}}}
+02:03:08.265{"Lines": {"1": {"LastLapTime": {"Value": "1:28.237"}, "NumberOfLaps": 30}}}
+02:04:19.101{"Lines": {"4": {"LastLapTime": {"Value": "1:27.695"}, "NumberOfLaps": 31}}}
+02:04:36.445{"Lines": {"1": {"LastLapTime": {"Value": "1:28.127"}, "NumberOfLaps": 31}}}
+02:05:46.878{"Lines": {"4": {"LastLapTime": {"Value": "1:27.800", "OverallFastest": false, "PersonalFastest": false}, "NumberOfLaps": 32}}}
+02:06:04.628{"Lines": {"1": {"LastLapTime": {"Value": "1:28.208", "PersonalFastest": false}, "NumberOfLaps": 32}}}
+02:07:14.371{"Lines": {"4": {"LastLapTime": {"Value": "1:27.495", "OverallFastest": true, "PersonalFastest": true}, "NumberOfLaps": 33}}}
+02:07:32.730{"Lines": {"1": {"LastLapTime": {"Value": "1:28.046", "PersonalFastest": true}, "NumberOfLaps": 33}}}
+02:09:00.096{"Lines": {"4": {"NumberOfPitStops": 4, "InPit": true}}}
+02:09:16.655{"Lines": {"4": {"LastLapTime": {"Value": "2:02.273", "OverallFastest": false, "PersonalFastest": false}, "NumberOfLaps": 34}}}
+02:09:18.613{"Lines": {"4": {"InPit": false, "PitOut": true}}}
+02:09:24.559{"Lines": {"1": {"NumberOfPitStops": 4, "InPit": true}}}
+02:09:41.282{"Lines": {"1": {"LastLapTime": {"Value": "2:08.598", "PersonalFastest": false}, "NumberOfLaps": 34}}}
+02:09:43.218{"Lines": {"1": {"InPit": false, "PitOut": true}}}
+02:10:03.130{"Lines": {"4": {"PitOut": false}}}
+02:10:27.989{"Lines": {"1": {"PitOut": false}}}
+02:11:20.073{"Lines": {"4": {"LastLapTime": {"Value": "2:03.448"}, "NumberOfLaps": 35}}}
+02:11:45.801{"Lines": {"1": {"LastLapTime": {"Value": "2:04.508"}, "NumberOfLaps": 35}}}
+02:13:36.952{"Lines": {"4": {"LastLapTime": {"Value": "2:16.883"}, "NumberOfLaps": 36}}}
+02:13:42.173{"Lines": {"1": {"LastLapTime": {"Value": "1:56.334"}, "NumberOfLaps": 36}}}
+02:16:13.692{"Lines": {"4": {"LastLapTime": {"Value": "2:36.940"}, "NumberOfLaps": 37}}}
+02:16:24.999{"Lines": {"1": {"LastLapTime": {"Value": "2:42.876"}, "NumberOfLaps": 37}}}
+02:18:34.905{"Lines": {"4": {"LastLapTime": {"Value": "2:21.020"}, "NumberOfLaps": 38}}}
+02:18:42.918{"Lines": {"1": {"LastLapTime": {"Value": "2:17.910"}, "NumberOfLaps": 38}}}
+02:20:48.522{"Lines": {"4": {"LastLapTime": {"Value": "2:13.694"}, "NumberOfLaps": 39}}}
+02:20:55.622{"Lines": {"1": {"LastLapTime": {"Value": "2:12.714"}, "NumberOfLaps": 39}}}
+02:23:03.927{"Lines": {"4": {"LastLapTime": {"Value": "2:15.337"}, "NumberOfLaps": 40}}}
+02:23:07.126{"Lines": {"1": {"LastLapTime": {"Value": "2:11.498"}, "NumberOfLaps": 40}}}
+02:25:18.025{"Lines": {"4": {"LastLapTime": {"Value": "2:13.937"}, "NumberOfLaps": 41}}}
+02:25:19.180{"Lines": {"1": {"LastLapTime": {"Value": "2:12.004"}, "NumberOfLaps": 41}}}
+02:26:41.681{"Lines": {"4": {"LastLapTime": {"Value": "1:23.797", "OverallFastest": true, "PersonalFastest": true}, "NumberOfLaps": 42}}}
+02:26:44.409{"Lines": {"1": {"LastLapTime": {"Value": "1:25.317", "PersonalFastest": true}, "NumberOfLaps": 42}}}
+02:28:03.909{"Lines": {"4": {"LastLapTime": {"Value": "1:22.167"}, "NumberOfLaps": 43}}}
+02:28:07.498{"Lines": {"1": {"LastLapTime": {"Value": "1:23.081"}, "NumberOfLaps": 43}}}
+02:29:18.279{"Lines": {"4": {"Position": "2"}, "1": {"Position": "1"}}}
+02:29:24.044{"Lines": {"4": {"Position": "3"}}}
+02:29:24.761{"Lines": {"4": {"Position": "4"}}}
+02:29:25.012{"Lines": {"4": {"Position": "1"}, "1": {"Position": "2"}}}
+02:29:33.442{"Lines": {"4": {"NumberOfPitStops": 5, "InPit": true}}}
+02:29:34.144{"Lines": {"4": {"Position": "2"}, "1": {"Position": "1"}}}
+02:29:34.168{"Lines": {"1": {"LastLapTime": {"Value": "1:26.789", "PersonalFastest": false}, "NumberOfLaps": 44}}}
+02:29:40.568{"Lines": {"4": {"Position": "3"}}}
+02:29:42.961{"Lines": {"4": {"Position": "4"}}}
+02:29:43.668{"Lines": {"4": {"Position": "5"}}}
+02:29:49.059{"Lines": {"4": {"Position": "6"}}}
+02:29:49.354{"Lines": {"4": {"LastLapTime": {"Value": "1:45.587", "OverallFastest": false, "PersonalFastest": false}, "NumberOfLaps": 44}}}
+02:29:51.347{"Lines": {"4": {"InPit": false, "PitOut": true}}}
+02:30:04.524{"Lines": {"4": {"Position": "7"}}}
+02:30:26.508{"Lines": {"4": {"PitOut": false}}}
+02:31:07.281{"Lines": {"1": {"LastLapTime": {"Value": "1:32.874"}, "NumberOfLaps": 45}}}
+02:31:17.002{"Lines": {"4": {"Position": "6"}}}
+02:31:25.840{"Lines": {"4": {"LastLapTime": {"Value": "1:36.407"}, "NumberOfLaps": 45}}}
+02:32:42.968{"Lines": {"1": {"NumberOfPitStops": 5, "InPit": true}}}
+02:32:52.710{"Lines": {"1": {"Position": "2"}}}
+02:32:56.694{"Lines": {"1": {"Position": "3"}}}
+02:32:57.257{"Lines": {"4": {"Position": "3"}, "1": {"Position": "4"}}}
+02:32:57.429{"Lines": {"4": {"LastLapTime": {"Value": "1:31.567"}, "NumberOfLaps": 46}}}
+02:32:57.554{"Lines": {"1": {"Position": "5"}}}
+02:32:59.772{"Lines": {"1": {"LastLapTime": {"Value": "1:52.606"}, "NumberOfLaps": 46}}}
+02:33:01.788{"Lines": {"1": {"InPit": false, "PitOut": true}}}
+02:33:08.946{"Lines": {"4": {"Position": "2"}}}
+02:33:27.400{"Lines": {"4": {"Position": "1"}}}
+02:33:33.468{"Lines": {"1": {"Position": "4"}}}
+02:33:33.507{"Lines": {"1": {"Position": "5"}}}
+02:33:37.544{"Lines": {"1": {"Position": "4"}}}
+02:33:40.570{"Lines": {"1": {"PitOut": false}}}
+02:34:51.069{"Lines": {"4": {"LastLapTime": {"Value": "1:53.728"}, "NumberOfLaps": 47}}}
+02:35:06.854{"Lines": {"1": {"Position": "2"}}}
+02:35:07.062{"Lines": {"1": {"LastLapTime": {"Value": "2:07.213"}, "NumberOfLaps": 47}}}
+02:37:08.300{"Lines": {"4": {"LastLapTime": {"Value": "2:16.995"}, "NumberOfLaps": 48}}}
+02:37:09.548{"Lines": {"1": {"LastLapTime": {"Value": "2:02.406"}, "NumberOfLaps": 48}}}
+02:39:32.992{"Lines": {"4": {"LastLapTime": {"Value": "2:24.979"}, "NumberOfLaps": 49}}}
+02:39:34.279{"Lines": {"1": {"LastLapTime": {"Value": "2:24.892"}, "NumberOfLaps": 49}}}
+02:41:55.523{"Lines": {"4": {"LastLapTime": {"Value": "2:22.395"}, "NumberOfLaps": 50}}}
+02:41:56.373{"Lines": {"1": {"LastLapTime": {"Value": "2:22.085"}, "NumberOfLaps": 50}}}
+02:44:09.612{"Lines": {"4": {"LastLapTime": {"Value": "2:14.178"}, "NumberOfLaps": 51}}}
+02:44:10.367{"Lines": {"1": {"LastLapTime": {"Value": "2:13.879"}, "NumberOfLaps": 51}}}
+02:45:42.823{"Lines": {"4": {"LastLapTime": {"Value": "1:33.198"}, "NumberOfLaps": 52}}}
+02:45:44.154{"Lines": {"1": {"LastLapTime": {"Value": "1:33.864"}, "NumberOfLaps": 52}}}
+02:47:13.323{"Lines": {"4": {"LastLapTime": {"Value": "1:30.482"}, "NumberOfLaps": 53}}}
+02:47:14.968{"Lines": {"1": {"LastLapTime": {"Value": "1:30.859"}, "NumberOfLaps": 53}}}
+02:48:42.855{"Lines": {"4": {"LastLapTime": {"Value": "1:29.428"}, "NumberOfLaps": 54}}}
+02:48:44.051{"Lines": {"1": {"LastLapTime": {"Value": "1:29.100"}, "NumberOfLaps": 54}}}
+02:50:11.980{"Lines": {"4": {"LastLapTime": {"Value": "1:29.195"}, "NumberOfLaps": 55}}}
+02:50:12.589{"Lines": {"1": {"LastLapTime": {"Value": "1:28.538"}, "NumberOfLaps": 55}}}
+02:51:39.956{"Lines": {"4": {"LastLapTime": {"Value": "1:27.996"}, "NumberOfLaps": 56}}}
+02:51:40.530{"Lines": {"1": {"LastLapTime": {"Value": "1:27.921"}, "NumberOfLaps": 56}}}
+02:53:07.021{"Lines": {"4": {"LastLapTime": {"Value": "1:27.126"}, "NumberOfLaps": 57}}}
+02:53:08.009{"Lines": {"1": {"LastLapTime": {"Value": "1:27.400"}, "NumberOfLaps": 57}}}

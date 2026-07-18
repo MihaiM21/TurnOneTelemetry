@@ -61,6 +61,7 @@ def TopSpeedPlot(y, r, e):
         plt.tight_layout()
         setup_theme.add_glow(ax)
         plt.savefig(location + "/" + name)
+        plt.close(fig)
         return location + "/" + name
 
     # If not in cache, load session and continue with normal generation
@@ -129,6 +130,7 @@ def TopSpeedPlot(y, r, e):
     setup_theme.add_glow(ax)
 
     plt.savefig(location + "/" + name)
+    plt.close(fig)
     return location + "/" + name
 
 def TopSpeedData(y, r, e, store_to_mongo=True):

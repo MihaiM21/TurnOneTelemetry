@@ -212,6 +212,16 @@ https://api.t1f1.com
 |----------|--------|-------------|
 | `/api/top-speed-plot` | GET | PNG: Top speed comparison chart |
 | `/api/top-speed-data` | GET | JSON: Raw top speed data |
+
+#### Race Analysis (V2, Race/Sprint unless noted)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v2/position-changes-plot` / `-data` | GET | Classic position chart: per-driver race position across laps |
+| `/api/v2/race-gaps-plot` / `-data` | GET | Gap to leader or race trace vs average pace (`reference=leader\|average`, optional `drivers=`) |
+| `/api/v2/tyre-degradation-plot` / `-data` | GET | Per-compound degradation scatter + fit (`driver=`, `fuel_corrected=` optional) |
+| `/api/v2/pit-strategy-plot` / `-data` | GET | Pit stop timeline, undercut attempts, fastest-stop summary |
+| `/api/v2/session-weather-plot` / `-data` | GET | Weather / humidity / track-status timeline (all session types, not just Race/Sprint) |
 ---
 
 ## 💡 Integration Examples

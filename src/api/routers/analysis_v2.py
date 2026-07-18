@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request, HTTPException, Depends, Query
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.concurrency import run_in_threadpool
-from typing import Union
+from typing import Optional, Union
 from src.core.logging import get_logger
 from src.core.security.api_keys import verify_api_key
 from src.core.security.rate_limiting import apply_tiered_limit
@@ -20,6 +20,18 @@ from src.services.analysis.v2.track_comparison import TrackComparisonPlot, Track
 from src.services.analysis.v2.driver_pace import DriverPacePlot, DriverPaceData
 from src.services.analysis.v2.teams_pace import TeamsPacePlot, TeamsPaceData
 from src.services.analysis.v2.tyre_stint_usage import TyreStintUsagePlot, TyreStintUsageData
+from src.services.analysis.v2.position_changes import PositionChangesPlot, PositionChangesData
+from src.services.analysis.v2.race_gaps import RaceGapsPlot, RaceGapsData
+from src.services.analysis.v2.tyre_degradation import TyreDegradationPlot, TyreDegradationData
+from src.services.analysis.v2.pit_strategy import PitStrategyPlot, PitStrategyData
+from src.services.analysis.v2.session_weather import SessionWeatherPlot, SessionWeatherData
+from src.services.analysis.v2.race_pace_heatmap import RacePaceHeatmapPlot, RacePaceHeatmapData
+from src.services.analysis.v2.track_evolution import TrackEvolutionPlot, TrackEvolutionData
+from src.services.analysis.v2.theoretical_best import TheoreticalBestPlot, TheoreticalBestData
+from src.services.analysis.v2.race_story import RaceStoryPlot, RaceStoryData
+from src.services.analysis.v2.telemetry_track_map import TrackMapPlot, TrackMapData
+from src.services.analysis.v2.corner_duel import CornerDuelPlot, CornerDuelData
+from src.services.analysis.v2.driver_radar import DriverRadarPlot, DriverRadarData
 
 # V1 siblings for transparent fallback when livetiming lacks data.
 from src.services.analysis.v1.top_speed import TopSpeedPlot as V1_TopSpeedPlot, TopSpeedData as V1_TopSpeedData
@@ -715,6 +727,525 @@ async def tyre_stint_usage_data_v2(
             year=year, gp=gp, session=session, data_type="tyre_stint_usage",
         )
         _track('tyre-stint-usage', year, gp, session)
+        return result
+    except T1APIError:
+        raise
+
+
+@router.get('/position-changes-plot', tags=["API v2", "Race Analysis"])
+@apply_tiered_limit("standard")
+async def position_changes_plot_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('R'),
+    api_key: str = Depends(verify_api_key)
+):
+    """Classic position chart: per-driver race position across laps. Race/Sprint only."""
+    logger.info(f"Generating position changes plot (V2): Y{year} GP{gp} {session}")
+    try:
+        output_path = await run_in_threadpool(PositionChangesPlot(), year, gp, session)
+        _track('position-changes', year, gp, session)
+        return FileResponse(output_path, media_type='image/png')
+    except T1APIError:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Plot not found")
+
+
+@router.get('/position-changes-data', tags=["API v2", "Race Analysis"])
+@apply_tiered_limit("data")
+async def position_changes_data_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('R'),
+    api_key: str = Depends(verify_api_key)
+):
+    """JSON per-driver position series (lap, position), ordered by finishing position. Race/Sprint only."""
+    logger.info(f"Fetching position changes data (V2): Y{year} GP{gp} {session}")
+    try:
+        result = await run_in_threadpool(PositionChangesData(), year, gp, session)
+        _track('position-changes', year, gp, session)
+        return result
+    except T1APIError:
+        raise
+
+
+@router.get('/race-gaps-plot', tags=["API v2", "Race Analysis"])
+@apply_tiered_limit("standard")
+async def race_gaps_plot_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('R'),
+    reference: str = Query('leader', pattern='^(leader|average)$'),
+    drivers: Optional[str] = Query(None, description="Comma-separated TLAs"),
+    api_key: str = Depends(verify_api_key)
+):
+    """Race gaps / race trace: per-driver gap to leader or vs average pace, per lap. Race/Sprint only."""
+    logger.info(f"Generating race gaps plot (V2): Y{year} GP{gp} {session} ref={reference}")
+    try:
+        output_path = await run_in_threadpool(
+            RaceGapsPlot(), year, gp, session, reference, drivers
+        )
+        _track('race-gaps', year, gp, session)
+        return FileResponse(output_path, media_type='image/png')
+    except T1APIError:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Plot not found")
+
+
+@router.get('/race-gaps-data', tags=["API v2", "Race Analysis"])
+@apply_tiered_limit("data")
+async def race_gaps_data_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('R'),
+    reference: str = Query('leader', pattern='^(leader|average)$'),
+    drivers: Optional[str] = Query(None, description="Comma-separated TLAs"),
+    api_key: str = Depends(verify_api_key)
+):
+    """JSON per-driver gap series (lap, gap_s), ordered by finishing order. Race/Sprint only."""
+    logger.info(f"Fetching race gaps data (V2): Y{year} GP{gp} {session} ref={reference}")
+    try:
+        result = await run_in_threadpool(
+            RaceGapsData(), year, gp, session, reference, drivers
+        )
+        _track('race-gaps', year, gp, session)
+        return result
+    except T1APIError:
+        raise
+
+
+@router.get('/tyre-degradation-plot', tags=["API v2", "Race Analysis"])
+@apply_tiered_limit("standard")
+async def tyre_degradation_plot_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('R'),
+    driver: Optional[str] = Query(None, description="Optional driver TLA filter (e.g. VER)"),
+    fuel_corrected: bool = Query(False, description="Apply fuel-burn correction to lap times"),
+    api_key: str = Depends(verify_api_key)
+):
+    """Per-compound tyre degradation scatter + trendlines. Race/Sprint only."""
+    logger.info(
+        f"Generating tyre degradation plot (V2): Y{year} GP{gp} {session} "
+        f"driver={driver} fuel_corrected={fuel_corrected}"
+    )
+    try:
+        output_path = await run_in_threadpool(
+            TyreDegradationPlot(), year, gp, session, driver, fuel_corrected
+        )
+        _track('tyre-degradation', year, gp, session)
+        return FileResponse(output_path, media_type='image/png')
+    except T1APIError:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Plot not found")
+
+
+@router.get('/tyre-degradation-data', tags=["API v2", "Race Analysis"])
+@apply_tiered_limit("data")
+async def tyre_degradation_data_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('R'),
+    driver: Optional[str] = Query(None, description="Optional driver TLA filter (e.g. VER)"),
+    fuel_corrected: bool = Query(False, description="Apply fuel-burn correction to lap times"),
+    api_key: str = Depends(verify_api_key)
+):
+    """JSON per-compound degradation: points, deg_rate_s_per_lap, r_squared. Race/Sprint only."""
+    logger.info(
+        f"Fetching tyre degradation data (V2): Y{year} GP{gp} {session} "
+        f"driver={driver} fuel_corrected={fuel_corrected}"
+    )
+    try:
+        result = await run_in_threadpool(
+            TyreDegradationData(), year, gp, session, driver, fuel_corrected
+        )
+        _track('tyre-degradation', year, gp, session)
+        return result
+    except T1APIError:
+        raise
+
+
+@router.get('/pit-strategy-plot', tags=["API v2", "Race Analysis"])
+@apply_tiered_limit("standard")
+async def pit_strategy_plot_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('R'),
+    api_key: str = Depends(verify_api_key)
+):
+    """Pit strategy & undercut plot: stop timeline + undercut gains. Race/Sprint only."""
+    logger.info(f"Generating pit strategy plot (V2): Y{year} GP{gp} {session}")
+    try:
+        output_path = await run_in_threadpool(PitStrategyPlot(), year, gp, session)
+        _track('pit-strategy', year, gp, session)
+        return FileResponse(output_path, media_type='image/png')
+    except T1APIError:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Plot not found")
+
+
+@router.get('/pit-strategy-data', tags=["API v2", "Race Analysis"])
+@apply_tiered_limit("data")
+async def pit_strategy_data_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('R'),
+    api_key: str = Depends(verify_api_key)
+):
+    """JSON pit strategy: stops (compound in/out, under_sc), undercuts, summary, free_changes. Race/Sprint only."""
+    logger.info(f"Fetching pit strategy data (V2): Y{year} GP{gp} {session}")
+    try:
+        result = await run_in_threadpool(PitStrategyData(), year, gp, session)
+        _track('pit-strategy', year, gp, session)
+        return result
+    except T1APIError:
+        raise
+
+
+@router.get('/session-weather-plot', tags=["API v2", "Race Analysis"])
+@apply_tiered_limit("standard")
+async def session_weather_plot_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('R'),
+    api_key: str = Depends(verify_api_key)
+):
+    """Stacked weather / humidity / track-status timeline plot. All session types."""
+    logger.info(f"Generating session weather plot (V2): Y{year} GP{gp} {session}")
+    try:
+        output_path = await run_in_threadpool(SessionWeatherPlot(), year, gp, session)
+        _track('session-weather', year, gp, session)
+        return FileResponse(output_path, media_type='image/png')
+    except T1APIError:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Plot not found")
+
+
+@router.get('/session-weather-data', tags=["API v2", "Race Analysis"])
+@apply_tiered_limit("data")
+async def session_weather_data_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('R'),
+    api_key: str = Depends(verify_api_key)
+):
+    """JSON weather series + track-status periods + race-control messages. All session types."""
+    logger.info(f"Fetching session weather data (V2): Y{year} GP{gp} {session}")
+    try:
+        result = await run_in_threadpool(SessionWeatherData(), year, gp, session)
+        _track('session-weather', year, gp, session)
+        return result
+    except T1APIError:
+        raise
+
+
+@router.get('/race-pace-heatmap-plot', tags=["API v2", "Race Analysis"])
+@apply_tiered_limit("standard")
+async def race_pace_heatmap_plot_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('R'),
+    api_key: str = Depends(verify_api_key)
+):
+    """Driver x lap heatmap of delta to field median lap time. Race/Sprint only."""
+    logger.info(f"Generating race pace heatmap plot (V2): Y{year} GP{gp} {session}")
+    try:
+        output_path = await run_in_threadpool(RacePaceHeatmapPlot(), year, gp, session)
+        _track('race-pace-heatmap', year, gp, session)
+        return FileResponse(output_path, media_type='image/png')
+    except T1APIError:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Plot not found")
+
+
+@router.get('/race-pace-heatmap-data', tags=["API v2", "Race Analysis"])
+@apply_tiered_limit("data")
+async def race_pace_heatmap_data_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('R'),
+    api_key: str = Depends(verify_api_key)
+):
+    """JSON driver x lap grid of delta to field median lap time, pit laps, SC laps. Race/Sprint only."""
+    logger.info(f"Fetching race pace heatmap data (V2): Y{year} GP{gp} {session}")
+    try:
+        result = await run_in_threadpool(RacePaceHeatmapData(), year, gp, session)
+        _track('race-pace-heatmap', year, gp, session)
+        return result
+    except T1APIError:
+        raise
+
+
+@router.get('/track-evolution-plot', tags=["API v2", "Race Analysis"])
+@apply_tiered_limit("standard")
+async def track_evolution_plot_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('Q'),
+    drivers: Optional[str] = Query(None, description="Comma-separated TLAs"),
+    api_key: str = Depends(verify_api_key)
+):
+    """Session-best lap time evolution vs track temperature. Practice/Qualifying only."""
+    logger.info(f"Generating track evolution plot (V2): Y{year} GP{gp} {session}")
+    try:
+        output_path = await run_in_threadpool(
+            TrackEvolutionPlot(), year, gp, session, drivers
+        )
+        _track('track-evolution', year, gp, session)
+        return FileResponse(output_path, media_type='image/png')
+    except T1APIError:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Plot not found")
+
+
+@router.get('/track-evolution-data', tags=["API v2", "Race Analysis"])
+@apply_tiered_limit("data")
+async def track_evolution_data_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('Q'),
+    drivers: Optional[str] = Query(None, description="Comma-separated TLAs"),
+    api_key: str = Depends(verify_api_key)
+):
+    """JSON overall + per-driver running-best lap series, plus track-temp series. Practice/Qualifying only."""
+    logger.info(f"Fetching track evolution data (V2): Y{year} GP{gp} {session}")
+    try:
+        result = await run_in_threadpool(
+            TrackEvolutionData(), year, gp, session, drivers
+        )
+        _track('track-evolution', year, gp, session)
+        return result
+    except T1APIError:
+        raise
+
+
+@router.get('/theoretical-best-plot', tags=["API v2", "Qualifying Analysis"])
+@apply_tiered_limit("standard")
+async def theoretical_best_plot_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('Q'),
+    api_key: str = Depends(verify_api_key)
+):
+    """Theoretical best lap dumbbell chart: best sectors combined vs actual best lap. Qualifying only."""
+    logger.info(f"Generating theoretical best plot (V2): Y{year} GP{gp} {session}")
+    try:
+        output_path = await run_in_threadpool(TheoreticalBestPlot(), year, gp, session)
+        _track('theoretical-best', year, gp, session)
+        return FileResponse(output_path, media_type='image/png')
+    except T1APIError:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Plot not found")
+
+
+@router.get('/theoretical-best-data', tags=["API v2", "Qualifying Analysis"])
+@apply_tiered_limit("data")
+async def theoretical_best_data_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('Q'),
+    api_key: str = Depends(verify_api_key)
+):
+    """JSON per-driver theoretical_s, actual_s, delta_s sorted by fastest theoretical lap. Qualifying only."""
+    logger.info(f"Fetching theoretical best data (V2): Y{year} GP{gp} {session}")
+    try:
+        result = await run_in_threadpool(TheoreticalBestData(), year, gp, session)
+        _track('theoretical-best', year, gp, session)
+        return result
+    except T1APIError:
+        raise
+
+
+@router.get('/race-story-plot', tags=["API v2", "Race Analysis"])
+@apply_tiered_limit("standard")
+async def race_story_plot_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('R'),
+    api_key: str = Depends(verify_api_key)
+):
+    """Race story timeline: gap-to-leader traces, pit stops, and annotated key moments. Race/Sprint only."""
+    logger.info(f"Generating race story plot (V2): Y{year} GP{gp} {session}")
+    try:
+        output_path = await run_in_threadpool(RaceStoryPlot(), year, gp, session)
+        _track('race-story', year, gp, session)
+        return FileResponse(output_path, media_type='image/png')
+    except T1APIError:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Plot not found")
+
+
+@router.get('/race-story-data', tags=["API v2", "Race Analysis"])
+@apply_tiered_limit("data")
+async def race_story_data_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('R'),
+    api_key: str = Depends(verify_api_key)
+):
+    """JSON per-driver gap-to-leader series + pit stops, plus numbered/captioned key moments. Race/Sprint only."""
+    logger.info(f"Fetching race story data (V2): Y{year} GP{gp} {session}")
+    try:
+        result = await run_in_threadpool(RaceStoryData(), year, gp, session)
+        _track('race-story', year, gp, session)
+        return result
+    except T1APIError:
+        raise
+
+
+@router.get('/track-map-plot', tags=["API v2", "Telemetry"])
+@apply_tiered_limit("standard")
+async def track_map_plot_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('Q'),
+    driver: str = Query(..., description="Driver TLA (e.g., VER)"),
+    color_by: str = Query('speed', pattern='^(speed|gear)$'),
+    api_key: str = Depends(verify_api_key)
+):
+    """Fastest-lap telemetry track map colored by speed or gear, with braking zones. Any session."""
+    logger.info(f"Generating track map plot (V2): Y{year} GP{gp} {session} driver={driver} color_by={color_by}")
+    try:
+        output_path = await run_in_threadpool(TrackMapPlot(), year, gp, session, driver, color_by)
+        _track('track-map', year, gp, session)
+        return FileResponse(output_path, media_type='image/png')
+    except T1APIError:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Plot not found")
+
+
+@router.get('/track-map-data', tags=["API v2", "Telemetry"])
+@apply_tiered_limit("data")
+async def track_map_data_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('Q'),
+    driver: str = Query(..., description="Driver TLA (e.g., VER)"),
+    color_by: str = Query('speed', pattern='^(speed|gear)$'),
+    api_key: str = Depends(verify_api_key)
+):
+    """JSON fastest-lap telemetry track map points, braking zones, and callouts. Any session."""
+    logger.info(f"Fetching track map data (V2): Y{year} GP{gp} {session} driver={driver} color_by={color_by}")
+    try:
+        result = await run_in_threadpool(TrackMapData(), year, gp, session, driver, color_by)
+        _track('track-map', year, gp, session)
+        return result
+    except T1APIError:
+        raise
+
+
+@router.get('/corner-duel-plot', tags=["API v2", "Telemetry"])
+@apply_tiered_limit("standard")
+async def corner_duel_plot_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('Q'),
+    driver1: str = Query(..., description="First driver TLA (e.g., VER)"),
+    driver2: str = Query(..., description="Second driver TLA (e.g., NOR)"),
+    api_key: str = Depends(verify_api_key)
+):
+    """Corner-by-corner duel: apex speeds, cumulative delta, and per-corner delta gain. Any session."""
+    logger.info(f"Generating corner duel plot (V2): Y{year} GP{gp} {session} {driver1} vs {driver2}")
+    try:
+        output_path = await run_in_threadpool(CornerDuelPlot(), year, gp, session, driver1, driver2)
+        _track('corner-duel', year, gp, session)
+        return FileResponse(output_path, media_type='image/png')
+    except T1APIError:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Plot not found")
+
+
+@router.get('/corner-duel-data', tags=["API v2", "Telemetry"])
+@apply_tiered_limit("data")
+async def corner_duel_data_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('Q'),
+    driver1: str = Query(..., description="First driver TLA (e.g., VER)"),
+    driver2: str = Query(..., description="Second driver TLA (e.g., NOR)"),
+    api_key: str = Depends(verify_api_key)
+):
+    """JSON corner-by-corner duel data: delta series, apex speeds, braking points, delta gain. Any session."""
+    logger.info(f"Fetching corner duel data (V2): Y{year} GP{gp} {session} {driver1} vs {driver2}")
+    try:
+        result = await run_in_threadpool(CornerDuelData(), year, gp, session, driver1, driver2)
+        _track('corner-duel', year, gp, session)
+        return result
+    except T1APIError:
+        raise
+
+
+@router.get('/driver-radar-plot', tags=["API v2", "Telemetry"])
+@apply_tiered_limit("standard")
+async def driver_radar_plot_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('R'),
+    drivers: Optional[str] = Query(None, description="Comma-separated TLAs (max 3); defaults to fastest 3"),
+    portrait: bool = Query(False, description="Portrait 4:5 crop for social media"),
+    api_key: str = Depends(verify_api_key)
+):
+    """Single-session driver performance radar (top speed, cornering, race/quali pace, consistency, braveness)."""
+    logger.info(f"Generating driver radar plot (V2): Y{year} GP{gp} {session} drivers={drivers}")
+    try:
+        output_path = await run_in_threadpool(DriverRadarPlot(), year, gp, session, drivers, portrait)
+        _track('driver-radar', year, gp, session)
+        return FileResponse(output_path, media_type='image/png')
+    except T1APIError:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Plot not found")
+
+
+@router.get('/driver-radar-data', tags=["API v2", "Telemetry"])
+@apply_tiered_limit("data")
+async def driver_radar_data_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('R'),
+    drivers: Optional[str] = Query(None, description="Comma-separated TLAs (max 3); defaults to fastest 3"),
+    api_key: str = Depends(verify_api_key)
+):
+    """JSON single-session driver radar: 0-100 axis values + raw metrics per driver. Any session."""
+    logger.info(f"Fetching driver radar data (V2): Y{year} GP{gp} {session} drivers={drivers}")
+    try:
+        result = await run_in_threadpool(DriverRadarData(), year, gp, session, drivers)
+        _track('driver-radar', year, gp, session)
         return result
     except T1APIError:
         raise

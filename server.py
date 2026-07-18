@@ -1,9 +1,12 @@
 """Entry point. Run with `python server.py` or `make run`."""
-import uvicorn
+import matplotlib
+matplotlib.use("Agg")  # Must precede any import that could pull in pyplot.
 
-from src.api.app import create_app
-from src.core.config import settings
-from src.core.logging import get_logger
+import uvicorn  # noqa: E402
+
+from src.api.app import create_app  # noqa: E402
+from src.core.config import settings  # noqa: E402
+from src.core.logging import get_logger  # noqa: E402
 
 app = create_app()
 logger = get_logger(__name__)

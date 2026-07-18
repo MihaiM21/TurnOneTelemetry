@@ -1,0 +1,52 @@
+[
+ {
+  "AirTemp": "15.8",
+  "Humidity": "91.0",
+  "Pressure": "1009.2",
+  "Rainfall": "1",
+  "TrackTemp": "18.8",
+  "WindDirection": "211",
+  "WindSpeed": "2.6",
+  "_timestamp": "00:00:07.776"
+ },
+ {
+  "AirTemp": "15.7",
+  "Humidity": "92.0",
+  "Pressure": "1009.2",
+  "Rainfall": "1",
+  "TrackTemp": "18.8",
+  "WindDirection": "273",
+  "WindSpeed": "2.6",
+  "_timestamp": "00:01:07.777"
+ },
+ {
+  "AirTemp": "15.7",
+  "Humidity": "92.0",
+  "Pressure": "1009.0",
+  "Rainfall": "1",
+  "TrackTemp": "18.8",
+  "WindDirection": "271",
+  "WindSpeed": "2.2",
+  "_timestamp": "00:02:07.763"
+ },
+ {
+  "AirTemp": "15.7",
+  "Humidity": "90.0",
+  "Pressure": "1009.1",
+  "Rainfall": "1",
+  "TrackTemp": "18.8",
+  "WindDirection": "261",
+  "WindSpeed": "5.3",
+  "_timestamp": "00:03:07.777"
+ },
+ {
+  "AirTemp": "15.7",
+  "Humidity": "90.0",
+  "Pressure": "1009.4",
+  "Rainfall": "1",
+  "TrackTemp": "18.8",
+  "WindDirection": "246",
+  "WindSpeed": "5.6",
+  "_timestamp": "00:04:07.778"
+ }
+]

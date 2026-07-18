@@ -41,6 +41,47 @@ def setup_turnone_theme():
     })
 
 
+# Track-status shading colors tuned for the dark theme.
+_TRACK_STATUS_SHADING = {
+    "SC": ("#FF8C00", 0.15),    # orange
+    "VSC": ("#FFD700", 0.12),   # yellow
+    "RED": ("#FF3B3B", 0.18),   # red
+    "YELLOW": ("#FFD700", 0.08),
+}
+
+
+def add_track_status_shading(ax, periods):
+    """Shade lap ranges for Safety Car / VSC / Red-flag periods.
+
+    ``periods`` is the list returned by
+    ``src.services.analysis.v2._race_helpers.get_track_status_periods`` — dicts
+    with ``status``, ``start_lap`` and ``end_lap`` (``end_lap`` may be ``None``
+    when the status was active at the session end). GREEN periods are skipped.
+    """
+    if not periods:
+        return
+
+    x_max = ax.get_xlim()[1]
+    seen_labels = set()
+    for period in periods:
+        status = period.get("status")
+        style = _TRACK_STATUS_SHADING.get(status)
+        if style is None:
+            continue
+        color, alpha = style
+        start = period.get("start_lap")
+        if start is None:
+            continue
+        end = period.get("end_lap")
+        if end is None:
+            end = x_max
+        if end <= start:
+            end = start + 1
+        label = status if status not in seen_labels else None
+        seen_labels.add(status)
+        ax.axvspan(start, end, color=color, alpha=alpha, zorder=0, label=label)
+
+
 def add_glow(ax, linewidth=6, alpha=0.25, passes=4):
     """
     Adaugă efect de glow soft neon la toate liniile din ax.

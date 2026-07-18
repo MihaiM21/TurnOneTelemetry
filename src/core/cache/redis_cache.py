@@ -50,6 +50,17 @@ def make_latest_session_key() -> str:
     return "t1api:v2:latest_session"
 
 
+def make_stream_key(year: int, round_nr: Any, session: str, stream_name: str) -> str:
+    """Cache key for a single parsed livetiming stream (TimingData, TrackStatus, ...).
+
+    Streams are large and immutable once a session is complete, so they get a
+    long TTL (24h). Keeping them under the shared ``t1api:v2:`` prefix lets the
+    processor invalidate a whole session scope after a fresh ingest.
+    """
+    session_slug = str(session).strip().lower().replace(" ", "_")
+    return f"t1api:v2:stream:{year}:{round_nr}:{session_slug}:{stream_name}"
+
+
 class RedisCache:
     """Thin async wrapper. Methods never raise — they return None / False
     when Redis is unavailable so callers can use a single code path."""
@@ -317,4 +328,5 @@ __all__ = [
     "make_season_key",
     "make_plot_key",
     "make_latest_session_key",
+    "make_stream_key",
 ]
