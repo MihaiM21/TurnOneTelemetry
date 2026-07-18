@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v1.6.0 (2026-07-18)
+
+### Bug Fixes
+
+- Pipeline errors
+  ([`521cd59`](https://github.com/MihaiM21/TurnOneTelemetry/commit/521cd59395a899a51a91d8148822476677762447))
+
+### Features
+
+- New plots available and better caching
+  ([`ca2b010`](https://github.com/MihaiM21/TurnOneTelemetry/commit/ca2b01025a2aa8c4de6c8dc83ecea1b80b9b48c8))
+
+
 ## v1.5.0 (2026-06-20)
 
 ### Features
