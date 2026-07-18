@@ -3,8 +3,6 @@
 All routes are gated by the same admin gate / IP allowlist / rate limit as
 the rest of ``/api/admin``. Mounted under ``/api/admin/backup``.
 """
-from __future__ import annotations
-
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
