@@ -230,7 +230,7 @@ def _build_payload(
     driver_num = _resolve_driver_num(driver_codes, tla, year, identifier, session)
 
     channels = list(_CHANNELS.values())
-    df = get_fastest_lap_telemetry(base_url, client, driver_num, channels=channels)
+    df = get_fastest_lap_telemetry(base_url, client, driver_num, channels=channels, store=store)
     if df.empty:
         raise DataNotAvailableError(
             year=year, gp=identifier, session=session, source="livetiming",

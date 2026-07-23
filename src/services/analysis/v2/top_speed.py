@@ -9,6 +9,7 @@ from src.services.plotting import theme as setup_theme
 from src.services.plotting.colors import team_colors, teams
 from src.repositories.plots import store_plot_data_to_mongo, get_plot_data_from_mongo
 from src.ingestion.static_client import F1StaticClient
+from src.services.analysis.v2._helpers import build_session_store
 from src.domain.mappings import get_driver_team_mapping
 from src.core.exceptions import (
     DataNotAvailableError,
@@ -42,20 +43,24 @@ def _init(y: int, event_name: str, session_name: str, data_source: str) -> Tuple
 # DATA EXTRACTION FUNCTIONS
 # ============================================================================
 def extract_top_speeds_from_telemetry(
-    base_url: str, 
+    base_url: str,
     client: F1StaticClient,
-    driver_to_team: Dict[str, str]
+    driver_to_team: Dict[str, str],
+    store=None,
 ) -> Dict[str, float]:
     """
     Extract maximum speed from CarData.z.jsonStream (telemetry)
+
+    When a ``SessionDataStore`` is passed as ``store``, the CarData stream is
+    served from its durable cache instead of being re-downloaded.
     """
     car_data_url = base_url + "CarData.z.jsonStream"
-    
+
     print(f"\nExtracting Telemetry data (CarData): {car_data_url}")
     print("Processing compressed stream (may take 10-20 seconds)...")
-    
+
     try:
-        telemetry_entries = client.parse_compressed_stream(car_data_url)
+        telemetry_entries = store.car_data() if store is not None else client.parse_compressed_stream(car_data_url)
         
         team_max_speeds = defaultdict(lambda: 0)
         
@@ -261,7 +266,8 @@ def TopSpeedPlot_Telemetry(y: int, identifier: Union[int, str], e: str, store_to
     
     # Get driver mapping and extract data
     driver_to_team = get_driver_team_mapping(base_url, client)
-    telemetry_speeds = extract_top_speeds_from_telemetry(base_url, client, driver_to_team)
+    store = build_session_store(y, identifier, e, client)
+    telemetry_speeds = extract_top_speeds_from_telemetry(base_url, client, driver_to_team, store=store)
     
     # Prepare plot data
     plot_data = []
@@ -350,7 +356,8 @@ def TopSpeedData_Telemetry(y: int, identifier: Union[int, str], e: str, store_to
     
     # Get driver mapping and extract data
     driver_to_team = get_driver_team_mapping(base_url, client)
-    telemetry_speeds = extract_top_speeds_from_telemetry(base_url, client, driver_to_team)
+    store = build_session_store(y, identifier, e, client)
+    telemetry_speeds = extract_top_speeds_from_telemetry(base_url, client, driver_to_team, store=store)
     
     # Prepare data
     plot_data = []

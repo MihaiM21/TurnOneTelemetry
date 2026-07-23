@@ -8,11 +8,14 @@ lap times, positions, pit stops and track status, which is four full downloads
 of the multi-megabyte TimingData stream.
 
 ``SessionDataStore`` resolves an event once and exposes lazily-cached, parsed
-accessors for every stream. Each accessor caches in three tiers:
+accessors for every stream. Each accessor caches in four tiers:
 
 1. In-process dict (per store instance) — free repeats within one request.
 2. Redis via :func:`get_sync_cache` (24h TTL) — shared across requests/workers.
-3. Fetch + parse from livetiming — the slow path.
+   Skipped for the big compressed streams (``car_data`` / ``position_data``).
+3. Durable GridFS via :mod:`src.repositories.raw_stream_cache` — parse-once,
+   survives Redis expiry; written only once the session is complete.
+4. Fetch + parse from livetiming — the slow path.
 
 Network failures surface as :class:`UpstreamUnavailableError`; a missing
 stream (HTTP 404) surfaces as :class:`DataNotAvailableError`, mirroring the
@@ -34,6 +37,7 @@ from src.core.exceptions import (
 )
 from src.core.logging import get_logger
 from src.ingestion.static_client import F1StaticClient
+from src.repositories.raw_stream_cache import get_raw_stream, store_raw_stream
 from src.repositories.session_cache import get_session_bundle, store_session_bundle
 from src.services.analysis.v2._helpers import extract_stints_from_data, parse_f1_time
 from src.services.analysis.v2._race_helpers import (
@@ -205,34 +209,67 @@ class SessionDataStore:
     # ------------------------------------------------------------------
     # Tiered cache wrapper
     # ------------------------------------------------------------------
-    def _cached(self, stream_name: str, loader: Callable[[], Any]) -> Any:
-        """In-process → Redis → loader, writing back to the faster tiers."""
+    def _cached(
+        self, stream_name: str, loader: Callable[[], Any], big: bool = False
+    ) -> Any:
+        """In-process → Redis → durable GridFS → loader, backfilling faster tiers.
+
+        ``big`` skips the Redis tier for the multi-MB compressed telemetry
+        streams (``car_data`` / ``position_data``); they still use the durable
+        GridFS tier. The durable write is completion-gated so a live/partial
+        session is never persisted.
+        """
         if stream_name in self._cache:
             return self._cache[stream_name]
 
-        redis_key = make_stream_key(
+        # Tier 2: Redis (small streams only).
+        redis_key = None
+        cache = None
+        if not big:
+            redis_key = make_stream_key(
+                self.year, self.round_nr, self.session_name, stream_name
+            )
+            try:
+                cache = get_sync_cache()
+                if cache.enabled:
+                    hit = cache.get_json(redis_key)
+                    if hit is not None:
+                        self._cache[stream_name] = hit
+                        return hit
+            except Exception as exc:  # Redis must fail open.
+                logger.debug("Redis stream lookup skipped for %s: %s", stream_name, exc)
+                cache = None
+
+        # Tier 3: durable GridFS.
+        durable = get_raw_stream(
             self.year, self.round_nr, self.session_name, stream_name
         )
-        cache = None
-        try:
-            cache = get_sync_cache()
-            if cache.enabled:
-                hit = cache.get_json(redis_key)
-                if hit is not None:
-                    self._cache[stream_name] = hit
-                    return hit
-        except Exception as exc:  # Redis must fail open.
-            logger.debug("Redis stream lookup skipped for %s: %s", stream_name, exc)
-            cache = None
+        if durable is not None:
+            self._cache[stream_name] = durable
+            self._backfill_redis(cache, redis_key, durable)
+            return durable
 
+        # Tier 4: fetch + parse (slow path).
         data = loader()
         self._cache[stream_name] = data
-        if cache is not None and getattr(cache, "enabled", False):
+        self._backfill_redis(cache, redis_key, data)
+        # Persist durably once the session is safely finished. The in-process
+        # cache is already populated above, so the is_session_complete() ->
+        # session_info() lookup resolves without re-entering this loader.
+        if self.is_session_complete():
+            store_raw_stream(
+                self.year, self.round_nr, self.session_name, stream_name, data
+            )
+        return data
+
+    @staticmethod
+    def _backfill_redis(cache: Any, redis_key: Optional[str], data: Any) -> None:
+        """Write ``data`` back to Redis when a Redis-eligible key is available."""
+        if cache is not None and redis_key is not None and getattr(cache, "enabled", False):
             try:
                 cache.set_json(redis_key, data, ttl=_STREAM_TTL_SECONDS)
             except Exception:
                 pass
-        return data
 
     # ------------------------------------------------------------------
     # Public stream accessors
@@ -306,6 +343,32 @@ class SessionDataStore:
         """SessionInfo.json payload."""
         return self._cached(
             "session_info", lambda: self._fetch_json("SessionInfo.json")
+        )
+
+    def car_data(self) -> List[Dict[str, Any]]:
+        """Parsed CarData.z.jsonStream entries (per-driver telemetry channels).
+
+        This is the largest stream — durably cached in GridFS, never in Redis.
+        """
+        return self._cached(
+            "car_data",
+            lambda: self.client.parse_compressed_stream(
+                self.base_url + "CarData.z.jsonStream"
+            ),
+            big=True,
+        )
+
+    def position_data(self) -> List[Dict[str, Any]]:
+        """Parsed Position.z.jsonStream entries (per-driver track positions).
+
+        Large compressed stream — durably cached in GridFS, never in Redis.
+        """
+        return self._cached(
+            "position_data",
+            lambda: self.client.parse_compressed_stream(
+                self.base_url + "Position.z.jsonStream"
+            ),
+            big=True,
         )
 
     # ------------------------------------------------------------------

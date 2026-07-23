@@ -279,8 +279,8 @@ def _build_payload(
     num1 = _resolve_driver_num(driver_codes, tla1, year, identifier, session)
     num2 = _resolve_driver_num(driver_codes, tla2, year, identifier, session)
 
-    df1 = get_fastest_lap_telemetry(base_url, client, num1, channels=_CHANNELS)
-    df2 = get_fastest_lap_telemetry(base_url, client, num2, channels=_CHANNELS)
+    df1 = get_fastest_lap_telemetry(base_url, client, num1, channels=_CHANNELS, store=store)
+    df2 = get_fastest_lap_telemetry(base_url, client, num2, channels=_CHANNELS, store=store)
     if df1.empty or df2.empty:
         missing = tla1 if df1.empty else tla2
         raise DataNotAvailableError(

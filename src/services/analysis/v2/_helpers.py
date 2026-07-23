@@ -4,8 +4,28 @@ import numpy as np
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from src.core.logging import get_logger
 from src.ingestion.static_client import F1StaticClient
 from src.ingestion.circuits_loader import get_circuit_data_by_id
+
+logger = get_logger(__name__)
+
+
+def build_session_store(year: int, identifier: Any, session: str,
+                        client: Optional[F1StaticClient] = None) -> Optional[Any]:
+    """Best-effort :class:`SessionDataStore` for cache-routing the big streams.
+
+    Imported lazily to avoid a module-load cycle (``session_store`` imports from
+    this module). Returns ``None`` on any resolution failure so callers can fall
+    back to direct fetching without a hard dependency on the cache being usable.
+    """
+    try:
+        from src.services.analysis.v2.session_store import SessionDataStore
+        return SessionDataStore(year, identifier, session, client=client)
+    except Exception as exc:
+        logger.debug("SessionDataStore unavailable for %s %s %s: %s",
+                     year, identifier, session, exc)
+        return None
 
 
 CHANNEL_NAMES = {
@@ -197,14 +217,18 @@ def get_driver_team_from_list(base_url: str, client: F1StaticClient) -> Dict[str
 
 
 def get_fastest_lap_windows(base_url: str, client: F1StaticClient,
-                             target_driver_num: Optional[str] = None) -> pd.DataFrame:
+                             target_driver_num: Optional[str] = None,
+                             store: Optional[Any] = None) -> pd.DataFrame:
     """
     Returns DataFrame with DriverNum, StartTime, EndTime, LapTime for each driver's personal best.
     If target_driver_num given, returns single-row DataFrame for that driver.
+
+    When a ``SessionDataStore`` is passed as ``store``, the parsed TimingData
+    stream is served from its cache instead of being re-downloaded.
     """
     timing_url = base_url + "TimingData.jsonStream"
     try:
-        data = client.parse_jsonstream_simple(timing_url)
+        data = store.timing_data() if store is not None else client.parse_jsonstream_simple(timing_url)
         best_laps = {}
 
         for entry in data:
@@ -255,11 +279,16 @@ def _get_session_start_utc(entries_list: list, packet_time: float) -> Optional[f
 
 def extract_telemetry_for_lap(base_url: str, client: F1StaticClient,
                                driver_num: str, start_t: float, end_t: float,
-                               channels: Optional[List[str]] = None) -> pd.DataFrame:
+                               channels: Optional[List[str]] = None,
+                               store: Optional[Any] = None) -> pd.DataFrame:
     """
     Extract telemetry for a specific driver during a lap window.
     channels: channel keys ('2'=Speed, '4'=Throttle, '5'=Brake, ...)
     Returns DataFrame with Time and one column per channel using CHANNEL_NAMES.
+
+    When a ``SessionDataStore`` is passed as ``store``, the (multi-MB) CarData.z
+    stream is served from its durable cache instead of being re-downloaded and
+    re-decompressed for every driver.
     """
     if channels is None:
         channels = ['2']
@@ -268,7 +297,8 @@ def extract_telemetry_for_lap(base_url: str, client: F1StaticClient,
     session_start_utc = None
 
     try:
-        entries = client.parse_compressed_stream(base_url + "CarData.z.jsonStream")
+        entries = (store.car_data() if store is not None
+                   else client.parse_compressed_stream(base_url + "CarData.z.jsonStream"))
 
         for entry in entries:
             t_str = entry.get('_timestamp', entry.get('T'))
@@ -316,17 +346,23 @@ def extract_telemetry_for_lap(base_url: str, client: F1StaticClient,
 
 
 def extract_position_for_lap(base_url: str, client: F1StaticClient,
-                              driver_num: str, start_t: float, end_t: float) -> pd.DataFrame:
+                              driver_num: str, start_t: float, end_t: float,
+                              store: Optional[Any] = None) -> pd.DataFrame:
     """
     Extract X/Y/Z position for a specific driver during a lap window from Position.z.jsonStream.
     Returns DataFrame with Time, X, Y, Z.
+
+    When a ``SessionDataStore`` is passed as ``store``, the (multi-MB) Position.z
+    stream is served from its durable cache instead of being re-downloaded for
+    every driver.
     """
     records = []
     session_start_utc = None
     total_entries_scanned = 0
 
     try:
-        entries = client.parse_compressed_stream(base_url + "Position.z.jsonStream")
+        entries = (store.position_data() if store is not None
+                   else client.parse_compressed_stream(base_url + "Position.z.jsonStream"))
         print(f"Position.z: fetched {len(entries)} compressed entries for driver {driver_num}")
 
         # Position.z structure: entry['Position'] is a list of frames.
@@ -413,7 +449,8 @@ def merge_distance_onto_telemetry(df_tel: pd.DataFrame, df_pos: pd.DataFrame) ->
 
 
 def get_fastest_lap_telemetry(base_url: str, client: F1StaticClient, driver_num: str,
-                               channels: Optional[List[str]] = None) -> pd.DataFrame:
+                               channels: Optional[List[str]] = None,
+                               store: Optional[Any] = None) -> pd.DataFrame:
     """Fastest-lap telemetry for one driver, with Distance + X/Y merged on.
 
     Composes the existing single-purpose helpers:
@@ -434,18 +471,19 @@ def get_fastest_lap_telemetry(base_url: str, client: F1StaticClient, driver_num:
     if channels is None:
         channels = ['2']
 
-    df_windows = get_fastest_lap_windows(base_url, client, target_driver_num=driver_num)
+    df_windows = get_fastest_lap_windows(base_url, client, target_driver_num=driver_num, store=store)
     if df_windows.empty:
         return pd.DataFrame()
 
     row = df_windows.iloc[0]
     start_t, end_t = row['StartTime'], row['EndTime']
 
-    df_tel = extract_telemetry_for_lap(base_url, client, driver_num, start_t, end_t, channels=channels)
+    df_tel = extract_telemetry_for_lap(base_url, client, driver_num, start_t, end_t,
+                                       channels=channels, store=store)
     if df_tel.empty:
         return pd.DataFrame()
 
-    df_pos = extract_position_for_lap(base_url, client, driver_num, start_t, end_t)
+    df_pos = extract_position_for_lap(base_url, client, driver_num, start_t, end_t, store=store)
     if df_pos.empty:
         df_tel = df_tel.copy()
         df_tel['Distance'] = 0.0

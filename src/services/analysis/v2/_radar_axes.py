@@ -188,16 +188,17 @@ def corner_ratios_from_frame(
 
 
 def telemetry_ratios_for_driver(
-    base_url: str, client: F1StaticClient, driver_num: str
+    base_url: str, client: F1StaticClient, driver_num: str, store=None
 ) -> Dict[str, Optional[float]]:
     """Fetch a driver's fastest-lap telemetry and compute corner ratios.
 
     Fails soft: any missing/short telemetry yields ``{cornering: None,
     braveness: None}`` so the axis renders as a collapsed spoke rather than
-    aborting the whole radar.
+    aborting the whole radar. Passing a ``SessionDataStore`` as ``store`` serves
+    the shared CarData/Position streams from cache across the whole driver loop.
     """
     try:
-        df = get_fastest_lap_telemetry(base_url, client, driver_num, channels=["2"])
+        df = get_fastest_lap_telemetry(base_url, client, driver_num, channels=["2"], store=store)
     except Exception as exc:  # pragma: no cover - network/parse failure
         logger.warning("Radar telemetry fetch failed for driver %s: %s", driver_num, exc)
         return {"cornering": None, "braveness": None}

@@ -194,7 +194,7 @@ def _build_session_payload(
         tla = str(info.get("tla", num)).upper()
         team = info.get("team", "Unknown")
         raw = dict(field.get(num, {}))
-        raw.update(telemetry_ratios_for_driver(base_url, client, num))
+        raw.update(telemetry_ratios_for_driver(base_url, client, num, store=store))
         rows.append({
             "tla": tla,
             "team": team,

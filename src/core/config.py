@@ -169,6 +169,10 @@ class Settings(BaseSettings):
     enable_background_processor: bool = True
     processor_check_interval: int = 300  # Check every 5 minutes
     processor_auto_process_completed: bool = True  # Auto-process when sessions complete
+    # Pre-warm every V2 raw stream (incl. the big CarData.z / Position.z telemetry)
+    # into the durable GridFS cache when a session is processed, so later
+    # per-driver / per-pair requests never re-download the multi-MB streams.
+    enable_v2_stream_prewarm: bool = True
 
     # Circuits Sync (fallback only - our stored circuit data is the source of truth;
     # this only adds circuits/years we don't have yet, never overwrites existing data)

@@ -141,29 +141,85 @@ class BackgroundProcessor:
             logger.debug(f"Session Y{year} GP{gp} {session} not yet available: {e}")
             return False
     
+    def prewarm_session_streams(self, year: int, gp, session: str, gp_name: str = None) -> None:
+        """Fetch + durably cache every V2 raw stream for a session once.
+
+        Builds a single :class:`SessionDataStore` and touches every accessor so
+        the raw streams — including the multi-MB ``CarData.z`` / ``Position.z``
+        telemetry — land in the durable GridFS cache (and the derived bundle in
+        MongoDB) while the session is fresh. Later per-driver / per-pair requests
+        then read from the warm cache instead of re-downloading.
+
+        Fully fail-open: any warm-up error is logged and swallowed so plot
+        generation still proceeds. V2 resolves by ``gp_name`` (avoids the
+        pre-season-testing round-number offset), falling back to ``gp``.
+        """
+        from src.services.analysis.v2.session_store import SessionDataStore
+
+        identifier = gp_name or gp
+        try:
+            store = SessionDataStore(year, identifier, session)
+        except Exception as exc:
+            logger.warning(f"Pre-warm skipped for Y{year} {identifier} {session}: {exc}")
+            return
+
+        # Each accessor is individually guarded: a missing/unpublished stream
+        # (e.g. no telemetry for a session) must not abort warming the rest.
+        accessors = [
+            ("driver_list", store.driver_list),
+            ("session_info", store.session_info),
+            ("timing_data", store.timing_data),
+            ("timing_app_data", store.timing_app_data),
+            ("track_status", store.track_status),
+            ("weather_data", store.weather_data),
+            ("race_control", store.race_control),
+            ("car_data", store.car_data),
+            ("position_data", store.position_data),
+            # Derived bundle (lap_times triggers the full bundle build + persist).
+            ("lap_times", store.lap_times),
+        ]
+        warmed = 0
+        for name, fn in accessors:
+            try:
+                fn()
+                warmed += 1
+            except Exception as exc:
+                logger.debug(f"Pre-warm stream {name} skipped for Y{year} {identifier} {session}: {exc}")
+        logger.info(f"🔥 Pre-warmed {warmed}/{len(accessors)} raw streams for Y{year} {identifier} {session}")
+
     async def process_session(self, year: int, gp: int, session: str, gp_name: str = None) -> Dict[str, Any]:
         """
         Process all data for a completed session
-        
+
         Args:
             year: Year
             gp: Grand Prix round number (used for V1/FastF1)
             session: Session type
             gp_name: Grand Prix name string (used for V2/F1StaticClient to avoid
                      round-number mismatch caused by pre-season testing entries)
-            
+
         Returns:
             Dictionary with processing results
         """
         session_id = f"{year}_{gp}_{session}"
-        
+
         # Skip if already processed
         if session_id in self.processed_sessions:
             logger.debug(f"Session {session_id} already processed, skipping")
             return {"status": "skipped", "session": session_id, "reason": "already_processed"}
-        
+
         logger.info(f"🔄 Starting automatic processing for Y{year} GP{gp} ({gp_name or gp}) {session}")
-        
+
+        # Pre-warm all raw V2 streams into the durable cache before generating
+        # plots, so on-demand per-driver/per-pair requests hit a warm cache.
+        if settings.enable_v2_stream_prewarm:
+            try:
+                await asyncio.to_thread(
+                    self.prewarm_session_streams, year, gp, session, gp_name
+                )
+            except Exception as exc:
+                logger.warning(f"Pre-warm step failed (continuing to plots): {exc}")
+
         try:
             # Generate all data for this session
             # V1 uses round number, V2 uses gp_name to avoid pre-season testing offset
