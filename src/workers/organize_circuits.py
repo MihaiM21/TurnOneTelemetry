@@ -1,15 +1,23 @@
 """
-Organize circuit data into separate files by year and circuit.
+Organize circuit data into separate files by year and circuit, in our own
+CircuitLayout/CircuitSummary schema (src/domain/models/circuits.py).
 
-Takes the all_circuits_2024-2026.json file and reorganizes it into:
+Takes the all_circuits_2024-2026.json file (raw multiviewer.app payload,
+fetched by fetch_circuits.py) and reorganizes it into:
 - src/domain/data/circuits/{year}/all_circuits.json (all circuits for that year)
 - src/domain/data/circuits/{year}/{circuit_id}_{circuit_name}.json (individual circuit files)
+
+The raw multiviewer shape is adapted into our own schema via
+src/ingestion/circuit_sources/multiviewer_adapter.py before being written to disk,
+so nothing downstream of this script depends on multiviewer's field names.
 """
 
 import json
 from pathlib import Path
 from typing import Dict, Any
 import re
+
+from src.ingestion.circuit_sources.multiviewer_adapter import adapt_circuit_layout, adapt_circuit_summary
 
 
 def slugify(name: str) -> str:
@@ -48,59 +56,46 @@ def organize_circuits_data():
     base_dir = Path("src/domain/data/circuits")
     years = all_data.get("meta", {}).get("years", [2024, 2025, 2026])
     circuits = all_data.get("circuits", {})
-    
+    fetched_at = all_data.get("meta", {}).get("fetched_at")
+
     # Create files for each year
     for year in years:
         year_dir = base_dir / str(year)
         year_dir.mkdir(parents=True, exist_ok=True)
-        
+
         print(f"\nProcessing year {year}:")
-        
+
         # Organize circuits for this year
         # Note: JSON keys are strings, so we need to use str(year)
         year_circuits = all_data.get("circuits_by_year", {}).get(str(year), [])
-        
+
         # Create all_circuits.json for this year
         year_data = {
             "year": year,
             "total_circuits": len(year_circuits),
             "circuits": []
         }
-        
+
         for circuit_entry in year_circuits:
             circuit_id = circuit_entry.get("circuit_id")
             circuit_name = circuit_entry.get("name", "Unknown")
             circuit_detail = circuit_entry.get("data", {})
-            
-            # Add to year summary (without detailed race data)
-            circuit_summary = {
-                "circuit_id": circuit_id,
-                "name": circuit_name,
-            }
-            
-            # Add base info fields if available
-            if circuit_id in circuits:
-                base_info = circuits[circuit_id]
-                circuit_summary.update(base_info)
-            
-            year_data["circuits"].append(circuit_summary)
-            
+            base_info = circuits.get(circuit_id, {})
+            years_available = sorted(set(base_info.get("years", []) + [year]))
+
+            summary = adapt_circuit_summary(base_info, circuit_id, years_available)
+            year_data["circuits"].append(summary.model_dump())
+
             # Create individual circuit file
             slug = slugify(circuit_name)
             circuit_filename = f"{circuit_id}_{slug}.json"
             circuit_file = year_dir / circuit_filename
-            
-            circuit_data = {
-                "year": year,
-                "circuit_id": circuit_id,
-                "name": circuit_name,
-                "base_info": circuits.get(circuit_id, {}),
-                "race_data": circuit_detail
-            }
-            
+
+            layout = adapt_circuit_layout(circuit_detail, circuit_id, year, source_fetched_at=fetched_at)
+
             with open(circuit_file, "w", encoding="utf-8") as f:
-                json.dump(circuit_data, f, indent=2, ensure_ascii=False)
-            
+                json.dump(layout.model_dump(), f, indent=2, ensure_ascii=False)
+
             print(f"  ✓ {circuit_filename}")
         
         # Save all_circuits.json for this year

@@ -170,6 +170,11 @@ class Settings(BaseSettings):
     processor_check_interval: int = 300  # Check every 5 minutes
     processor_auto_process_completed: bool = True  # Auto-process when sessions complete
 
+    # Circuits Sync (fallback only - our stored circuit data is the source of truth;
+    # this only adds circuits/years we don't have yet, never overwrites existing data)
+    enable_circuits_sync: bool = True
+    circuits_sync_interval_seconds: int = 2_592_000  # 30 days
+
     # Backup System (MongoDB + SQLite + optional volumes -> S3-compatible storage)
     backup_enabled: bool = False
     backup_s3_endpoint: str = ""           # blank => AWS default; set for B2/R2/MinIO

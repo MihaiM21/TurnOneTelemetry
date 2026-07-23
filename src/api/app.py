@@ -46,6 +46,10 @@ from src.workers.processor import (  # noqa: E402
     start_background_processor,
     stop_background_processor,
 )
+from src.workers.circuits_sync import (  # noqa: E402
+    start_circuits_sync,
+    stop_circuits_sync,
+)
 
 
 SWAGGER_UI_PARAMETERS = {
@@ -165,6 +169,13 @@ def create_app() -> FastAPI:
         else:
             logger.info("Background processor disabled in configuration")
 
+        circuits_sync_task = None
+        if settings.enable_circuits_sync:
+            logger.info(f"Starting circuits sync worker (interval: {settings.circuits_sync_interval_seconds}s)")
+            circuits_sync_task = asyncio.create_task(start_circuits_sync())
+        else:
+            logger.info("Circuits sync worker disabled in configuration")
+
         backup_scheduler = None
         if settings.backup_enabled:
             try:
@@ -188,6 +199,13 @@ def create_app() -> FastAPI:
                 pass
         if backup_scheduler:
             await backup_scheduler.stop()
+        if circuits_sync_task:
+            await stop_circuits_sync()
+            circuits_sync_task.cancel()
+            try:
+                await circuits_sync_task
+            except asyncio.CancelledError:
+                pass
         try:
             from src.core.cache.redis_cache import close_redis_cache
             await close_redis_cache()

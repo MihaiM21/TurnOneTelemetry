@@ -13,7 +13,7 @@ router = APIRouter(prefix='/api/static')
 @apply_tiered_limit("data")
 async def get_circuits_from_year(
     request: Request,
-    year: int = Query(2026, ge=2025, le=2026, description="Season year (2025-2026)")
+    year: int = Query(2026, ge=2024, le=2026, description="Season year (2024-2026)")
 ):
     """Get circuits for a specific season year"""
     try:
@@ -22,13 +22,13 @@ async def get_circuits_from_year(
     except Exception as e:
         logger.error(f"Error fetching circuits for year {year}: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
-    
+
 @router.get('/circuits/{circuit_id}/info', tags=["Static"])
 @apply_tiered_limit("data")
 async def get_circuit_info_by_id(
     request: Request,
     circuit_id: int = Path(..., description="Circuit ID"),
-    year: int = Query(2026, ge=2025, le=2026, description="Season year (2025-2026)")
+    year: int = Query(2026, ge=2024, le=2026, description="Season year (2024-2026)")
 ):
     """Get basic info for a specific circuit by ID"""
     try:
@@ -45,13 +45,14 @@ async def get_circuit_info_by_id(
 async def get_circuit_data_by_id_endpoint(
     request: Request,
     circuit_id: int = Path(..., description="Circuit ID"),
-    year: int = Query(2026, ge=2025, le=2026, description="Season year (2025-2026)")
+    year: int = Query(2026, ge=2024, le=2026, description="Season year (2024-2026)")
 ):
-    """Get full circuit data including files for a specific circuit by ID"""
+    """Get the full circuit layout (corners, rotation, marshal lights/sectors, track
+    outline) for a specific circuit by ID, in our own schema"""
     try:
         circuit_data = get_circuit_data_file(circuit_id, year)
         return {"data": circuit_data}
     except ValueError as e:
         logger.error(f"Error fetching circuit data for ID {circuit_id}: {e}")
         raise HTTPException(status_code=404, detail=str(e))
-    
+
