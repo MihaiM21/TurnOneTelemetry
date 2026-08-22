@@ -431,6 +431,55 @@ class MongoDBManager:
             print(f"✗ Error retrieving session data: {e}")
             return None
 
+    def delete_session_data(self, gp_id: str, session_type: str, data_type: str,
+                            year: Optional[int] = None) -> bool:
+        """Remove one stored ``data_type`` from a session.
+
+        Backs the admin data browser: a payload generated from bad upstream data
+        has to be removable, otherwise the inventory reports it as present
+        forever and the backfill skips regenerating it. Pulls only the matching
+        array entry, leaving the rest of the session document untouched.
+        """
+        try:
+            if year is None:
+                year = int(gp_id.split('_')[0])
+
+            result = self._get_collection(year).update_one(
+                {"gp_id": gp_id, "sessions.session_type": session_type},
+                {"$pull": {"sessions.$.data": {"data_type": data_type}}},
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            print(f"✗ Error deleting session data: {e}")
+            return False
+
+    def summarize_stored_data(self, year: int) -> List[Dict]:
+        """Every stored ``data_type`` per GP/session, for the admin data browser.
+
+        Returns keys and payload sizes only — never the payloads themselves,
+        which run to megabytes per session.
+        """
+        rows: List[Dict] = []
+        try:
+            for gp in self.list_all_gps(year=year):
+                for sess in gp.get("sessions", []) or []:
+                    entries = sess.get("data", []) or []
+                    rows.append({
+                        "year": year,
+                        "gp_id": gp.get("gp_id"),
+                        "event_name": gp.get("name"),
+                        "round_nr": gp.get("round_nr"),
+                        "session_type": sess.get("session_type"),
+                        "data_types": sorted(
+                            str(e.get("data_type")) for e in entries
+                            if isinstance(e, dict) and e.get("data_type")
+                        ),
+                        "count": len(entries),
+                    })
+        except Exception as e:
+            print(f"✗ Error summarizing stored data: {e}")
+        return sorted(rows, key=lambda r: (r.get("round_nr") or 0, r.get("session_type") or ""))
+
     def get_all_gp_data(self, gp_id: str, year: Optional[int] = None) -> Optional[Dict]:
         """
         Retrieve all data for a Grand Prix
@@ -574,6 +623,18 @@ def ensure_indexes(years: Optional[List[int]] = None) -> Dict[str, List[str]]:
         [("created_at", 1)],
         expireAfterSeconds=USAGE_TTL_DAYS * 86400,
     )
+
+    # Admin background jobs: the history page sorts newest-first and the
+    # overlap guard filters on status.
+    from src.repositories.admin_jobs import COLLECTION as ADMIN_JOBS_COLLECTION
+    _safe_create(ADMIN_JOBS_COLLECTION, [("created_at", -1)])
+    _safe_create(ADMIN_JOBS_COLLECTION, [("status", 1), ("created_at", -1)])
+
+    # Durable V2 caches. Both are addressed by _id, but the admin cache
+    # inventory page scans them by session and by age.
+    _safe_create("v2_session_cache", [("year", 1), ("session", 1)])
+    _safe_create("v2_session_cache", [("created_at", -1)])
+    _safe_create("v2_raw_cache.files", [("metadata.year", 1), ("metadata.session", 1)])
 
     return created
 

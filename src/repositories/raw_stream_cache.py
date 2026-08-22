@@ -22,6 +22,7 @@ from __future__ import annotations
 import gzip
 import json
 import os
+import re
 from datetime import datetime
 from typing import Any, Optional
 
@@ -101,4 +102,110 @@ def store_raw_stream(
         return False
 
 
-__all__ = ["get_raw_stream", "store_raw_stream", "SCHEMA_VERSION"]
+# --------------------------------------------------------------------------- #
+# Admin inventory
+#
+# The bucket had no visibility of any kind before the admin cache page: no way
+# to see what it holds, how large it has grown, or whether a schema bump left
+# unreadable blobs behind. These read/delete helpers back that page. They are
+# deliberately metadata-only — listing must never load a multi-megabyte blob.
+# --------------------------------------------------------------------------- #
+def _files_collection():
+    db_name = os.getenv("MONGODB_DATABASE", "T1API_DB")
+    return get_mongo_client()[db_name][f"{_BUCKET}.files"]
+
+
+def _parse_filename(name: str) -> Any:
+    """``{year}_{round}_{session}:{stream}`` -> its session key, or None."""
+    session_key, _, stream = str(name).partition(":")
+    return (session_key, stream) if stream else None
+
+
+def list_raw_stream_sessions(year: Optional[int] = None) -> list:
+    """Per-session summary of the raw cache: stream count, bytes, age, drift.
+
+    ``schema_drift`` counts blobs written under an older ``SCHEMA_VERSION``;
+    those are silently unreadable (``get_raw_stream`` filters on the version),
+    so they are pure wasted storage until purged.
+    """
+    query = {}
+    if year is not None:
+        query["metadata.year"] = int(year)
+
+    sessions: dict = {}
+    try:
+        cursor = _files_collection().find(
+            query,
+            {"filename": 1, "length": 1, "uploadDate": 1, "metadata": 1},
+        )
+        for doc in cursor:
+            meta = doc.get("metadata") or {}
+            parsed = _parse_filename(doc.get("filename", ""))
+            if not parsed:
+                continue
+            session_key, stream = parsed
+            entry = sessions.setdefault(session_key, {
+                "session_key": session_key,
+                "year": meta.get("year"),
+                "round_nr": meta.get("round_nr"),
+                "session": meta.get("session"),
+                "streams": [],
+                "bytes": 0,
+                "schema_drift": 0,
+                "newest": None,
+            })
+            entry["streams"].append(stream)
+            entry["bytes"] += int(doc.get("length") or 0)
+            if meta.get("schema_version") != SCHEMA_VERSION:
+                entry["schema_drift"] += 1
+            uploaded = doc.get("uploadDate")
+            if uploaded and (entry["newest"] is None or uploaded > entry["newest"]):
+                entry["newest"] = uploaded
+    except Exception as exc:
+        logger.warning("raw_stream_cache inventory failed: %s", exc)
+        return []
+
+    out = []
+    for entry in sessions.values():
+        entry["streams"] = sorted(set(entry["streams"]))
+        entry["stream_count"] = len(entry["streams"])
+        if entry["newest"] is not None:
+            entry["newest"] = entry["newest"].isoformat()
+        out.append(entry)
+    return sorted(out, key=lambda e: e["session_key"], reverse=True)
+
+
+def delete_raw_streams(session_key: str) -> int:
+    """Drop every stream blob for one session. Returns the number removed."""
+    removed = 0
+    try:
+        fs = _bucket()
+        for existing in fs.find({"filename": {"$regex": f"^{re.escape(session_key)}:"}}):
+            fs.delete(existing._id)
+            removed += 1
+    except Exception as exc:
+        logger.warning("raw_stream_cache purge failed for %s: %s", session_key, exc)
+    return removed
+
+
+def raw_cache_totals() -> dict:
+    """Bucket-wide totals for the admin summary cards."""
+    try:
+        stats = list(_files_collection().aggregate([
+            {"$group": {"_id": None, "files": {"$sum": 1}, "bytes": {"$sum": "$length"}}}
+        ]))
+        row = stats[0] if stats else {}
+        return {"files": int(row.get("files", 0)), "bytes": int(row.get("bytes", 0))}
+    except Exception as exc:
+        logger.warning("raw_stream_cache totals failed: %s", exc)
+        return {"files": 0, "bytes": 0}
+
+
+__all__ = [
+    "SCHEMA_VERSION",
+    "delete_raw_streams",
+    "get_raw_stream",
+    "list_raw_stream_sessions",
+    "raw_cache_totals",
+    "store_raw_stream",
+]
