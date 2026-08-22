@@ -131,6 +131,27 @@ def _parse_drivers_arg(drivers: Optional[Union[str, Sequence[str]]]) -> List[str
 
 
 # ----------------------------------------------------------------------
+# Stored MongoDB keys. Exposed so the admin registry/backfill can name the
+# exact documents it needs to produce without re-deriving the format.
+# ----------------------------------------------------------------------
+DATA_TYPE = "driver_radar"
+SEASON_DATA_TYPE = f"{DATA_TYPE}_season"
+
+
+def session_data_type(drivers: Optional[Union[str, Sequence[str]]] = None) -> str:
+    """Key for the single-session radar. No drivers -> the default ``_auto``
+    payload, which is what the public API serves for an unfiltered request.
+    """
+    tlas = _parse_drivers_arg(drivers)[:_MAX_DRIVERS]
+    return f"{DATA_TYPE}_{'_'.join(sorted(tlas)) if tlas else 'auto'}"
+
+
+def career_data_type(year_list: Sequence[int]) -> str:
+    """Key for the career radar spanning ``year_list``."""
+    return f"{DATA_TYPE}_career_{min(year_list)}_{max(year_list)}"
+
+
+# ----------------------------------------------------------------------
 # Single-session scope
 # ----------------------------------------------------------------------
 def _resolve_session_nums(
@@ -214,14 +235,13 @@ class DriverRadarData:
         drivers: Optional[Union[str, Sequence[str]]] = None,
     ) -> Dict[str, Any]:
         tlas = _parse_drivers_arg(drivers)[:_MAX_DRIVERS]
-        key = "_".join(sorted(tlas)) if tlas else "auto"
 
         def _generate() -> Dict[str, Any]:
             return _build_session_payload(y, identifier, e, tlas)
 
         return cached_or_generate(
             year=y, identifier=identifier, session=e,
-            data_type=f"driver_radar_{key}", generator=_generate, version="v2",
+            data_type=session_data_type(tlas), generator=_generate, version="v2",
         )
 
 
@@ -320,7 +340,7 @@ class SeasonRadarData:
             quali_rows = fetch_season_results(y, "qualifying")
             return _build_season_full_payload(race_rows, quali_rows, "season")
 
-        payload = season_cached_or_generate(y, "driver_radar_season", _generate)
+        payload = season_cached_or_generate(y, SEASON_DATA_TYPE, _generate)
 
         selected = _parse_drivers_arg(drivers)[:_MAX_DRIVERS]
         if not selected:
@@ -373,7 +393,6 @@ class CareerRadarData:
         default_year: int = 0,
     ) -> Dict[str, Any]:
         year_list = _career_years(years, default_year)
-        span = f"{min(year_list)}_{max(year_list)}"
 
         def _generate() -> Dict[str, Any]:
             race_rows: List[Dict[str, Any]] = []
@@ -384,7 +403,7 @@ class CareerRadarData:
             return _build_season_full_payload(race_rows, quali_rows, "career")
 
         # Cache against the newest year so a still-running season stays volatile.
-        payload = season_cached_or_generate(max(year_list), f"driver_radar_career_{span}", _generate)
+        payload = season_cached_or_generate(max(year_list), career_data_type(year_list), _generate)
 
         selected = _parse_drivers_arg(drivers)[:_MAX_DRIVERS]
         if not selected:

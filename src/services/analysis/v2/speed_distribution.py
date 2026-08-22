@@ -31,12 +31,21 @@ def parse_f1_time(time_str: Any) -> float:
         return float(parts[0])
     except: return 0.0
 
+def _data_type(driver: Optional[str]) -> str:
+    """Stored MongoDB key. The TLA is upper-cased so ``?driver=ver`` and
+    ``?driver=VER`` resolve to the same document (the admin backfill writes the
+    upper-cased form). The no-driver series keeps its historical capital-O
+    ``Overall`` suffix.
+    """
+    return f"speed_distribution_{driver.strip().upper() if driver else 'Overall'}"
+
+
 def _init(y: int, event_name: str, session_name: str, driver: Optional[str]) -> Tuple[str, str, str]:
     event_folder = event_name.replace(' ', '')
     dirOrg.checkForFolder(f"{y}/{event_folder}/{session_name}")
     location = f"outputs/plots/{y}/{event_folder}/{session_name}"
-    
-    drv_str = driver if driver else "Overall"
+
+    drv_str = driver.strip().upper() if driver else "Overall"
     name = f'Speed Distribution {y} {event_name} {session_name} {drv_str}.png'
     return location, name, name.replace("png", "json")
 
@@ -270,8 +279,7 @@ def SpeedDistributionPlot(y: int, identifier: Union[int, str], e: str, driver: O
 
 
 def SpeedDistributionData(y: int, identifier: Union[int, str], e: str, driver: Optional[str] = None, store_to_mongo: bool = True) -> list:
-    drv_str = driver if driver else "Overall"
-    cache_key = f'speed_distribution_{drv_str}'
+    cache_key = _data_type(driver)
     cached = get_plot_data_from_mongo(y, identifier, e, cache_key, version='v2')
     if cached: return cached['data']
 

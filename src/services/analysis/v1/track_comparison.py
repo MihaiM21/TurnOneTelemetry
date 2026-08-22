@@ -23,6 +23,27 @@ def print_sector_times(lap, driver_code):
     print(f"Lap {lap_number}: Sector 1: {sector1}, Sector 2: {sector2}, Sector 3: {sector3}, Speed: {speed}")
     print("\n")
 
+def _pick_clean_fastest_lap(driver_laps):
+    """Fastest lap after excluding pit in/out and data-quality-flagged laps.
+
+    ``pick_fastest()`` on unfiltered laps is safe for qualifying/practice
+    (a handful of clean push laps) but not for a race: a pit-affected lap or
+    one FastF1 flags as inaccurate can report a deceptively short time and
+    win the comparison, handing back a short/partial-track telemetry trace
+    that draws chords across the map instead of following the circuit
+    outline. Falls back to the unfiltered fastest lap if filtering leaves no
+    laps (e.g. a very short session).
+    """
+    clean = driver_laps.pick_wo_box()
+    try:
+        clean = clean.pick_accurate()
+    except Exception:
+        pass
+    if len(clean) == 0:
+        clean = driver_laps
+    return clean.pick_fastest()
+
+
 def _init(y, r, e, d1, d2, session):
     dirOrg.checkForFolder(str(y) + "/" + session.event['EventName'] + "/" + e)
     location = "outputs/plots/" + str(y) + "/" + session.event['EventName'] + "/" + e
@@ -70,8 +91,8 @@ def TrackComparisonPlot(y, r, e, d1, d2):
     laps_driver2 = laps.pick_driver(d2)
 
     # Get the telemetry data from their fastest lap
-    fastest_driver1 = laps_driver1.pick_fastest().get_telemetry().add_distance()
-    fastest_driver2 = laps_driver2.pick_fastest().get_telemetry().add_distance()
+    fastest_driver1 = _pick_clean_fastest_lap(laps_driver1).get_telemetry().add_distance()
+    fastest_driver2 = _pick_clean_fastest_lap(laps_driver2).get_telemetry().add_distance()
 
     # Since the telemetry data does not have a variable that indicates the driver,
     # we need to create that column
@@ -197,8 +218,8 @@ def TrackComparisonData(y, r, e, d1, d2):
     laps_driver2 = laps.pick_driver(d2)
 
     # Get the telemetry data from their fastest lap
-    fastest_driver1 = laps_driver1.pick_fastest().get_telemetry().add_distance()
-    fastest_driver2 = laps_driver2.pick_fastest().get_telemetry().add_distance()
+    fastest_driver1 = _pick_clean_fastest_lap(laps_driver1).get_telemetry().add_distance()
+    fastest_driver2 = _pick_clean_fastest_lap(laps_driver2).get_telemetry().add_distance()
 
     # Since the telemetry data does not have a variable that indicates the driver,
     # we need to create that column
