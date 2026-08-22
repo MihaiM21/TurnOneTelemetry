@@ -1,4 +1,4 @@
-.PHONY: help install test test-unit test-integration test-fast test-cov lint clean build run deploy deploy-dev
+.PHONY: help install test test-unit test-integration test-fast test-cov lint clean build run deploy deploy-dev backup backup-list backup-verify restore
 
 help:
 	@echo "F1 Telemetry API - Available Commands"
@@ -50,6 +50,7 @@ run-image:
 	docker run --env-file .env -p 5000:5000 t1api:latest
 
 run:
+	.\.venv\Scripts\activate.ps1
 	python server.py
 
 deploy:
@@ -57,3 +58,21 @@ deploy:
 
 deploy-dev:
 	docker-compose -f docker-compose.dev.yml up --build
+
+# ── Backup / Restore ────────────────────────────────────────────────────
+# Manual one-off backup (uses the same config as the scheduled run).
+backup:
+	python -c "from src.services.backup.runner import BackupRunner; r=BackupRunner().run_full(); print('OK', r.manifest.backup_id)"
+
+backup-list:
+	python -m src.workers.restore_cli --list
+
+# Verify checksums of a specific backup without restoring.
+#   make backup-verify BACKUP_ID=2026-06-06T02-00-00Z
+backup-verify:
+	python -m src.workers.restore_cli --backup-id $(BACKUP_ID) --verify-only
+
+# Safe restore drill into a throwaway Mongo DB (does not touch production).
+#   make restore BACKUP_ID=2026-06-06T02-00-00Z TARGET_DB=T1API_DB_RESTORE_TEST
+restore:
+	python -m src.workers.restore_cli --backup-id $(BACKUP_ID) --mongo-target-db $(TARGET_DB)
