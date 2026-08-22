@@ -1,0 +1,155 @@
+{% extends "admin/_base.html" %}
+{% set active_page = 'cache' %}
+{% block title %}T1API Admin · Cache{% endblock %}
+
+{% block content %}
+<section>
+  <div class="spread">
+    <h2 style="margin:0">Durable V2 caches</h2>
+    <form class="filters" method="get" action="/admin/cache">
+      <div class="field">
+        <label for="year">Year</label>
+        <select id="year" name="year" onchange="this.form.submit()">
+          <option value="">All</option>
+          {% for y in years %}
+          <option value="{{ y }}" {% if year == y %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </form>
+  </div>
+  <p class="muted small">
+    Raw livetiming streams live in the GridFS bucket <code>v2_raw_cache</code>; the small
+    lap-indexed derived bundles live in <code>v2_session_cache</code>. Entries written under an
+    older schema version are silently unreadable and only waste storage until purged.
+  </p>
+</section>
+
+<div class="grid">
+  <div class="stat">
+    <div class="l">Raw sessions</div><div class="v">{{ inventory.raw.session_count }}</div>
+    <div class="sub">{{ inventory.raw.files }} blobs</div>
+  </div>
+  <div class="stat">
+    <div class="l">Raw size</div><div class="v" id="rawBytes" data-bytes="{{ inventory.raw.bytes }}">—</div>
+    <div class="sub">schema v{{ inventory.raw.schema_version }}</div>
+  </div>
+  <div class="stat">
+    <div class="l">Raw schema drift</div>
+    <div class="v {% if inventory.raw.schema_drift %}warn{% else %}ok{% endif %}">{{ inventory.raw.schema_drift }}</div>
+    <div class="sub">unreadable blobs</div>
+  </div>
+  <div class="stat">
+    <div class="l">Derived bundles</div><div class="v">{{ inventory.bundles.total }}</div>
+    <div class="sub">schema v{{ inventory.bundles.schema_version }}</div>
+  </div>
+  <div class="stat">
+    <div class="l">Bundle drift</div>
+    <div class="v {% if inventory.bundles.schema_drift %}warn{% else %}ok{% endif %}">{{ inventory.bundles.schema_drift }}</div>
+  </div>
+</div>
+
+<section>
+  <h2>Prewarm a session</h2>
+  <p class="muted small" style="margin-bottom:10px">
+    Populates both tiers up front using the same routine the background processor runs
+    after a session finishes.
+  </p>
+  <form class="filters" method="post" action="/admin/cache/prewarm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="field">
+      <label for="pwYear">Year</label>
+      <input type="number" id="pwYear" name="year" min="2018" max="2030" value="{{ year or years[0] }}" required style="width:110px">
+    </div>
+    <div class="field">
+      <label for="pwGp">Grand Prix</label>
+      <input type="text" id="pwGp" name="gp" placeholder="Monaco Grand Prix" required>
+    </div>
+    <div class="field">
+      <label for="pwSession">Session</label>
+      <select id="pwSession" name="session">
+        {% for s in session_choices %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+      </select>
+    </div>
+    <button class="primary" type="submit">Prewarm</button>
+  </form>
+</section>
+
+<section>
+  <h2>Raw stream cache ({{ inventory.raw.sessions | length }} sessions)</h2>
+  {% if inventory.raw.sessions %}
+  <div class="tablewrap">
+  <table data-sortable>
+    <thead><tr><th>Session</th><th>Streams</th><th>Size</th><th>Drift</th><th>Newest</th><th data-nosort></th></tr></thead>
+    <tbody>
+      {% for s in inventory.raw.sessions %}
+      <tr>
+        <td><code>{{ s.session_key }}</code></td>
+        <td data-sort="{{ s.stream_count }}">
+          {{ s.stream_count }}
+          <div class="small muted">{{ s.streams | join(', ') }}</div>
+        </td>
+        <td data-sort="{{ s.bytes }}" class="bytes" data-bytes="{{ s.bytes }}">—</td>
+        <td>{% if s.schema_drift %}<span class="tag warn">{{ s.schema_drift }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td class="muted small nowrap">{{ s.newest or '—' }}</td>
+        <td>
+          <form class="inline" method="post" action="/admin/cache/purge/raw"
+                data-confirm="Purge all cached raw streams for {{ s.session_key }}? They will be re-downloaded on next use.">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="session_key" value="{{ s.session_key }}">
+            <button class="danger" type="submit">Purge</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<p class="muted">Raw stream cache is empty for this scope.</p>{% endif %}
+</section>
+
+<section>
+  <h2>Derived bundles ({{ inventory.bundles.sessions | length }} sessions)</h2>
+  {% if inventory.bundles.sessions %}
+  <div class="tablewrap">
+  <table data-sortable>
+    <thead><tr><th>Session</th><th>Event</th><th>Keys</th><th>Schema</th><th>Created</th><th data-nosort></th></tr></thead>
+    <tbody>
+      {% for b in inventory.bundles.sessions %}
+      <tr>
+        <td><code>{{ b.doc_id }}</code></td>
+        <td class="small">{{ b.event_name or '—' }}</td>
+        {# Item access, not b.keys — dotted lookup would resolve the dict's
+           built-in .keys method rather than the "keys" entry. #}
+        <td class="small muted">{{ b['keys'] | join(', ') or '—' }}</td>
+        <td>
+          {% if b.schema_drift %}<span class="tag warn">v{{ b.schema_version }}</span>
+          {% else %}<span class="tag have">v{{ b.schema_version }}</span>{% endif %}
+        </td>
+        <td class="muted small nowrap">{{ b.created_at or '—' }}</td>
+        <td>
+          <form class="inline" method="post" action="/admin/cache/purge/bundle"
+                data-confirm="Purge the derived bundle for {{ b.doc_id }}? It will be recomputed on next read.">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="doc_id" value="{{ b.doc_id }}">
+            <button class="danger" type="submit">Purge</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<p class="muted">No derived bundles stored for this scope.</p>{% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll("[data-bytes]").forEach((el) => {
+      el.textContent = T1.humanBytes(parseInt(el.dataset.bytes, 10) || 0);
+    });
+  });
+</script>
+{% endblock %}

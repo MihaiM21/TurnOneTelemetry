@@ -1,0 +1,128 @@
+{% extends "admin/_base.html" %}
+{% set active_page = 'ops' %}
+{% block title %}T1API Admin · Ops{% endblock %}
+
+{% block content %}
+<div class="grid">
+  <div class="stat">
+    <div class="l">Processor</div>
+    <div class="v {% if processor.running %}ok{% else %}warn{% endif %}" style="font-size:18px">
+      {{ 'running' if processor.running else 'stopped' }}
+    </div>
+    <div class="sub">every {{ processor.check_interval }}s</div>
+  </div>
+  <div class="stat">
+    <div class="l">Sessions processed</div>
+    <div class="v">{{ processor.processed_sessions_count }}</div>
+  </div>
+  <div class="stat">
+    <div class="l">Uptime</div>
+    <div class="v" style="font-size:18px">{{ system.uptime_human }}</div>
+  </div>
+  <div class="stat">
+    <div class="l">CPU (process)</div>
+    <div class="v">{{ system.cpu.process_percent }}%</div>
+    <div class="sub">system {{ system.cpu.system_percent }}% · {{ system.cpu.count }} cores</div>
+  </div>
+  <div class="stat">
+    <div class="l">Memory (process)</div>
+    <div class="v">{{ system.memory.process_mb }} MB</div>
+    <div class="sub">{{ system.memory.process_percent }}% of host</div>
+  </div>
+  <div class="stat">
+    <div class="l">Disk</div>
+    <div class="v">{{ system.disk.percent }}%</div>
+    <div class="sub">{{ system.disk.free_gb }} GB free of {{ system.disk.total_gb }} GB</div>
+  </div>
+</div>
+
+<section>
+  <h2>Health</h2>
+  <div class="tablewrap">
+  <table>
+    <tbody>
+      <tr>
+        <th style="width:200px">MongoDB</th>
+        <td>{% if health.mongo %}<span class="tag have">reachable</span>{% else %}<span class="tag miss">unreachable</span>{% endif %}</td>
+      </tr>
+      <tr>
+        <th>Redis</th>
+        <td>
+          {% if health.redis is none %}<span class="tag">disabled</span>
+          {% elif health.redis %}<span class="tag have">reachable</span>
+          {% else %}<span class="tag miss">unreachable</span>{% endif %}
+        </td>
+      </tr>
+      <tr><th>Environment</th><td><code>{{ environment }}</code></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2>Actions</h2>
+  <div class="row">
+    <form class="inline" method="post" action="/admin/ops/process-latest"
+          data-confirm="Force-process the latest finished session now?">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="primary" type="submit">Process latest session</button>
+    </form>
+    <form class="inline" method="post" action="/admin/ops/ensure-indexes"
+          data-confirm="Create any missing MongoDB indexes? This is idempotent and safe.">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="ghost" type="submit">Ensure indexes</button>
+    </form>
+  </div>
+  {% if action_result %}
+  <div class="tablewrap" style="margin-top:14px">
+    <table><tbody>
+      {% for key, value in action_result.items() %}
+      <tr><th style="width:200px">{{ key }}</th><td class="small"><code>{{ value }}</code></td></tr>
+      {% endfor %}
+    </tbody></table>
+  </div>
+  {% endif %}
+</section>
+
+<section>
+  <h2>Recently processed sessions</h2>
+  {% if processor.processed_sessions %}
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Session</th></tr></thead>
+      <tbody>
+        {% for s in processor.processed_sessions %}<tr><td><code>{{ s }}</code></td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<p class="muted">Nothing processed since boot.</p>{% endif %}
+</section>
+
+<section>
+  <h2>Request tracker (in-memory, since boot)</h2>
+  <div class="totals">
+    <div class="card"><div class="l">Requests</div><div class="v">{{ summary.total_requests }}</div></div>
+    <div class="card"><div class="l">Errors</div><div class="v">{{ summary.total_errors }}</div></div>
+    <div class="card"><div class="l">Error rate</div><div class="v">{{ summary.error_rate_percent }}%</div></div>
+    <div class="card"><div class="l">Endpoints</div><div class="v">{{ summary.unique_endpoints }}</div></div>
+  </div>
+  {% if recent_errors %}
+  <h3 style="margin-top:16px">Recent errors</h3>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>When</th><th>Endpoint</th><th>Status</th><th>Detail</th></tr></thead>
+    <tbody>
+      {% for e in recent_errors %}
+      <tr>
+        <td class="muted small nowrap">{{ e.timestamp }}</td>
+        <td><code>{{ e.endpoint }}</code></td>
+        <td>{{ e.status_code }}</td>
+        <td class="small muted">{{ e.error or e.exception_type or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

@@ -110,6 +110,24 @@ class F1StaticClient:
 
         return {token for token in tokens if token}
 
+    def _session_family(self, value: str) -> Optional[str]:
+        """Return the ``_SESSION_ALIASES`` key ``value`` unambiguously matches, or ``None``."""
+        normalized = self._normalize_text(value)
+        compact = normalized.replace(' ', '')
+        words = [w for w in normalized.split() if w]
+        acronym = ''.join(word[0] for word in words) if words else ''
+
+        for family, aliases in self._SESSION_ALIASES.items():
+            normalized_aliases = {self._normalize_text(alias) for alias in aliases}
+            alias_compact = {alias.replace(' ', '') for alias in normalized_aliases}
+            if (
+                normalized in normalized_aliases
+                or compact in alias_compact
+                or acronym in alias_compact
+            ):
+                return family
+        return None
+
     def _session_matches(self, requested_session: str, candidate_session: str) -> bool:
         """Return True when two session labels refer to the same F1 session."""
         requested_tokens = self._build_session_tokens(requested_session)
@@ -117,6 +135,17 @@ class F1StaticClient:
 
         if requested_tokens.intersection(candidate_tokens):
             return True
+
+        # Both labels unambiguously identify a *known* session family (checked
+        # above and found different, since matching families would have
+        # returned True already) -- e.g. "Qualifying" vs "Sprint Qualifying" on
+        # a sprint weekend. "qualifying" is a literal substring of "sprint
+        # qualifying", so without this guard the fuzzy fallback below would
+        # wrongly treat them as the same session and silently serve the wrong
+        # one's data. Only fall through to substring matching when at least
+        # one side is an unrecognized/custom label the alias table can't judge.
+        if self._session_family(requested_session) is not None and self._session_family(candidate_session) is not None:
+            return False
 
         requested_normalized = self._normalize_text(requested_session)
         candidate_normalized = self._normalize_text(candidate_session)
@@ -189,11 +218,29 @@ class F1StaticClient:
         season_index = self.fetch_season_index(year)
         meetings = season_index.get('Meetings', [])
 
-        # Primary: direct positional lookup by round number (most reliable).
+        # Primary: positional lookup by round number, but only trust it when the
+        # meeting at that index actually matches the requested event. The
+        # livetiming Meetings array can include pre-season testing, which shifts
+        # positional indices out of sync with curated round numbers (e.g. 2026:
+        # curated round 1 == livetiming index 3). Blindly trusting the index
+        # would silently return the wrong meeting (Pre-Season Testing).
         event_data = None
         if round_nr is not None and 1 <= round_nr <= len(meetings):
-            event_data = meetings[round_nr - 1]
-            logger.info(f"Found event by round {round_nr}: {event_data.get('Name')}")
+            candidate = meetings[round_nr - 1]
+            normalized_target = self._normalize_text(event_name) if event_name else ""
+            normalized_candidate = self._normalize_text(candidate.get('Name', ''))
+            if (
+                not normalized_target
+                or normalized_target in normalized_candidate
+                or normalized_candidate in normalized_target
+            ):
+                event_data = candidate
+                logger.info(f"Found event by round {round_nr}: {candidate.get('Name')}")
+            else:
+                logger.warning(
+                    f"Round {round_nr} positional meeting '{candidate.get('Name')}' does not "
+                    f"match requested '{event_name}'; falling back to name match"
+                )
 
         # Fallback: normalized name matching (strips diacritics / hyphens).
         if event_data is None:

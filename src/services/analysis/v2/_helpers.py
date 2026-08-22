@@ -4,8 +4,28 @@ import numpy as np
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from src.core.logging import get_logger
 from src.ingestion.static_client import F1StaticClient
-from src.ingestion.circuits_loader import get_circuit_data_by_id
+from src.ingestion.circuits_loader import get_circuit_data_file
+
+logger = get_logger(__name__)
+
+
+def build_session_store(year: int, identifier: Any, session: str,
+                        client: Optional[F1StaticClient] = None) -> Optional[Any]:
+    """Best-effort :class:`SessionDataStore` for cache-routing the big streams.
+
+    Imported lazily to avoid a module-load cycle (``session_store`` imports from
+    this module). Returns ``None`` on any resolution failure so callers can fall
+    back to direct fetching without a hard dependency on the cache being usable.
+    """
+    try:
+        from src.services.analysis.v2.session_store import SessionDataStore
+        return SessionDataStore(year, identifier, session, client=client)
+    except Exception as exc:
+        logger.debug("SessionDataStore unavailable for %s %s %s: %s",
+                     year, identifier, session, exc)
+        return None
 
 
 CHANNEL_NAMES = {
@@ -161,11 +181,16 @@ def extract_stints(base_url: str, client: F1StaticClient, driver_num: str) -> Li
     return extract_stints_from_data(data, driver_num)
 
 
-def get_finishing_order(base_url: str, client: F1StaticClient) -> Dict[str, int]:
-    """Returns {car_number: finishing_position} from the final TimingData positions."""
+def get_finishing_order(base_url: str, client: F1StaticClient,
+                         store: Optional[Any] = None) -> Dict[str, int]:
+    """Returns {car_number: finishing_position} from the final TimingData positions.
+
+    When a ``SessionDataStore`` is passed as ``store``, the parsed TimingData
+    stream is served from its cache instead of being re-downloaded.
+    """
     order: Dict[str, int] = {}
     try:
-        data = client.parse_jsonstream_simple(base_url + "TimingData.jsonStream")
+        data = store.timing_data() if store is not None else client.parse_jsonstream_simple(base_url + "TimingData.jsonStream")
     except Exception as exc:
         print(f"Error fetching TimingData for finishing order: {exc}")
         return order
@@ -197,14 +222,18 @@ def get_driver_team_from_list(base_url: str, client: F1StaticClient) -> Dict[str
 
 
 def get_fastest_lap_windows(base_url: str, client: F1StaticClient,
-                             target_driver_num: Optional[str] = None) -> pd.DataFrame:
+                             target_driver_num: Optional[str] = None,
+                             store: Optional[Any] = None) -> pd.DataFrame:
     """
     Returns DataFrame with DriverNum, StartTime, EndTime, LapTime for each driver's personal best.
     If target_driver_num given, returns single-row DataFrame for that driver.
+
+    When a ``SessionDataStore`` is passed as ``store``, the parsed TimingData
+    stream is served from its cache instead of being re-downloaded.
     """
     timing_url = base_url + "TimingData.jsonStream"
     try:
-        data = client.parse_jsonstream_simple(timing_url)
+        data = store.timing_data() if store is not None else client.parse_jsonstream_simple(timing_url)
         best_laps = {}
 
         for entry in data:
@@ -244,6 +273,30 @@ def get_fastest_lap_windows(base_url: str, client: F1StaticClient,
         return pd.DataFrame(columns=['DriverNum', 'StartTime', 'EndTime', 'LapTime'])
 
 
+def get_qualifying_classification(base_url: str, client: F1StaticClient,
+                                   store: Optional[Any] = None) -> pd.DataFrame:
+    """Each driver's personal-best lap, ordered by official session classification.
+
+    A combined Q1/Q2/Q3 ``TimingData`` stream lets a driver knocked out early
+    keep a fast banker lap that beats a later segment's genuine pole time, so
+    ordering by raw ``LapTime`` (as ``get_fastest_lap_windows`` alone does) can
+    misrank drivers. Live timing's ``Position`` field already carries the
+    officially maintained classification (Q1/Q2/Q3 knockouts included) -- the
+    same field ``get_finishing_order`` reads for race results -- so this joins
+    that classification onto the best-lap windows and sorts by it, using
+    ``LapTime`` only as a tiebreak/fallback for any driver missing a position.
+    """
+    df = get_fastest_lap_windows(base_url, client, store=store)
+    if df.empty:
+        return df
+
+    positions = get_finishing_order(base_url, client, store=store)
+    df = df.copy()
+    df['Position'] = df['DriverNum'].map(positions)
+    df = df.sort_values(['Position', 'LapTime'], na_position='last').reset_index(drop=True)
+    return df
+
+
 def _get_session_start_utc(entries_list: list, packet_time: float) -> Optional[float]:
     if entries_list:
         first_utc_str = entries_list[0].get('Utc')
@@ -255,11 +308,16 @@ def _get_session_start_utc(entries_list: list, packet_time: float) -> Optional[f
 
 def extract_telemetry_for_lap(base_url: str, client: F1StaticClient,
                                driver_num: str, start_t: float, end_t: float,
-                               channels: Optional[List[str]] = None) -> pd.DataFrame:
+                               channels: Optional[List[str]] = None,
+                               store: Optional[Any] = None) -> pd.DataFrame:
     """
     Extract telemetry for a specific driver during a lap window.
     channels: channel keys ('2'=Speed, '4'=Throttle, '5'=Brake, ...)
     Returns DataFrame with Time and one column per channel using CHANNEL_NAMES.
+
+    When a ``SessionDataStore`` is passed as ``store``, the (multi-MB) CarData.z
+    stream is served from its durable cache instead of being re-downloaded and
+    re-decompressed for every driver.
     """
     if channels is None:
         channels = ['2']
@@ -268,7 +326,8 @@ def extract_telemetry_for_lap(base_url: str, client: F1StaticClient,
     session_start_utc = None
 
     try:
-        entries = client.parse_compressed_stream(base_url + "CarData.z.jsonStream")
+        entries = (store.car_data() if store is not None
+                   else client.parse_compressed_stream(base_url + "CarData.z.jsonStream"))
 
         for entry in entries:
             t_str = entry.get('_timestamp', entry.get('T'))
@@ -309,6 +368,13 @@ def extract_telemetry_for_lap(base_url: str, client: F1StaticClient,
         if not df.empty:
             df = df.sort_values('Time')
             df = df[(df['Time'] >= 0) & (df['Time'] <= end_t - start_t)]
+        lap_duration = end_t - start_t
+        if lap_duration > 0 and len(df) < lap_duration:
+            logger.warning(
+                "Sparse CarData match for driver %s: %d samples over a %.1fs lap window "
+                "(expected several per second) -- window may not be a genuine green-flag lap",
+                driver_num, len(df), lap_duration,
+            )
         return df
     except Exception as e:
         print(f"Error extracting telemetry: {e}")
@@ -316,17 +382,23 @@ def extract_telemetry_for_lap(base_url: str, client: F1StaticClient,
 
 
 def extract_position_for_lap(base_url: str, client: F1StaticClient,
-                              driver_num: str, start_t: float, end_t: float) -> pd.DataFrame:
+                              driver_num: str, start_t: float, end_t: float,
+                              store: Optional[Any] = None) -> pd.DataFrame:
     """
     Extract X/Y/Z position for a specific driver during a lap window from Position.z.jsonStream.
     Returns DataFrame with Time, X, Y, Z.
+
+    When a ``SessionDataStore`` is passed as ``store``, the (multi-MB) Position.z
+    stream is served from its durable cache instead of being re-downloaded for
+    every driver.
     """
     records = []
     session_start_utc = None
     total_entries_scanned = 0
 
     try:
-        entries = client.parse_compressed_stream(base_url + "Position.z.jsonStream")
+        entries = (store.position_data() if store is not None
+                   else client.parse_compressed_stream(base_url + "Position.z.jsonStream"))
         print(f"Position.z: fetched {len(entries)} compressed entries for driver {driver_num}")
 
         # Position.z structure: entry['Position'] is a list of frames.
@@ -379,6 +451,13 @@ def extract_position_for_lap(base_url: str, client: F1StaticClient,
         if not df.empty:
             df = df.sort_values('Time')
             df = df[(df['Time'] >= 0) & (df['Time'] <= end_t - start_t)]
+        lap_duration = end_t - start_t
+        if lap_duration > 0 and len(df) < lap_duration:
+            logger.warning(
+                "Sparse Position match for driver %s: %d samples over a %.1fs lap window "
+                "(expected several per second) -- window may not be a genuine green-flag lap",
+                driver_num, len(df), lap_duration,
+            )
         return df
     except Exception as e:
         print(f"Error extracting position for driver {driver_num}: {e}")
@@ -413,7 +492,8 @@ def merge_distance_onto_telemetry(df_tel: pd.DataFrame, df_pos: pd.DataFrame) ->
 
 
 def get_fastest_lap_telemetry(base_url: str, client: F1StaticClient, driver_num: str,
-                               channels: Optional[List[str]] = None) -> pd.DataFrame:
+                               channels: Optional[List[str]] = None,
+                               store: Optional[Any] = None) -> pd.DataFrame:
     """Fastest-lap telemetry for one driver, with Distance + X/Y merged on.
 
     Composes the existing single-purpose helpers:
@@ -430,22 +510,42 @@ def get_fastest_lap_telemetry(base_url: str, client: F1StaticClient, driver_num:
 
     Returns an empty DataFrame if no fastest lap / telemetry / position data
     is available for the driver.
+
+    When ``store`` exposes the race-derived accessors (``lap_times`` /
+    ``track_status_periods``), the fastest *clean* lap (excludes pit in/out
+    laps and non-green track-status periods) is preferred over the raw
+    minimum-``LastLapTime`` scan -- a race has far more chances than
+    practice/qualifying for an anomalous lap (red flag, VSC/SC, pit-affected)
+    to falsely win on time and hand back a near-empty telemetry window.
     """
     if channels is None:
         channels = ['2']
 
-    df_windows = get_fastest_lap_windows(base_url, client, target_driver_num=driver_num)
-    if df_windows.empty:
-        return pd.DataFrame()
+    window = None
+    if store is not None and hasattr(store, "lap_times") and hasattr(store, "track_status_periods"):
+        try:
+            from src.services.analysis.v2._race_helpers import get_clean_fastest_lap_window
+            window = get_clean_fastest_lap_window(store, driver_num)
+        except Exception as exc:
+            logger.debug("Clean fastest-lap selection unavailable for %s: %s", driver_num, exc)
 
-    row = df_windows.iloc[0]
-    start_t, end_t = row['StartTime'], row['EndTime']
+    if window is not None:
+        start_t, end_t = window['StartTime'], window['EndTime']
+        lap_time = window['LapTime']
+    else:
+        df_windows = get_fastest_lap_windows(base_url, client, target_driver_num=driver_num, store=store)
+        if df_windows.empty:
+            return pd.DataFrame()
+        row = df_windows.iloc[0]
+        start_t, end_t = row['StartTime'], row['EndTime']
+        lap_time = row['LapTime']
 
-    df_tel = extract_telemetry_for_lap(base_url, client, driver_num, start_t, end_t, channels=channels)
+    df_tel = extract_telemetry_for_lap(base_url, client, driver_num, start_t, end_t,
+                                       channels=channels, store=store)
     if df_tel.empty:
         return pd.DataFrame()
 
-    df_pos = extract_position_for_lap(base_url, client, driver_num, start_t, end_t)
+    df_pos = extract_position_for_lap(base_url, client, driver_num, start_t, end_t, store=store)
     if df_pos.empty:
         df_tel = df_tel.copy()
         df_tel['Distance'] = 0.0
@@ -459,11 +559,11 @@ def get_fastest_lap_telemetry(base_url: str, client: F1StaticClient, driver_num:
     df_pos_xy = df_pos[['Time', 'X', 'Y']].sort_values('Time')
     df_tel_sorted = df_tel.sort_values('Time')
     merged = pd.merge_asof(df_tel_sorted, df_pos_xy, on='Time', direction='nearest')
-    merged['LapTime'] = float(row['LapTime'])
+    merged['LapTime'] = float(lap_time)
     return merged
 
 
-def detect_corners(df: pd.DataFrame, min_separation_m: float = 50.0,
+def detect_corners(df: pd.DataFrame, min_separation_m: float = 25.0,
                     min_drop_kmh: float = 10.0) -> List[Dict[str, float]]:
     """Detect corner apexes from a Distance/Speed telemetry frame.
 
@@ -493,12 +593,18 @@ def detect_corners(df: pd.DataFrame, min_separation_m: float = 50.0,
     candidates: List[Dict[str, float]] = []
 
     running_max = speeds[0]
-    for i in range(1, n - 1):
+    for i in range(0, n):
         # Track the local maximum ("entry speed") seen since the last apex.
         if speeds[i] > running_max:
             running_max = speeds[i]
 
-        is_local_min = speeds[i] <= speeds[i - 1] and speeds[i] <= speeds[i + 1]
+        # At the boundaries there's no sample on one side; treat the missing
+        # side as satisfied so an apex right at the start/end of the lap
+        # (most commonly the final corner before the finish line) isn't
+        # silently excluded from detection.
+        left_ok = (i == 0) or (speeds[i] <= speeds[i - 1])
+        right_ok = (i == n - 1) or (speeds[i] <= speeds[i + 1])
+        is_local_min = left_ok and right_ok
         if not is_local_min:
             continue
 
@@ -538,7 +644,10 @@ def get_circuit_info_for_session(store: Any) -> Optional[Dict[str, Any]]:
     """Circuit rotation + corner + outline data for a session, or ``None``.
 
     Reads ``store.session_info()['Meeting']['Circuit']['Key']`` and looks the
-    circuit up via ``circuits_loader.get_circuit_data_by_id``, falling back
+    circuit up via ``circuits_loader.get_circuit_data_file`` (the full
+    ``CircuitLayout`` with corners/rotation/track_outline — not
+    ``get_circuit_data_by_id``, which only returns the lightweight
+    ``CircuitSummary`` listing entry with no track-map data), falling back
     across a small set of known years (the session's own year first, then
     2024/2025/2026) since not every circuit JSON is duplicated every season.
 
@@ -572,7 +681,7 @@ def get_circuit_info_for_session(store: Any) -> Optional[Dict[str, Any]]:
     circuit = None
     for y in years_to_try:
         try:
-            circuit = get_circuit_data_by_id(circuit_key, y)
+            circuit = get_circuit_data_file(circuit_key, y)
         except Exception:
             circuit = None
         if circuit:
@@ -582,23 +691,23 @@ def get_circuit_info_for_session(store: Any) -> Optional[Dict[str, Any]]:
         return None
 
     try:
-        race_data = circuit.get('race_data', {}) if isinstance(circuit, dict) else {}
-        corners_raw = race_data.get('corners') or []
+        corners_raw = circuit.get('corners') or [] if isinstance(circuit, dict) else []
         corners = []
         for c in corners_raw:
             if not isinstance(c, dict):
                 continue
-            pos = c.get('trackPosition') or {}
+            pos = c.get('position') or {}
             corners.append({
                 "number": c.get('number'),
                 "x": pos.get('x'),
                 "y": pos.get('y'),
             })
+        outline = circuit.get('track_outline') or {}
         return {
-            "rotation": int(race_data.get('rotation') or 0),
+            "rotation": int(circuit.get('rotation') or 0),
             "corners": corners,
-            "x": list(race_data.get('x') or []),
-            "y": list(race_data.get('y') or []),
+            "x": list(outline.get('x') or []),
+            "y": list(outline.get('y') or []),
         }
     except Exception:
         return None

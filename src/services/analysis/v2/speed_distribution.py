@@ -10,6 +10,7 @@ from src.services.plotting import theme as setup_theme
 from src.repositories.plots import store_data_dict_to_mongo, get_plot_data_from_mongo
 from src.ingestion.static_client import F1StaticClient
 from src.services.plotting.colors import get_driver_color
+from src.services.analysis.v2._helpers import build_session_store
 
 # ============================================================================
 # UTILS & PARSERS
@@ -30,12 +31,21 @@ def parse_f1_time(time_str: Any) -> float:
         return float(parts[0])
     except: return 0.0
 
+def _data_type(driver: Optional[str]) -> str:
+    """Stored MongoDB key. The TLA is upper-cased so ``?driver=ver`` and
+    ``?driver=VER`` resolve to the same document (the admin backfill writes the
+    upper-cased form). The no-driver series keeps its historical capital-O
+    ``Overall`` suffix.
+    """
+    return f"speed_distribution_{driver.strip().upper() if driver else 'Overall'}"
+
+
 def _init(y: int, event_name: str, session_name: str, driver: Optional[str]) -> Tuple[str, str, str]:
     event_folder = event_name.replace(' ', '')
     dirOrg.checkForFolder(f"{y}/{event_folder}/{session_name}")
     location = f"outputs/plots/{y}/{event_folder}/{session_name}"
-    
-    drv_str = driver if driver else "Overall"
+
+    drv_str = driver.strip().upper() if driver else "Overall"
     name = f'Speed Distribution {y} {event_name} {session_name} {drv_str}.png'
     return location, name, name.replace("png", "json")
 
@@ -78,11 +88,11 @@ def get_fastest_lap_windows_pandas(base_url: str, client: F1StaticClient, target
         return pd.DataFrame(columns=columns)
 
 
-def extract_telemetry_pandas(base_url: str, client: F1StaticClient, target_driver_num: str, start_t: float, end_t: float) -> pd.DataFrame:
+def extract_telemetry_pandas(base_url: str, client: F1StaticClient, target_driver_num: str, start_t: float, end_t: float, store=None) -> pd.DataFrame:
     records = []
     try:
         print(f"Extracting telemetry for Car {target_driver_num} from {round(start_t, 2)} to {round(end_t, 2)}")
-        entries = client.parse_compressed_stream(base_url + "CarData.z.jsonStream")
+        entries = store.car_data() if store is not None else client.parse_compressed_stream(base_url + "CarData.z.jsonStream")
         session_start_utc = None
         
         for entry in entries:
@@ -187,7 +197,8 @@ def process_speed_distribution_data(y: int, identifier: Union[int, str], e: str,
         end_t = fastest_row['EndTime']
         target_tla = get_driver_tla_from_num(base_url, client, drv_num)
         
-    df_telemetry = extract_telemetry_pandas(base_url, client, drv_num, start_t, end_t)
+    store = build_session_store(y, identifier, e, client)
+    df_telemetry = extract_telemetry_pandas(base_url, client, drv_num, start_t, end_t, store=store)
     if df_telemetry.empty: return None, None
     
     color = get_driver_color(target_tla)
@@ -268,8 +279,7 @@ def SpeedDistributionPlot(y: int, identifier: Union[int, str], e: str, driver: O
 
 
 def SpeedDistributionData(y: int, identifier: Union[int, str], e: str, driver: Optional[str] = None, store_to_mongo: bool = True) -> list:
-    drv_str = driver if driver else "Overall"
-    cache_key = f'speed_distribution_{drv_str}'
+    cache_key = _data_type(driver)
     cached = get_plot_data_from_mongo(y, identifier, e, cache_key, version='v2')
     if cached: return cached['data']
 

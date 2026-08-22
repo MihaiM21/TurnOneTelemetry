@@ -30,6 +30,7 @@ from src.services.analysis.v2.track_evolution import TrackEvolutionPlot, TrackEv
 from src.services.analysis.v2.theoretical_best import TheoreticalBestPlot, TheoreticalBestData
 from src.services.analysis.v2.race_story import RaceStoryPlot, RaceStoryData
 from src.services.analysis.v2.telemetry_track_map import TrackMapPlot, TrackMapData
+from src.services.analysis.v2.lap_all_data import LapAllData
 from src.services.analysis.v2.corner_duel import CornerDuelPlot, CornerDuelData
 from src.services.analysis.v2.driver_radar import DriverRadarPlot, DriverRadarData
 
@@ -1159,6 +1160,29 @@ async def track_map_data_v2(
     try:
         result = await run_in_threadpool(TrackMapData(), year, gp, session, driver, color_by)
         _track('track-map', year, gp, session)
+        return result
+    except T1APIError:
+        raise
+
+
+@router.get('/lap-all-data', tags=["API v2", "Telemetry"])
+@apply_tiered_limit("data")
+async def lap_all_data_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('Q'),
+    driver: str = Query(..., description="Driver TLA (e.g., VER)"),
+    lap: int = Query(..., ge=1, description="Lap number (required)"),
+    api_key: str = Depends(verify_api_key)
+):
+    """Everything for one driver's single lap: full telemetry time-series (speed/rpm/throttle/
+    brake/gear/drs + X/Y/Z + distance), lap/tyre/sector/pit metadata, nearest weather sample,
+    track status, and driver/session context. Any session."""
+    logger.info(f"Fetching lap-all-data (V2): Y{year} GP{gp} {session} driver={driver} lap={lap}")
+    try:
+        result = await run_in_threadpool(LapAllData(), year, gp, session, driver, lap)
+        _track('lap-all-data', year, gp, session)
         return result
     except T1APIError:
         raise

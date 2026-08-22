@@ -54,6 +54,21 @@ def find_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
     return _serialize(_collection().find_one({"_id": oid}))
 
 
+def set_admin(user_id: str, is_admin: bool = True) -> bool:
+    """Grant or revoke admin rights. Returns True when a user was updated.
+
+    The admin UI used to reach past this module straight into the collection
+    with an inline ObjectId import and a bare ``except: pass``, so a failed
+    promotion looked identical to a successful one.
+    """
+    try:
+        oid = ObjectId(user_id)
+    except (InvalidId, TypeError):
+        return False
+    result = _collection().update_one({"_id": oid}, {"$set": {"is_admin": bool(is_admin)}})
+    return result.matched_count > 0
+
+
 def list_users(limit: int = 100, skip: int = 0) -> List[Dict[str, Any]]:
     cursor = _collection().find({}, {"password_hash": 0}).sort("created_at", -1).skip(skip).limit(limit)
     out: List[Dict[str, Any]] = []

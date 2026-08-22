@@ -112,4 +112,74 @@ def store_session_bundle(
         return False
 
 
-__all__ = ["get_session_bundle", "store_session_bundle", "SCHEMA_VERSION"]
+# --------------------------------------------------------------------------- #
+# Admin inventory
+#
+# Backs the admin cache page. Listing is metadata-only: a bundle is a few
+# hundred KB, so projecting it into a listing of every session would be a
+# multi-hundred-megabyte read.
+# --------------------------------------------------------------------------- #
+def list_bundles(year: Optional[int] = None) -> list:
+    """Per-session bundle summary: which keys it holds, its age and schema."""
+    query: Dict[str, Any] = {}
+    if year is not None:
+        query["year"] = int(year)
+    try:
+        cursor = _collection().find(
+            query,
+            {"year": 1, "round_nr": 1, "session": 1, "schema_version": 1,
+             "created_at": 1, "meta": 1, "bundle": 1},
+        )
+        rows = []
+        for doc in cursor:
+            bundle = doc.get("bundle") or {}
+            created = doc.get("created_at")
+            rows.append({
+                "doc_id": doc["_id"],
+                "year": doc.get("year"),
+                "round_nr": doc.get("round_nr"),
+                "session": doc.get("session"),
+                "event_name": (doc.get("meta") or {}).get("event_name"),
+                "keys": sorted(bundle.keys()) if isinstance(bundle, dict) else [],
+                "schema_version": doc.get("schema_version"),
+                "schema_drift": doc.get("schema_version") != SCHEMA_VERSION,
+                "created_at": created.isoformat() if isinstance(created, datetime) else created,
+            })
+        return sorted(rows, key=lambda r: str(r["doc_id"]), reverse=True)
+    except PyMongoError as exc:
+        logger.warning("session_cache inventory failed: %s", exc)
+        return []
+
+
+def delete_bundle(doc_id: str) -> bool:
+    """Drop one session's derived bundle so it is recomputed on next read."""
+    try:
+        return _collection().delete_one({"_id": doc_id}).deleted_count > 0
+    except PyMongoError as exc:
+        logger.warning("session_cache purge failed for %s: %s", doc_id, exc)
+        return False
+
+
+def bundle_totals() -> Dict[str, Any]:
+    """Bundle count + drift count for the admin summary cards."""
+    try:
+        coll = _collection()
+        return {
+            "bundles": coll.count_documents({}),
+            "schema_drift": coll.count_documents(
+                {"schema_version": {"$ne": SCHEMA_VERSION}}
+            ),
+        }
+    except PyMongoError as exc:
+        logger.warning("session_cache totals failed: %s", exc)
+        return {"bundles": 0, "schema_drift": 0}
+
+
+__all__ = [
+    "SCHEMA_VERSION",
+    "bundle_totals",
+    "delete_bundle",
+    "get_session_bundle",
+    "list_bundles",
+    "store_session_bundle",
+]

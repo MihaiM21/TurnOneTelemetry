@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 
 from src.services.analysis.v2 import corner_duel as cd
-from src.services.analysis.v2._helpers import detect_corners
+from src.services.analysis.v2._helpers import detect_corners, get_circuit_info_for_session
 
 
 # ----------------------------------------------------------------------
@@ -78,6 +78,47 @@ def test_detect_corners_empty_or_missing_columns():
 def test_detect_corners_too_few_points():
     df = pd.DataFrame({"Distance": [0, 10], "Speed": [200, 100]})
     assert detect_corners(df) == []
+
+
+def test_detect_corners_finds_apex_at_end_of_lap():
+    """A corner apex right at the very end of the telemetry (e.g. the final
+    corner before the finish line) must still be detected, not silently
+    dropped because it sits on the array boundary."""
+    distance = np.arange(0, 500, 5.0)
+    speed = 300.0 - (distance / distance.max()) * 220.0  # monotonic decel to the last sample
+    df = pd.DataFrame({"Distance": distance, "Speed": speed})
+
+    corners = detect_corners(df, min_separation_m=25.0, min_drop_kmh=10.0)
+    assert len(corners) == 1
+    assert corners[0]["distance_m"] == pytest.approx(distance[-1], abs=5.0)
+
+
+def test_detect_corners_first_sample_never_false_positives():
+    """The very first sample is now eligible for local-min testing (no longer
+    unconditionally excluded), but since ``running_max`` starts seeded from
+    ``speeds[0]`` itself, the computed drop there is always 0 — so index 0
+    can never itself register as a spurious corner regardless of profile
+    shape. This just guards against a regression reintroducing false
+    positives at the start of the array."""
+    distance = np.arange(0, 500, 5.0)
+    speed = np.full_like(distance, 300.0)
+    speed[distance < 100] = 90.0  # slow right from the first sample
+
+    df = pd.DataFrame({"Distance": distance, "Speed": speed})
+    corners = detect_corners(df, min_separation_m=25.0, min_drop_kmh=10.0)
+    assert not any(c["distance_m"] == pytest.approx(distance[0], abs=1.0) for c in corners)
+
+
+def test_detect_corners_default_separation_is_25m():
+    """Two dips >25m apart (but < the old 50m default) must now stay separate."""
+    distance = np.arange(0, 400, 5.0)
+    speed = np.full_like(distance, 300.0)
+    speed[(distance > 190) & (distance < 210)] = 120.0
+    speed[(distance > 225) & (distance < 245)] = 90.0  # ~35m from the first apex
+
+    df = pd.DataFrame({"Distance": distance, "Speed": speed})
+    corners = detect_corners(df)  # relies on the new default min_separation_m=25.0
+    assert len(corners) == 2
 
 
 # ----------------------------------------------------------------------
@@ -191,6 +232,79 @@ def test_match_corner_number_outside_radius_returns_none():
 def test_match_corner_number_no_circuit_data():
     assert cd._match_corner_number(1.0, 1.0, []) is None
     assert cd._match_corner_number(None, None, [{"number": 1, "x": 0, "y": 0}]) is None
+
+
+# ----------------------------------------------------------------------
+# get_circuit_info_for_session — against a real on-disk circuit file
+# ----------------------------------------------------------------------
+class _FakeStore:
+    def __init__(self, year, circuit_key):
+        self.year = year
+        self._circuit_key = circuit_key
+
+    def session_info(self):
+        return {"Meeting": {"Circuit": {"Key": self._circuit_key}}}
+
+
+def test_get_circuit_info_for_session_reads_real_circuit_layout():
+    """Regression test for the ``race_data``/``trackPosition`` schema
+    mismatch: the on-disk CircuitLayout JSON stores ``rotation``, ``corners``
+    (each with a top-level ``position: {x, y}``) directly, not nested under a
+    ``race_data`` key with ``trackPosition``. This must actually parse them."""
+    store = _FakeStore(year=2025, circuit_key=2)  # Silverstone
+    info = get_circuit_info_for_session(store)
+
+    assert info is not None
+    assert info["rotation"] == pytest.approx(92.0)
+    assert len(info["corners"]) == 18
+    assert all(c["number"] is not None and c["x"] is not None and c["y"] is not None
+               for c in info["corners"])
+    assert len(info["x"]) > 0
+    assert len(info["y"]) > 0
+
+
+def test_get_circuit_info_for_session_unknown_circuit_returns_none():
+    store = _FakeStore(year=2025, circuit_key=999999)
+    assert get_circuit_info_for_session(store) is None
+
+
+# ----------------------------------------------------------------------
+# build_payload_from_parts — corner numbering must match RAW (unrotated)
+# apex X/Y against circuit_corners; telemetry and circuit-corner positions
+# share the same coordinate frame, `rotation` is a display-only angle.
+# ----------------------------------------------------------------------
+def test_build_payload_matches_corner_number_without_rotating_apex():
+    n = 200
+    distance = np.linspace(0, 1000, n)
+    speed = np.full(n, 300.0)
+    # A clear single corner around distance=500.
+    dip_mask = np.abs(distance - 500) < 60
+    speed[dip_mask] = 300.0 - 150.0 * (1 - ((distance[dip_mask] - 500) / 60) ** 2)
+
+    # Apex X/Y at ~distance=500 lands at (100, 100) in raw telemetry space.
+    x = np.where(distance <= 500, distance / 5.0, 100.0)
+    y = np.where(distance <= 500, 100.0, 100.0 + (distance - 500) / 5.0)
+
+    df1 = pd.DataFrame({
+        "Distance": distance, "Time": distance / 50.0, "Speed": speed,
+        "Brake": np.zeros(n), "X": x, "Y": y,
+    })
+    df2 = pd.DataFrame({
+        "Distance": distance, "Time": distance / 50.0, "Speed": speed,
+        "Brake": np.zeros(n), "X": x, "Y": y,
+    })
+
+    # Circuit corner "1" sits exactly at the raw (unrotated) apex position.
+    # A large rotation is set to prove it must NOT be applied before matching.
+    circuit_info = {"rotation": 90, "corners": [{"number": 1, "x": 100.0, "y": 100.0}]}
+
+    payload = cd.build_payload_from_parts(
+        df1, df2, "VER", "NOR", circuit_info, "Red Bull Racing", "McLaren",
+        2025, "Test GP", "Q",
+    )
+
+    assert len(payload["corners"]) == 1
+    assert payload["corners"][0]["number"] == 1
 
 
 # ----------------------------------------------------------------------

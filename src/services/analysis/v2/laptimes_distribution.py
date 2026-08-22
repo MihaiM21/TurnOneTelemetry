@@ -11,6 +11,14 @@ from src.services.analysis.v2._helpers import (
 )
 
 
+DATA_TYPE = "lap_times_distribution"
+
+
+def _data_type(driver: str) -> str:
+    """Stored MongoDB key for one driver's lap-time distribution."""
+    return f"{DATA_TYPE}_{driver.strip().upper()}"
+
+
 def _init(y: int, event_name: str, session_name: str, driver: str):
     event_folder = event_name.replace(' ', '')
     dirOrg.checkForFolder(f"{y}/{event_folder}/{session_name}")
@@ -82,8 +90,8 @@ def LaptimesDistribution(y: int, identifier: Union[int, str], e: str, driver: st
     Returns [{driver, lap_number, lap_times_formatted, lap_times_seconds, compound}]
     for a specific driver across a session.
     """
-    driver_tla = driver.upper()
-    cache_key = f'lap_times_distribution_{driver_tla}'
+    driver_tla = driver.strip().upper()
+    cache_key = _data_type(driver_tla)
 
     cached = get_plot_data_from_mongo(y, identifier, e, cache_key, version='v2')
     if cached:

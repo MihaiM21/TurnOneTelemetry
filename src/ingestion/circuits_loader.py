@@ -1,8 +1,9 @@
 import json
 import os
 
+
 def get_yearly_circuits(season_year):
-    """Get circuits data for a given season year"""
+    """Get circuits data (CircuitSummary list) for a given season year"""
 
     try:
         with open(f"src/domain/data/circuits/{season_year}/all_circuits.json", "r") as f:
@@ -13,9 +14,9 @@ def get_yearly_circuits(season_year):
             return data if isinstance(data, list) else []
     except FileNotFoundError:
         raise ValueError(f"Circuits data for season year {season_year} not found.")
-    
+
 def get_circuit_data_by_id(circuit_id, season_year):
-    """Get circuit data for a given circuit ID and season year"""
+    """Get circuit summary for a given circuit ID and season year"""
     circuits = get_yearly_circuits(season_year)
     # Convert circuit_id to int for comparison (circuit IDs are numeric)
     try:
@@ -31,7 +32,8 @@ def get_circuit_data_by_id(circuit_id, season_year):
     return None
 
 def get_circuit_data_file(circuit_id, season_year):
-    """Get x and y coordinate data (SVG path) from the individual circuit JSON file in original order"""
+    """Get the full CircuitLayout (corners, marshal lights/sectors, rotation, track
+    outline, etc.) stored for a circuit/year, in our own schema."""
     try:
         # Look for the circuit data file matching the circuit_id
         circuit_dir = f"src/domain/data/circuits/{season_year}"
@@ -40,14 +42,7 @@ def get_circuit_data_file(circuit_id, season_year):
             if filename.startswith(f"{circuit_id}_") and filename.endswith(".json") and filename != "all_circuits.json":
                 filepath = os.path.join(circuit_dir, filename)
                 with open(filepath, "r") as f:
-                    data = json.load(f)
-                    # Extract only x and y data from race_data
-                    if "race_data" in data:
-                        return {
-                            "x": data["race_data"].get("x", []),
-                            "y": data["race_data"].get("y", [])
-                        }
-                    return {"x": [], "y": []}
+                    return json.load(f)
         raise ValueError(f"Circuit data file for ID {circuit_id} not found in {season_year}")
     except FileNotFoundError:
         raise ValueError(f"Circuits directory for year {season_year} not found")

@@ -11,6 +11,7 @@ from src.repositories.plots import store_data_dict_to_mongo, get_plot_data_from_
 from src.ingestion.static_client import F1StaticClient
 from src.domain.mappings import get_driver_team_mapping
 from src.services.plotting.colors import get_driver_color
+from src.services.analysis.v2._helpers import build_session_store
 
 # ============================================================================
 # UTILS & PARSERS
@@ -99,10 +100,10 @@ def get_fastest_lap_windows_pandas(base_url: str, client: F1StaticClient) -> pd.
 
 from datetime import datetime
 
-def extract_telemetry_pandas(base_url: str, client: F1StaticClient) -> pd.DataFrame:
+def extract_telemetry_pandas(base_url: str, client: F1StaticClient, store=None) -> pd.DataFrame:
     records = []
     try:
-        entries = client.parse_compressed_stream(base_url + "CarData.z.jsonStream")
+        entries = store.car_data() if store is not None else client.parse_compressed_stream(base_url + "CarData.z.jsonStream")
         session_start_utc = None
         
         for entry in entries:
@@ -147,9 +148,10 @@ def process_throttle_data(y: int, identifier: Union[int, str], e: str, client: F
     base_url = client.get_event_session_url(y, event_name, e, round_nr=round_nr)
     if not base_url: raise ValueError("URL sesiune negăsit")
         
+    store = build_session_store(y, identifier, e, client)
     driver_codes = get_all_driver_codes(base_url, client)
     df_windows = get_fastest_lap_windows_pandas(base_url, client)
-    df_telemetry = extract_telemetry_pandas(base_url, client)
+    df_telemetry = extract_telemetry_pandas(base_url, client, store=store)
     
     if df_telemetry.empty: return []
 

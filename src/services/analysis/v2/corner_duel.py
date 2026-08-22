@@ -12,10 +12,11 @@ Methodology:
     larger) and **negative delta means driver2 is AHEAD**. This mirrors the
     usual "delta to reference" convention where driver1 is the reference lap.
   * Corners are detected on driver1's telemetry via ``detect_corners``
-    (``_helpers``). Corner *numbers* come from the circuit JSON's
-    ``race_data.corners`` (nearest ``trackPosition`` within ~150 units of the
-    apex's rotated X/Y); if no circuit info is available, corners are
-    numbered sequentially in track order.
+    (``_helpers``). Corner *numbers* come from the circuit JSON's ``corners``
+    (nearest ``position`` within ~150 units of the apex's raw X/Y -- telemetry
+    and circuit-corner positions share the same unrotated coordinate frame);
+    if no circuit info is available, or no corner is found within the match
+    radius, corners are numbered sequentially in track order.
   * Per corner: ``min_speed`` for each driver is the minimum speed within
     +-40 m of the apex distance; ``braking_point`` is found by scanning
     backward from the apex for the first sample with ``Brake > 0``; the
@@ -203,7 +204,6 @@ def build_payload_from_parts(
     corners = detect_corners(f1[['Distance', 'Speed']])
 
     circuit_corners = circuit_info.get('corners') if circuit_info else None
-    rotation = circuit_info.get('rotation', 0) if circuit_info else 0
 
     corner_records: List[Dict[str, Any]] = []
     for i, corner in enumerate(corners, start=1):
@@ -214,12 +214,11 @@ def build_payload_from_parts(
 
         number = None
         if circuit_corners and apex_x is not None and apex_y is not None:
-            rx, ry = apex_x, apex_y
-            if rotation:
-                theta = np.deg2rad(rotation)
-                rx = apex_x * np.cos(theta) - apex_y * np.sin(theta)
-                ry = apex_x * np.sin(theta) + apex_y * np.cos(theta)
-            number = _match_corner_number(rx, ry, circuit_corners)
+            # Telemetry X/Y and the circuit JSON's corner positions are already
+            # in the same raw (unrotated) coordinate frame -- `rotation` is a
+            # map-display orientation angle (see telemetry_track_map.py),
+            # not a transform needed before comparing raw positions.
+            number = _match_corner_number(apex_x, apex_y, circuit_corners)
         if number is None:
             number = i
 
@@ -279,8 +278,8 @@ def _build_payload(
     num1 = _resolve_driver_num(driver_codes, tla1, year, identifier, session)
     num2 = _resolve_driver_num(driver_codes, tla2, year, identifier, session)
 
-    df1 = get_fastest_lap_telemetry(base_url, client, num1, channels=_CHANNELS)
-    df2 = get_fastest_lap_telemetry(base_url, client, num2, channels=_CHANNELS)
+    df1 = get_fastest_lap_telemetry(base_url, client, num1, channels=_CHANNELS, store=store)
+    df2 = get_fastest_lap_telemetry(base_url, client, num2, channels=_CHANNELS, store=store)
     if df1.empty or df2.empty:
         missing = tla1 if df1.empty else tla2
         raise DataNotAvailableError(
