@@ -16,11 +16,13 @@ matplotlib.use("Agg")  # Must precede any import that could pull in pyplot.
 import asyncio  # noqa: E402
 from contextlib import asynccontextmanager  # noqa: E402
 from datetime import datetime  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 from fastapi import FastAPI, HTTPException, Request, status  # noqa: E402
 from fastapi.concurrency import run_in_threadpool  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import JSONResponse, ORJSONResponse  # noqa: E402
+from fastapi.staticfiles import StaticFiles  # noqa: E402
 from slowapi import _rate_limit_exceeded_handler  # noqa: E402
 from slowapi.errors import RateLimitExceeded  # noqa: E402
 
@@ -108,6 +110,8 @@ def create_app() -> FastAPI:
 
     # Routers MUST be imported after init_limiter() (decorators bind at import).
     from src.api.routers.admin import router as admin_router
+    from src.api.routers.admin_cache import router as admin_cache_router
+    from src.api.routers.admin_data import router as admin_data_router
     from src.api.routers.admin_ui import router as admin_ui_router
     from src.api.routers.backup_admin import router as backup_admin_router
     from src.api.routers.analysis_v1 import router as analysis_router_v1
@@ -230,6 +234,17 @@ def create_app() -> FastAPI:
         openapi_url=None,
     )
     setup_docs_auth(app, settings, SWAGGER_UI_PARAMETERS)
+
+    # Admin console assets (stylesheet + shared JS). Mounted rather than inlined
+    # so the ~500 lines of CSS are fetched once and cached, instead of being
+    # duplicated into every admin page render. Contains no sensitive data; the
+    # pages themselves stay behind the cookie-session + IP-allowlist gates.
+    _static_dir = Path(__file__).resolve().parent / "static"
+    if _static_dir.is_dir():
+        app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
+    else:  # pragma: no cover - only if the package is installed without assets
+        logger.warning("Static assets directory missing at %s", _static_dir)
+
     app.state.limiter = limiter
     app.state.session_tracker = session_tracker
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -432,6 +447,8 @@ def create_app() -> FastAPI:
 
     app.include_router(monitoring_router)
     app.include_router(admin_router)
+    app.include_router(admin_cache_router)
+    app.include_router(admin_data_router)
     app.include_router(admin_ui_router)
     app.include_router(backup_admin_router)
     app.include_router(auth_router)

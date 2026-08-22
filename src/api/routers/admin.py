@@ -22,6 +22,8 @@ from src.repositories import api_key_usage as _key_usage
 from src.repositories import api_keys as _keys
 from src.repositories import users as _users
 import src.repositories.populate_seasons
+from src.services.analysis.v2 import registry
+from src.workers import plot_inventory
 
 logger = get_logger(__name__)
 
@@ -280,7 +282,7 @@ def _query_mongodb_overview(version: str) -> Dict[str, Any]:
 
 @router.post('/api/admin/populate-sessions', tags=["General"])
 @apply_tiered_limit("standard")
-async def admin_populate_sessions(request: Request, api_key: str = Depends(verify_api_key)):
+async def admin_populate_sessions(request: Request, api_key: str = Depends(require_admin_key)):
     """
     Admin endpoint to populate session database from existing telemetry files
     Useful for initial setup or re-populating missing data
@@ -295,7 +297,7 @@ async def admin_populate_sessions(request: Request, api_key: str = Depends(verif
 
 @router.post('/api/admin/process-latest', tags=["General"])
 @apply_tiered_limit("standard")
-async def admin_process_latest(request: Request, api_key: str = Depends(verify_api_key)):
+async def admin_process_latest(request: Request, api_key: str = Depends(require_admin_key)):
     """
     Admin endpoint to manually trigger processing of the latest session
     Useful for testing or forcing immediate processing
@@ -311,7 +313,7 @@ async def admin_process_latest(request: Request, api_key: str = Depends(verify_a
 
 @router.get('/api/admin/processor-status', tags=["General"])
 @apply_tiered_limit("standard")
-async def admin_processor_status(request: Request, api_key: str = Depends(verify_api_key)):
+async def admin_processor_status(request: Request, api_key: str = Depends(require_admin_key)):
     """
     Get detailed status of the background processor
     Shows what sessions have been processed and processor state
@@ -335,7 +337,7 @@ async def admin_processor_status(request: Request, api_key: str = Depends(verify
 async def admin_mongodb_overview(
     request: Request,
     version: str = Query("v2", description="Mongo data source version: v1 or v2"),
-    api_key: str = Depends(verify_api_key),
+    api_key: str = Depends(require_admin_key),
 ):
     """
     Get high-level MongoDB coverage stats by year/collection for admin visibility.
@@ -362,7 +364,7 @@ async def admin_mongodb_sessions_with_data(
     session_type: Optional[str] = Query(None, description="Filter by session type (FP1, FP2, Q, S, R, etc.)"),
     include_empty: bool = Query(False, description="Include sessions that exist but have no stored plot data"),
     limit_per_year: int = Query(200, ge=1, le=1000, description="Max GP documents to scan per year when gp_id is not provided"),
-    api_key: str = Depends(verify_api_key),
+    api_key: str = Depends(require_admin_key),
 ):
     """
     Inspect MongoDB and list which sessions contain data, and which plot/data types exist per session.
@@ -388,6 +390,279 @@ async def admin_mongodb_sessions_with_data(
     except Exception as e:
         logger.error(f"Error getting MongoDB session coverage: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch MongoDB session coverage")
+
+
+# ============================================================================
+# PLOT INVENTORY & BACKFILL (V2)
+# ============================================================================
+
+@router.get('/api/admin/plots/missing', tags=["General"])
+@apply_tiered_limit("standard")
+async def admin_plots_missing(
+    request: Request,
+    year: Optional[int] = Query(None, ge=2018, le=2030, description="Season; all v2 years if omitted"),
+    gp: Optional[str] = Query(None, description="Round number, Event Key, or Event Name"),
+    session: Optional[str] = Query(None, description="Session name/abbrev (e.g. R, Q, FP1)"),
+    api_key: str = Depends(require_admin_key),
+):
+    """Report which singleton V2 plots/data are still ungenerated in MongoDB.
+
+    Schedule-driven, so entirely-absent sessions/GPs are flagged too. Read-only.
+    """
+    try:
+        return await run_in_threadpool(
+            plot_inventory.compute_missing, year=year, identifier=gp, session=session
+        )
+    except Exception as e:
+        logger.error(f"Error computing missing plots: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to compute missing plots")
+
+
+@router.get('/api/admin/plots/catalog', tags=["General"])
+@apply_tiered_limit("standard")
+async def admin_plots_catalog(
+    request: Request,
+    session: Optional[str] = Query(None, description="Filter to one session (e.g. R, Q, FP1)"),
+    api_key: str = Depends(require_admin_key),
+):
+    """Every generatable V2 feature, so clients build selectors from the registry.
+
+    Grouped by ``kind`` (singleton / per_driver / per_pair / per_driver_lap /
+    season / career). ``cost`` flags how expensive a family is to expand.
+    """
+    entries = (
+        registry.catalog_for_session(session) if session else list(registry.FEATURE_CATALOG)
+    )
+    return {
+        "count": len(entries),
+        "features": [e.as_dict() for e in entries],
+        "session": session,
+    }
+
+
+@router.get('/api/admin/plots/season', tags=["General"])
+@apply_tiered_limit("standard")
+async def admin_plots_season(
+    request: Request,
+    year: int = Query(..., ge=2018, le=2030),
+    api_key: str = Depends(require_admin_key),
+):
+    """Which season-scope payloads exist for a year (separate from GP sessions)."""
+    return await run_in_threadpool(plot_inventory.season_inventory, year)
+
+
+@router.get('/api/admin/sessions/{year}/{gp}/{session}/drivers', tags=["General"])
+@apply_tiered_limit("standard")
+async def admin_session_drivers(
+    request: Request,
+    year: int,
+    gp: str,
+    session: str,
+    include_laps: bool = Query(False, description="Also return each driver's lap numbers"),
+    api_key: str = Depends(require_admin_key),
+):
+    """Driver list (and optionally lap numbers) for the admin pickers."""
+    try:
+        drivers = await run_in_threadpool(registry.session_drivers, year, gp, session)
+        payload: Dict[str, Any] = {"year": year, "gp": gp, "session": session,
+                                   "drivers": drivers}
+        if include_laps:
+            laps = await run_in_threadpool(registry.session_driver_laps, year, gp, session)
+            payload["laps"] = laps
+            all_laps = [lap for values in laps.values() for lap in values]
+            payload["lap_range"] = (
+                {"min": min(all_laps), "max": max(all_laps)} if all_laps else None
+            )
+        return payload
+    except Exception as e:
+        logger.error(f"Error resolving session drivers: {e}", exc_info=True)
+        raise HTTPException(status_code=502, detail="Could not resolve session drivers")
+
+
+def _selection_from_request(
+    features: Optional[List[str]],
+    kinds: Optional[List[str]],
+    drivers: Optional[List[str]],
+    pairs: Optional[List[str]],
+    lap_from: Optional[int],
+    lap_to: Optional[int],
+    windows: Optional[List[int]],
+    career_years: Optional[List[int]],
+    include_comparisons: bool,
+) -> plot_inventory.Selection:
+    """Build a Selection from query params, or fall back to the legacy flag."""
+    if not any([features, kinds, drivers, pairs, windows, career_years]):
+        return plot_inventory.Selection.from_legacy(include_comparisons)
+
+    parsed_pairs = None
+    if pairs:
+        parsed_pairs = []
+        for raw in pairs:
+            parts = [p.strip().upper() for p in str(raw).split(",") if p.strip()]
+            if len(parts) != 2:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"pair must be two comma-separated TLAs, got {raw!r}",
+                )
+            parsed_pairs.append((parts[0], parts[1]))
+
+    return plot_inventory.Selection(
+        features=list(features) if features else None,
+        include_kinds=set(kinds) if kinds else None,
+        drivers=[d.strip().upper() for d in drivers] if drivers else None,
+        pairs=parsed_pairs,
+        lap_from=lap_from,
+        lap_to=lap_to,
+        windows=list(windows) if windows else None,
+        career_years=list(career_years) if career_years else None,
+    )
+
+
+@router.post('/api/admin/plots/estimate', tags=["General"])
+@apply_tiered_limit("standard")
+async def admin_plots_estimate(
+    request: Request,
+    year: Optional[int] = Query(None, ge=2018, le=2030),
+    gp: Optional[str] = Query(None, description="Round number, Event Key, or Event Name"),
+    session: Optional[str] = Query(None, description="Session name/abbrev (e.g. R, Q, FP1)"),
+    features: Optional[List[str]] = Query(None, description="Feature keys from /plots/catalog"),
+    kinds: Optional[List[str]] = Query(None, description="Select whole groups (e.g. per_driver)"),
+    drivers: Optional[List[str]] = Query(None, description="Restrict to these TLAs"),
+    pairs: Optional[List[str]] = Query(None, description='Driver pairs as "VER,NOR"'),
+    lap_from: Optional[int] = Query(None, ge=1, description="Required for per-lap features"),
+    lap_to: Optional[int] = Query(None, ge=1),
+    windows: Optional[List[int]] = Query(None, description="season_form rolling windows"),
+    career_years: Optional[List[int]] = Query(None, description="Years for the career radar"),
+    include_comparisons: bool = Query(False, description="Legacy: all per-driver + per-pair"),
+    api_key: str = Depends(require_admin_key),
+):
+    """Cost a selection **without generating anything**.
+
+    A full-catalog backfill of a single race is thousands of units, so the unit
+    count and per-feature breakdown belong in front of the operator before they
+    commit — not discovered from a progress bar.
+    """
+    selection = _selection_from_request(
+        features, kinds, drivers, pairs, lap_from, lap_to,
+        windows, career_years, include_comparisons,
+    )
+    try:
+        return await run_in_threadpool(
+            plot_inventory.estimate_plan,
+            year=year, identifier=gp, session=session, selection=selection,
+        )
+    except Exception as e:
+        logger.error(f"Error estimating plot generation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to estimate plot generation")
+
+
+@router.post('/api/admin/plots/generate', tags=["General"])
+@apply_tiered_limit("standard")
+async def admin_plots_generate(
+    request: Request,
+    year: int = Query(..., ge=2018, le=2030, description="Season to backfill"),
+    gp: Optional[str] = Query(None, description="Round number, Event Key, or Event Name"),
+    session: Optional[str] = Query(None, description="Session name/abbrev (e.g. R, Q, FP1)"),
+    force: bool = Query(False, description="Regenerate even if already present"),
+    include_comparisons: bool = Query(
+        False, description="Legacy: generate every per-driver and per-pair comparison"
+    ),
+    features: Optional[List[str]] = Query(None, description="Feature keys from /plots/catalog"),
+    kinds: Optional[List[str]] = Query(None, description="Select whole groups (e.g. per_driver)"),
+    drivers: Optional[List[str]] = Query(None, description="Restrict to these TLAs"),
+    pairs: Optional[List[str]] = Query(None, description='Driver pairs as "VER,NOR"'),
+    lap_from: Optional[int] = Query(None, ge=1, description="Required for per-lap features"),
+    lap_to: Optional[int] = Query(None, ge=1),
+    windows: Optional[List[int]] = Query(None, description="season_form rolling windows"),
+    career_years: Optional[List[int]] = Query(None, description="Years for the career radar"),
+    concurrency: int = Query(1, ge=1, le=plot_inventory.MAX_CONCURRENCY,
+                             description="Parallel sessions (never parallel within a session)"),
+    force_concurrent: bool = Query(False, description="Allow overlapping an in-flight job"),
+    api_key: str = Depends(require_admin_key),
+):
+    """Kick off a background job that generates the selected V2 data into MongoDB.
+
+    Returns immediately with a ``job_id``; poll ``/api/admin/plots/jobs/{job_id}``.
+    Rejects with 409 when a live job already covers an overlapping scope, since
+    two backfills over the same sessions duplicate every upstream fetch.
+    """
+    selection = _selection_from_request(
+        features, kinds, drivers, pairs, lap_from, lap_to,
+        windows, career_years, include_comparisons,
+    )
+    scope = {"year": year, "gp": gp, "session": session}
+
+    if not force_concurrent:
+        conflict = await run_in_threadpool(plot_inventory.find_conflicting_job, scope)
+        if conflict:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": "A backfill covering this scope is already running",
+                    "job_id": conflict["job_id"],
+                    "scope": conflict.get("scope"),
+                    "hint": "Pass force_concurrent=true to run anyway",
+                },
+            )
+
+    try:
+        job = plot_inventory.start_generation_job(
+            year=year,
+            identifier=gp,
+            session=session,
+            force=force,
+            include_comparisons=include_comparisons,
+            selection=selection,
+            concurrency=concurrency,
+        )
+        return job.as_dict()
+    except Exception as e:
+        logger.error(f"Error starting plot generation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to start plot generation")
+
+
+@router.get('/api/admin/plots/jobs', tags=["General"])
+@apply_tiered_limit("standard")
+async def admin_plots_jobs(
+    request: Request,
+    limit: int = Query(50, ge=1, le=500),
+    status: Optional[str] = Query(None, description="queued|running|completed|failed|cancelled"),
+    api_key: str = Depends(require_admin_key),
+):
+    """Durable job history, newest first (survives restarts and spans workers)."""
+    jobs = await run_in_threadpool(plot_inventory.list_jobs, limit, status)
+    return {"count": len(jobs), "jobs": jobs}
+
+
+@router.get('/api/admin/plots/jobs/{job_id}', tags=["General"])
+@apply_tiered_limit("standard")
+async def admin_plots_job_status(
+    request: Request,
+    job_id: str,
+    api_key: str = Depends(require_admin_key),
+):
+    """Status/progress of a single job, from memory or MongoDB."""
+    job = await run_in_threadpool(plot_inventory.get_job_dict, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
+@router.post('/api/admin/plots/jobs/{job_id}/cancel', tags=["General"])
+@apply_tiered_limit("standard")
+async def admin_plots_job_cancel(
+    request: Request,
+    job_id: str,
+    api_key: str = Depends(require_admin_key),
+):
+    """Request cancellation; the worker stops at its next progress flush."""
+    job = await run_in_threadpool(plot_inventory.get_job_dict, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    cancelled = await run_in_threadpool(plot_inventory.cancel_job, job_id)
+    if not cancelled:
+        raise HTTPException(status_code=409, detail=f"Job is already {job['status']}")
+    return {"job_id": job_id, "cancel_requested": True}
 
 
 # ============================================================================
