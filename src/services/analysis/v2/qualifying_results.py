@@ -9,7 +9,7 @@ from src.repositories.plots import store_data_dict_to_mongo, get_plot_data_from_
 from src.services.plotting.colors import get_team_color
 from src.ingestion.static_client import F1StaticClient
 from src.services.analysis.v2._helpers import (
-    format_lap_time, get_fastest_lap_windows, get_driver_team_from_list
+    format_lap_time, get_qualifying_classification, get_driver_team_from_list
 )
 
 
@@ -23,12 +23,11 @@ def _init(y: int, event_name: str, session_name: str):
 
 def _process_data(base_url: str, client: F1StaticClient) -> List[Dict]:
     driver_info = get_driver_team_from_list(base_url, client)
-    df = get_fastest_lap_windows(base_url, client)
+    df = get_qualifying_classification(base_url, client)
 
     if df.empty:
         return []
 
-    df = df.sort_values('LapTime').reset_index(drop=True)
     pole_time = df.iloc[0]['LapTime']
 
     results = []
@@ -38,7 +37,11 @@ def _process_data(base_url: str, client: F1StaticClient) -> List[Dict]:
         tla = info.get('tla', drv_num)
         team = info.get('team', 'Unknown')
         color = get_team_color(team)
-        delta = round(row['LapTime'] - pole_time, 3)
+        # Ordering comes from classification Position, delta from raw LapTime --
+        # a driver eliminated early on a fast banker lap can (rarely) have a
+        # quicker recorded LapTime than the actual pole-sitter. Clamp at zero
+        # rather than show a nonsensical negative gap.
+        delta = max(0.0, round(row['LapTime'] - pole_time, 3))
 
         results.append({
             'Driver': tla,

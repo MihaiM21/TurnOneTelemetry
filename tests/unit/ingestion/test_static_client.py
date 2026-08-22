@@ -78,6 +78,60 @@ def test_get_event_session_url_returns_none_for_unknown_event(client):
     assert client.get_event_session_url(2024, "Atlantis", "Race") is None
 
 
+# Livetiming index where pre-season testing occupies the first slot, shifting
+# positional round numbers out of sync with curated round numbers (2026-style).
+TESTING_OFFSET_INDEX = {
+    "Year": 2026,
+    "Meetings": [
+        {
+            "Key": 1000,
+            "Name": "Pre-Season Testing",
+            "Sessions": [
+                {"Name": "Practice 1", "Path": "2026/testing/2026-01-01_Practice_1/"},
+            ],
+        },
+        {
+            "Key": 1279,
+            "Name": "Australian Grand Prix",
+            "Sessions": [
+                {"Name": "Practice 1", "Path": "2026/aus/2026-03-06_Practice_1/"},
+                {"Name": "Qualifying", "Path": "2026/aus/2026-03-07_Qualifying/"},
+                {"Name": "Race", "Path": "2026/aus/2026-03-08_Race/"},
+            ],
+        },
+    ],
+}
+
+
+@responses.activate
+def test_positional_round_falls_back_to_name_on_offset(client):
+    # Curated round 1 (Australian GP) collides positionally with Pre-Season
+    # Testing; the URL must resolve to the real GP session, not testing.
+    responses.add(
+        responses.GET,
+        "https://livetiming.formula1.com/static/2026/Index.json",
+        json=TESTING_OFFSET_INDEX,
+        status=200,
+    )
+    url = client.get_event_session_url(2026, "Australian Grand Prix", "R", round_nr=1)
+    assert url is not None
+    assert "aus" in url and "Race" in url
+
+
+@responses.activate
+def test_positional_round_trusted_when_it_matches(client):
+    # When the positional meeting *does* match the requested event, use it.
+    responses.add(
+        responses.GET,
+        "https://livetiming.formula1.com/static/2026/Index.json",
+        json=TESTING_OFFSET_INDEX,
+        status=200,
+    )
+    url = client.get_event_session_url(2026, "Pre-Season Testing", "FP1", round_nr=1)
+    assert url is not None
+    assert "testing" in url
+
+
 @responses.activate
 def test_get_timing_data_url_appends_filename(client):
     responses.add(
@@ -142,3 +196,48 @@ def test_session_token_builder_emits_acronyms(client):
     tokens = client._build_session_tokens("Practice 1")
     assert "practice 1" in tokens
     assert "practice1" in tokens
+
+
+def test_qualifying_does_not_match_sprint_qualifying(client):
+    # "qualifying" is a literal substring of "sprint qualifying", but they are
+    # distinct sessions -- regression test for a bug where requests for
+    # "Qualifying" on a sprint weekend silently resolved to Sprint Qualifying's
+    # data instead (reported: 2026 Dutch GP quali results showing the sprint
+    # shootout's classification).
+    assert not client._session_matches("Qualifying", "Sprint Qualifying")
+    assert not client._session_matches("Q", "Sprint Qualifying")
+    assert client._session_matches("Sprint Qualifying", "Sprint Qualifying")
+    assert client._session_matches("SQ", "Sprint Qualifying")
+
+
+# Sprint weekend where "Sprint Qualifying" is listed before "Qualifying" --
+# the ordering under which the substring-matching bug picked the wrong session.
+SPRINT_WEEKEND_INDEX = {
+    "Year": 2026,
+    "Meetings": [
+        {
+            "Key": 1292,
+            "Name": "Dutch Grand Prix",
+            "Sessions": [
+                {"Name": "Practice 1", "Path": "2026/nl/2026-08-21_Practice_1/"},
+                {"Name": "Sprint Qualifying", "Path": "2026/nl/2026-08-21_Sprint_Qualifying/"},
+                {"Name": "Sprint", "Path": "2026/nl/2026-08-22_Sprint/"},
+                {"Name": "Qualifying", "Path": "2026/nl/2026-08-22_Qualifying/"},
+            ],
+        },
+    ],
+}
+
+
+@responses.activate
+def test_get_event_session_url_resolves_real_qualifying_on_sprint_weekend(client):
+    responses.add(
+        responses.GET,
+        "https://livetiming.formula1.com/static/2026/Index.json",
+        json=SPRINT_WEEKEND_INDEX,
+        status=200,
+    )
+    url = client.get_event_session_url(2026, "Dutch Grand Prix", "Qualifying", round_nr=1)
+    assert url is not None
+    assert "Sprint" not in url
+    assert "2026-08-22_Qualifying" in url
