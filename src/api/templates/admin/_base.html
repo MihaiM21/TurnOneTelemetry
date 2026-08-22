@@ -1,0 +1,47 @@
+{#
+  Shared shell for every admin page.
+
+  Before this existed each template carried its own near-identical copy of the
+  design tokens and component CSS, which had already drifted (--muted opacity,
+  .peakbars height, a missing tooltip z-index). Everything visual now lives in
+  /static/admin/admin.css; pages only supply content.
+
+  Blocks: title, header_extra, content, scripts.
+#}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<meta name="referrer" content="no-referrer">
+<title>{% block title %}T1API Admin{% endblock %}</title>
+<link rel="stylesheet" href="/static/admin/admin.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <h1>T1API Admin</h1>
+    <span class="ver">v{{ version }}</span>
+  </div>
+  <nav class="mainnav">
+    {% set current = active_page | default('') %}
+    <a href="/admin" class="{% if current == 'dashboard' %}active{% endif %}">Dashboard</a>
+    <a href="/admin/plots" class="{% if current == 'plots' %}active{% endif %}">Generate</a>
+    <a href="/admin/jobs" class="{% if current == 'jobs' %}active{% endif %}">Jobs</a>
+    <a href="/admin/data" class="{% if current == 'data' %}active{% endif %}">Data</a>
+    <a href="/admin/cache" class="{% if current == 'cache' %}active{% endif %}">Cache</a>
+    <a href="/admin/backups" class="{% if current == 'backups' %}active{% endif %}">Backups</a>
+    <a href="/admin/ops" class="{% if current == 'ops' %}active{% endif %}">Ops</a>
+    <a href="/admin/logout" class="logout">Logout</a>
+  </nav>
+</header>
+
+{% block header_extra %}{% endblock %}
+
+{% block content %}{% endblock %}
+
+<div id="toasts"></div>
+<script src="/static/admin/admin.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

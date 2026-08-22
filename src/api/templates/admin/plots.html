@@ -1,0 +1,605 @@
+{% extends "admin/_base.html" %}
+{% set active_page = 'plots' %}
+{% block title %}T1API Admin · Generate{% endblock %}
+
+{% block content %}
+<section>
+  <h2>Scope</h2>
+  <form class="filters" method="get" action="/admin/plots">
+    <div class="field">
+      <label for="year">Year</label>
+      <select id="year" name="year" onchange="this.form.submit()">
+        {% for y in years %}
+        <option value="{{ y }}" {% if scope.year == y %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="gp">Grand Prix</label>
+      <select id="gp" name="gp">
+        <option value="">All rounds</option>
+        {% for e in events %}
+        <option value="{{ e.name }}" {% if scope.gp == e.name %}selected{% endif %}>R{{ e.round_nr }} · {{ e.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="session">Session</label>
+      <select id="session" name="session">
+        <option value="">All</option>
+        {% for s in session_choices %}
+        <option value="{{ s }}" {% if scope.session == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="primary" type="submit">Apply</button>
+  </form>
+</section>
+
+<div class="grid">
+  <div class="stat"><div class="l">Sessions in scope</div><div class="v">{{ report.total_sessions }}</div></div>
+  <div class="stat"><div class="l">Expected (field-wide)</div><div class="v">{{ report.total_expected_plots }}</div></div>
+  <div class="stat">
+    <div class="l">Missing</div>
+    <div class="v {% if report.total_missing_plots > 0 %}bad{% else %}ok{% endif %}">{{ report.total_missing_plots }}</div>
+  </div>
+  <div class="stat">
+    <div class="l">Other stored keys</div>
+    <div class="v">{{ report.total_extra_plots }}</div>
+    <div class="sub">per-driver / pair / lap + legacy</div>
+  </div>
+</div>
+
+<section>
+  <div class="spread">
+    <h2 style="margin:0">What to generate</h2>
+    <div class="row small">
+      <a href="#" class="cellink" data-preset="missing">Missing only</a>
+      <a href="#" class="cellink" data-preset="field">Field-wide</a>
+      <a href="#" class="cellink" data-preset="drivers">+ Per driver</a>
+      <a href="#" class="cellink" data-preset="all">Everything (session)</a>
+      <a href="#" class="cellink" data-preset="none">Clear</a>
+    </div>
+  </div>
+
+  <div id="catalog"></div>
+
+  <div id="paramPanel" style="display:none">
+    <div class="featgroup">
+      <div class="head">
+        <span class="name">Drivers</span>
+        <span class="row small">
+          <a href="#" class="cellink" id="drvAll">All</a>
+          <a href="#" class="cellink" id="drvNone">None</a>
+          <span class="muted" id="drvHint">defaults to every driver in the session</span>
+        </span>
+      </div>
+      <div style="padding:10px">
+        <div class="pillbox" id="driverPills"><span class="muted small">Pick a single GP + session to load the driver list.</span></div>
+        <div class="row" style="margin-top:12px" id="lapRange">
+          <div class="field">
+            <label for="lapFrom">Lap from</label>
+            <input type="number" id="lapFrom" min="1" style="width:110px">
+          </div>
+          <div class="field">
+            <label for="lapTo">Lap to</label>
+            <input type="number" id="lapTo" min="1" style="width:110px">
+          </div>
+          <span class="muted small" id="lapHint">Required for per-lap telemetry.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:14px">
+    <label class="chk"><input type="checkbox" id="force"> force (regenerate existing)</label>
+    <div class="field">
+      <label for="concurrency">Parallel sessions</label>
+      <select id="concurrency" style="min-width:80px">
+        {% for c in [1, 2, 3, 4] %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="estimate" id="estimate">
+    <div class="spread">
+      <div>
+        <div class="l muted small" style="text-transform:uppercase;letter-spacing:.15em">Units this will run</div>
+        <div class="big" id="estCount">—</div>
+      </div>
+      <button class="ghost" type="button" id="refreshEst">Re-estimate</button>
+    </div>
+    <ul id="estBreakdown"></ul>
+    <div id="estWarnings"></div>
+  </div>
+
+  <div class="row" style="margin-top:14px">
+    <button class="primary" id="genBtn" disabled>Generate</button>
+    <button class="ghost" id="cancelBtn" style="display:none">Cancel job</button>
+    <span class="muted small" id="scopeLabel"></span>
+  </div>
+
+  <div class="progress-wrap" id="progress" style="display:none">
+    <div class="pbar"><div class="pfill" id="pfill"></div><div class="plabel" id="plabel">0%</div></div>
+    <div class="pmeta">
+      <div><span class="k">Status</span> <span class="pstatus" id="pstatus">—</span></div>
+      <div><span class="k">Progress</span> <span id="pcounts">0 / 0</span></div>
+      <div><span class="k">Result</span>
+        <span style="color:var(--good)">✓<span id="psucc">0</span></span>
+        <span style="color:var(--red)">✗<span id="pfail">0</span></span>
+        <span class="muted">⊘<span id="pskip">0</span></span>
+      </div>
+      <div><span class="k">Elapsed</span> <span id="pelapsed">—</span></div>
+      <div><span class="k">Rate</span> <span id="prate">—</span></div>
+      <div><span class="k">ETA</span> <span id="peta">—</span></div>
+    </div>
+    <div class="pcurrent" id="pcurrent"></div>
+    <div class="perrors" id="perrors" style="display:none"></div>
+    <div id="pdone" style="margin-top:12px;display:none">
+      <button class="ghost" type="button" onclick="location.reload()">Reload inventory</button>
+      <a class="cellink small" id="pjoblink" href="#" style="margin-left:12px">Open job detail</a>
+    </div>
+  </div>
+</section>
+
+{% if season %}
+<section>
+  <div class="spread">
+    <h2 style="margin:0">Season scope · {{ season.year }}</h2>
+    {% if season.is_current_season %}
+    <span class="muted small">Live season — the API serves these from Redis and refreshes weekly; generating here writes a durable copy.</span>
+    {% endif %}
+  </div>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Feature</th><th>Stored key</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for f in season.features %}
+      <tr>
+        <td>{{ f.label }}</td>
+        <td><code>{{ f.data_type }}</code></td>
+        <td>{% if f.present %}<span class="tag have">stored</span>{% else %}<span class="tag miss">missing</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
+{% if report.grand_prix %}
+  {% for gp in report.grand_prix %}
+  <section>
+    <div class="roundhdr">
+      <h3>{{ gp.event_name or "Round" }}</h3>
+      <span class="rn">{{ gp.year }} · Round {{ gp.round_nr }}</span>
+    </div>
+    <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th style="width:60px">Session</th><th style="width:150px">Complete</th><th>Field-wide coverage</th></tr>
+      </thead>
+      <tbody>
+        {% for s in gp.sessions %}
+        {% set exp = s.expected|length %}
+        {% set have = s.present|length %}
+        {% set pct = (have / exp * 100) if exp else 100 %}
+        <tr>
+          <td class="sess">{{ s.session_type }}</td>
+          <td>
+            <div class="bar-cell"><div class="fill {% if s.missing %}bad{% endif %}" style="width:{{ pct }}%"></div></div>
+            <div class="muted small" style="margin-top:4px">{{ have }}/{{ exp }}</div>
+          </td>
+          <td>
+            {% for m in s.missing %}<span class="tag miss" title="{{ m }}">{{ s.labels.get(m, m) }}</span>{% endfor %}
+            {% for p in s.present %}<span class="tag have" title="{{ p }}">{{ s.labels.get(p, p) }}</span>{% endfor %}
+            {% if not s.missing and not s.present %}<span class="muted">no plots apply</span>{% endif %}
+            {% if s.extra_groups %}
+              <div style="margin-top:8px" class="small muted">
+                Also stored:
+                {% for g in s.extra_groups %}
+                  <span class="tag info" title="{{ g.sample|join(', ') }}">{{ g.prefix }} ×{{ g.count }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </section>
+  {% endfor %}
+{% else %}
+  <section><div class="empty">No sessions found for this scope.</div></section>
+{% endif %}
+
+<section>
+  <div class="spread">
+    <h2 style="margin:0">Recent jobs</h2>
+    <a class="cellink small" href="/admin/jobs">All jobs &rarr;</a>
+  </div>
+  {% if jobs %}
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Job</th><th>Scope</th><th>Status</th><th>Progress</th><th>Started</th></tr></thead>
+    <tbody>
+      {% for j in jobs %}
+      <tr>
+        <td><a class="cellink" href="/admin/jobs/{{ j.job_id }}"><code>{{ j.job_id }}</code></a></td>
+        <td class="small muted">{{ j.scope.year }}{% if j.scope.gp %} · {{ j.scope.gp }}{% endif %}{% if j.scope.session %} · {{ j.scope.session }}{% endif %}</td>
+        <td><span class="pstatus {{ j.status }}" style="font-size:11px">{{ j.status }}</span></td>
+        <td class="small">{{ j.done }}/{{ j.total }} · ✓{{ j.success }} ✗{{ j.failed }} ⊘{{ j.skipped }}</td>
+        <td class="muted small nowrap">{{ j.started_at or j.created_at or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<p class="muted">No backfill jobs yet.</p>{% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* Values are emitted through |tojson so a scope string can never terminate the
+ * script literal — the old template interpolated them raw and relied on the
+ * server-side event-name check to stay safe. */
+const CSRF = {{ csrf_token | tojson }};
+const SCOPE = {
+  year: {{ scope.year | tojson }},
+  gp: {{ scope.gp | tojson }},
+  session: {{ scope.session | tojson }}
+};
+const CATALOG = {{ catalog | tojson }};
+const RUNNING_JOB = {{ running_job_id | tojson }};
+
+const selected = new Set();
+const selectedDrivers = new Set();
+let sessionDrivers = [];
+let pollTimer = null;
+let pollDelay = 800;
+let activeJob = null;
+let jobStartedAt = null;
+let estimateTimer = null;
+
+const $ = (id) => document.getElementById(id);
+
+/* A single GP + session is required before we can resolve a driver list, and
+ * per-lap work needs one session's lap count — a whole-season scope has neither. */
+const scopeIsSingleSession = () => Boolean(SCOPE.gp && SCOPE.session);
+
+/* ------------------------------------------------------------------ catalog */
+function renderCatalog() {
+  const groups = new Map();
+  CATALOG.forEach((f) => {
+    if (!groups.has(f.group)) groups.set(f.group, []);
+    groups.get(f.group).push(f);
+  });
+
+  const host = $("catalog");
+  host.innerHTML = "";
+  groups.forEach((features, group) => {
+    const box = document.createElement("div");
+    box.className = "featgroup";
+    box.innerHTML =
+      '<div class="head">' +
+      '<span class="name">' + group + '</span>' +
+      '<span class="row small">' +
+      '<a href="#" class="cellink" data-group-all>All</a>' +
+      '<a href="#" class="cellink" data-group-none>None</a>' +
+      '</span></div><div class="featlist"></div>';
+
+    const list = box.querySelector(".featlist");
+    features.forEach((f) => {
+      const label = document.createElement("label");
+      label.className = "feat";
+      label.innerHTML =
+        '<input type="checkbox" value="' + f.key + '">' +
+        '<span class="meta">' +
+        '<span class="lbl">' + f.label + ' <span class="cost ' + f.cost + '">' + f.cost + '</span></span>' +
+        '<span class="key">' + f.key + '</span></span>';
+      const box2 = label.querySelector("input");
+      box2.checked = selected.has(f.key);
+      box2.addEventListener("change", () => {
+        if (box2.checked) selected.add(f.key); else selected.delete(f.key);
+        onSelectionChanged();
+      });
+      list.appendChild(label);
+    });
+
+    box.querySelector("[data-group-all]").addEventListener("click", (ev) => {
+      ev.preventDefault();
+      features.forEach((f) => selected.add(f.key));
+      renderCatalog(); onSelectionChanged();
+    });
+    box.querySelector("[data-group-none]").addEventListener("click", (ev) => {
+      ev.preventDefault();
+      features.forEach((f) => selected.delete(f.key));
+      renderCatalog(); onSelectionChanged();
+    });
+    host.appendChild(box);
+  });
+}
+
+function selectedKinds() {
+  const kinds = new Set();
+  CATALOG.forEach((f) => { if (selected.has(f.key)) kinds.add(f.kind); });
+  return kinds;
+}
+
+function onSelectionChanged() {
+  const kinds = selectedKinds();
+  const needsDrivers = kinds.has("per_driver") || kinds.has("per_pair") || kinds.has("per_driver_lap");
+  $("paramPanel").style.display = needsDrivers ? "block" : "none";
+  $("lapRange").style.display = kinds.has("per_driver_lap") ? "flex" : "none";
+  $("genBtn").disabled = selected.size === 0;
+
+  if (needsDrivers && !sessionDrivers.length) loadDrivers();
+  scheduleEstimate();
+}
+
+/* --------------------------------------------------------------- driver list */
+async function loadDrivers() {
+  if (!scopeIsSingleSession()) {
+    $("driverPills").innerHTML =
+      '<span class="muted small">Pick a single GP + session to choose drivers. ' +
+      'Without a selection every driver in each session is used.</span>';
+    return;
+  }
+  $("driverPills").innerHTML = '<span class="muted small">Loading drivers…</span>';
+  try {
+    const url = "/admin/plots/drivers?year=" + encodeURIComponent(SCOPE.year) +
+      "&gp=" + encodeURIComponent(SCOPE.gp) + "&session=" + encodeURIComponent(SCOPE.session) +
+      "&include_laps=" + (selectedKinds().has("per_driver_lap") ? "true" : "false");
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    const data = await response.json();
+    sessionDrivers = data.drivers || [];
+    renderDriverPills();
+    if (data.lap_range) {
+      $("lapFrom").placeholder = data.lap_range.min;
+      $("lapTo").placeholder = data.lap_range.max;
+      $("lapHint").textContent = "Session laps " + data.lap_range.min + "–" + data.lap_range.max + ".";
+    }
+  } catch (err) {
+    $("driverPills").innerHTML = '<span class="muted small">Could not load drivers: ' + err.message + '</span>';
+  }
+}
+
+function renderDriverPills() {
+  const host = $("driverPills");
+  host.innerHTML = "";
+  if (!sessionDrivers.length) {
+    host.innerHTML = '<span class="muted small">No drivers resolved for this session.</span>';
+    return;
+  }
+  sessionDrivers.forEach((tla) => {
+    const pill = document.createElement("span");
+    pill.className = "pill" + (selectedDrivers.has(tla) ? " on" : "");
+    pill.textContent = tla;
+    pill.addEventListener("click", () => {
+      if (selectedDrivers.has(tla)) selectedDrivers.delete(tla); else selectedDrivers.add(tla);
+      renderDriverPills();
+      scheduleEstimate();
+    });
+    host.appendChild(pill);
+  });
+  $("drvHint").textContent = selectedDrivers.size
+    ? selectedDrivers.size + " selected"
+    : "defaults to every driver in the session";
+}
+
+/* ------------------------------------------------------------------ estimate */
+function selectionParams() {
+  const params = new URLSearchParams();
+  if (SCOPE.year != null) params.append("year", SCOPE.year);
+  if (SCOPE.gp) params.append("gp", SCOPE.gp);
+  if (SCOPE.session) params.append("session", SCOPE.session);
+  selected.forEach((key) => params.append("features", key));
+  selectedDrivers.forEach((tla) => params.append("drivers", tla));
+  if ($("lapFrom").value) params.append("lap_from", $("lapFrom").value);
+  if ($("lapTo").value) params.append("lap_to", $("lapTo").value);
+  return params;
+}
+
+function scheduleEstimate() {
+  clearTimeout(estimateTimer);
+  estimateTimer = setTimeout(runEstimate, 350);
+}
+
+async function runEstimate() {
+  if (!selected.size) {
+    $("estCount").textContent = "—";
+    $("estCount").className = "big";
+    $("estBreakdown").innerHTML = "";
+    $("estWarnings").innerHTML = "";
+    return;
+  }
+  $("estCount").textContent = "…";
+  try {
+    const data = await T1.postJSON("/admin/plots/estimate", selectionParams());
+    const count = data.units || 0;
+    $("estCount").textContent = count.toLocaleString();
+    $("estCount").className = "big" + (count > 5000 ? " bad" : count > 500 ? " warn" : "");
+
+    $("estBreakdown").innerHTML = (data.by_feature || [])
+      .map((row) => '<li><span>' + row.label + '</span><span class="n">' +
+        row.units.toLocaleString() + '</span></li>').join("");
+
+    $("estWarnings").innerHTML = (data.warnings || [])
+      .map((w) => '<div class="warnbox">' + w + '</div>').join("");
+  } catch (err) {
+    $("estCount").textContent = "—";
+    $("estWarnings").innerHTML = '<div class="errbox">Estimate failed: ' + err.message + '</div>';
+  }
+}
+
+/* ------------------------------------------------------------------ generate */
+async function startGen() {
+  $("genBtn").disabled = true;
+  $("progress").style.display = "block";
+  $("pdone").style.display = "none";
+  $("perrors").style.display = "none";
+  $("perrors").textContent = "";
+
+  const params = selectionParams();
+  params.append("force", $("force").checked ? "true" : "false");
+  params.append("concurrency", $("concurrency").value);
+  params.append("csrf_token", CSRF);
+
+  try {
+    const job = await T1.postJSON("/admin/plots/generate", params);
+    attach(job.job_id);
+    T1.toast("Job " + job.job_id + " started", "ok");
+  } catch (err) {
+    setStatus("failed");
+    $("pcurrent").textContent = "Failed to start: " + err.message;
+    T1.toast(err.message, "err");
+    $("genBtn").disabled = false;
+  }
+}
+
+/* Re-attaching on load is what makes a page refresh survivable — previously a
+ * reload orphaned the running job with no way back to its progress. */
+function attach(jobId) {
+  activeJob = jobId;
+  jobStartedAt = null;
+  pollDelay = 800;
+  $("progress").style.display = "block";
+  $("cancelBtn").style.display = "inline-block";
+  $("pjoblink").href = "/admin/jobs/" + jobId;
+  poll();
+}
+
+async function poll() {
+  clearTimeout(pollTimer);
+  if (!activeJob) return;
+  try {
+    const response = await fetch("/admin/plots/jobs/" + activeJob + "/status");
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    const job = await response.json();
+    render(job);
+
+    if (["completed", "failed", "cancelled"].indexOf(job.status) >= 0) {
+      $("genBtn").disabled = selected.size === 0;
+      $("cancelBtn").style.display = "none";
+      $("pdone").style.display = "block";
+      T1.toast("Job " + job.status + " — " + job.success + " generated, " + job.failed + " failed",
+               job.status === "completed" ? "ok" : "err");
+      activeJob = null;
+      return;
+    }
+    /* Back off while a long job grinds: a 1s fixed interval meant hundreds of
+     * pointless requests over a multi-hour backfill. */
+    pollDelay = Math.min(pollDelay * 1.25, 5000);
+    pollTimer = setTimeout(poll, pollDelay);
+  } catch (err) {
+    $("pcurrent").textContent = "Poll error: " + err.message + " (retrying)";
+    pollTimer = setTimeout(poll, 5000);
+  }
+}
+
+function setStatus(status) {
+  const el = $("pstatus");
+  el.textContent = status;
+  el.className = "pstatus " + status;
+}
+
+function render(job) {
+  const total = job.total || 0;
+  const pct = total ? Math.round((job.done / total) * 100)
+                    : (job.status === "completed" ? 100 : 0);
+  $("pfill").style.width = pct + "%";
+  $("plabel").textContent = pct + "%";
+  setStatus(job.status);
+  $("pcounts").textContent = job.done + " / " + total;
+  $("psucc").textContent = job.success;
+  $("pfail").textContent = job.failed;
+  $("pskip").textContent = job.skipped;
+  $("pcurrent").textContent = job.current ? "Generating: " + job.current : "";
+
+  if (!jobStartedAt && job.started_at) jobStartedAt = new Date(job.started_at).getTime();
+  if (jobStartedAt) {
+    const elapsed = (Date.now() - jobStartedAt) / 1000;
+    $("pelapsed").textContent = T1.humanDuration(elapsed);
+    const rate = job.done / Math.max(elapsed, 1);
+    $("prate").textContent = rate > 0 ? (rate * 60).toFixed(1) + " /min" : "—";
+    const remaining = total - job.done;
+    $("peta").textContent = (rate > 0 && remaining > 0)
+      ? T1.humanDuration(remaining / rate)
+      : (job.status === "running" ? "—" : "done");
+  }
+
+  if (job.errors && job.errors.length) {
+    const box = $("perrors");
+    box.style.display = "block";
+    box.textContent = job.errors.join("\n");
+  }
+}
+
+async function cancelJob() {
+  if (!activeJob) return;
+  if (!window.confirm("Cancel this job? Work already generated is kept.")) return;
+  try {
+    await T1.postJSON("/admin/plots/jobs/" + activeJob + "/cancel",
+                      new URLSearchParams({ csrf_token: CSRF }));
+    T1.toast("Cancellation requested", "info");
+  } catch (err) {
+    T1.toast(err.message, "err");
+  }
+}
+
+/* ------------------------------------------------------------------- presets */
+const PRESETS = {
+  missing: (f) => f.kind === "singleton",
+  field: (f) => f.kind === "singleton",
+  drivers: (f) => f.kind === "singleton" || f.kind === "per_driver",
+  all: (f) => f.kind !== "season" && f.kind !== "career",
+  none: () => false,
+};
+
+document.addEventListener("DOMContentLoaded", () => {
+  renderCatalog();
+  $("scopeLabel").textContent = "Scope: " + (SCOPE.year || "—") +
+    (SCOPE.gp ? " · " + SCOPE.gp : " · all rounds") +
+    (SCOPE.session ? " · " + SCOPE.session : " · all sessions");
+
+  document.querySelectorAll("[data-preset]").forEach((link) => {
+    link.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      const match = PRESETS[link.dataset.preset];
+      selected.clear();
+      CATALOG.forEach((f) => { if (match(f)) selected.add(f.key); });
+      renderCatalog();
+      onSelectionChanged();
+    });
+  });
+
+  $("drvAll").addEventListener("click", (ev) => {
+    ev.preventDefault();
+    sessionDrivers.forEach((tla) => selectedDrivers.add(tla));
+    renderDriverPills(); scheduleEstimate();
+  });
+  $("drvNone").addEventListener("click", (ev) => {
+    ev.preventDefault();
+    selectedDrivers.clear(); renderDriverPills(); scheduleEstimate();
+  });
+
+  $("genBtn").addEventListener("click", startGen);
+  $("cancelBtn").addEventListener("click", cancelJob);
+  $("refreshEst").addEventListener("click", runEstimate);
+  ["lapFrom", "lapTo"].forEach((id) => $(id).addEventListener("change", scheduleEstimate));
+
+  // Default to the missing-singletons preset so the page is useful immediately.
+  CATALOG.forEach((f) => { if (f.kind === "singleton") selected.add(f.key); });
+  renderCatalog();
+  onSelectionChanged();
+
+  if (RUNNING_JOB) {
+    attach(RUNNING_JOB);
+    T1.toast("Re-attached to running job " + RUNNING_JOB, "info");
+  }
+});
+</script>
+{% endblock %}
