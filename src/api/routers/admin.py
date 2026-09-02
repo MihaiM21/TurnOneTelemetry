@@ -3,9 +3,8 @@ from fastapi.concurrency import run_in_threadpool
 from pymongo import MongoClient
 from urllib.parse import quote_plus
 from typing import Dict, Any, Optional, List
+import hmac
 import re
-
-from fastapi.concurrency import run_in_threadpool
 
 from src.api.admin_security import (
     NO_INDEX_HEADERS,
@@ -38,17 +37,28 @@ def _admin_api_gate(request: Request, response: Response) -> None:
 router = APIRouter(dependencies=[Depends(_admin_api_gate)])
 
 
+def _in_constant_time(candidate: str, allowed: List[str]) -> bool:
+    """Membership test that does not short-circuit on the first differing byte."""
+    found = False
+    for k in allowed:
+        if hmac.compare_digest(candidate, k):
+            found = True  # keep iterating; do not early-return
+    return found
+
+
 async def require_admin_key(api_key: str = Depends(verify_api_key)) -> str:
     """Admin gate.
 
-    Env keys are operator-level (treated as admin). A user-generated key
-    is allowed only if it belongs to a user whose ``is_admin`` is true.
+    A key is admin if and only if:
+    1. it appears in the operator-provisioned ``ADMIN_API_KEYS`` list, or
+    2. it is a database-issued key whose owner has ``is_admin`` set, or
+    3. ``ADMIN_ALLOW_LEGACY_ENV_KEYS`` is enabled and the key is one of the
+       legacy consumer/website env keys (``ALLOWED_API_KEYS`` /
+       ``PREMIUM_API_KEYS``) — a transitional escape hatch only.
     """
-    # Env keys always pass.
-    if api_key in settings.allowed_api_keys_list or api_key in settings.premium_api_keys_list:
-        return api_key
-    # Dev bypass keeps working.
-    if api_key == "dev-key" and settings.environment == "development":
+    # Operator keys always pass. Constant-time to avoid leaking key material
+    # via timing on the membership check.
+    if _in_constant_time(api_key, settings.admin_api_keys_list):
         return api_key
 
     def _is_admin_db_key() -> bool:
@@ -60,6 +70,23 @@ async def require_admin_key(api_key: str = Depends(verify_api_key)) -> str:
 
     if await run_in_threadpool(_is_admin_db_key):
         return api_key
+
+    # Transitional escape hatch: every consumer/website env key is admin.
+    if settings.admin_allow_legacy_env_keys and (
+        _in_constant_time(api_key, settings.allowed_api_keys_list)
+        or _in_constant_time(api_key, settings.premium_api_keys_list)
+    ):
+        logger.warning(
+            "Admin access granted via legacy consumer key because "
+            "ADMIN_ALLOW_LEGACY_ENV_KEYS is enabled. Provision ADMIN_API_KEYS "
+            "and disable this setting."
+        )
+        return api_key
+
+    # Dev bypass keeps working, but only when explicitly opted into.
+    if api_key == "dev-key" and settings.allow_insecure_dev_auth:
+        return api_key
+
     raise HTTPException(status_code=403, detail="Admin privileges required")
 
 SUPPORTED_MONGO_VERSIONS = {"v1", "v2"}
@@ -280,7 +307,7 @@ def _query_mongodb_overview(version: str) -> Dict[str, Any]:
 # ADMIN & UTILITY ENDPOINTS
 # ============================================================================
 
-@router.post('/api/admin/populate-sessions', tags=["General"])
+@router.post('/api/admin/populate-sessions', tags=["Admin"])
 @apply_tiered_limit("standard")
 async def admin_populate_sessions(request: Request, api_key: str = Depends(require_admin_key)):
     """
@@ -295,7 +322,7 @@ async def admin_populate_sessions(request: Request, api_key: str = Depends(requi
         logger.error(f"Error populating sessions: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to populate sessions")
 
-@router.post('/api/admin/process-latest', tags=["General"])
+@router.post('/api/admin/process-latest', tags=["Admin"])
 @apply_tiered_limit("standard")
 async def admin_process_latest(request: Request, api_key: str = Depends(require_admin_key)):
     """
@@ -311,7 +338,7 @@ async def admin_process_latest(request: Request, api_key: str = Depends(require_
         logger.error(f"Error in manual processing: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to process latest session")
 
-@router.get('/api/admin/processor-status', tags=["General"])
+@router.get('/api/admin/processor-status', tags=["Admin"])
 @apply_tiered_limit("standard")
 async def admin_processor_status(request: Request, api_key: str = Depends(require_admin_key)):
     """
@@ -332,7 +359,7 @@ async def admin_processor_status(request: Request, api_key: str = Depends(requir
         raise HTTPException(status_code=500, detail="Failed to get processor status")
 
 
-@router.get('/api/admin/mongodb/overview', tags=["General"])
+@router.get('/api/admin/mongodb/overview', tags=["Admin"])
 @apply_tiered_limit("standard")
 async def admin_mongodb_overview(
     request: Request,
@@ -354,7 +381,7 @@ async def admin_mongodb_overview(
         raise HTTPException(status_code=500, detail="Failed to fetch MongoDB overview")
 
 
-@router.get('/api/admin/mongodb/sessions-with-data', tags=["General"])
+@router.get('/api/admin/mongodb/sessions-with-data', tags=["Admin"])
 @apply_tiered_limit("standard")
 async def admin_mongodb_sessions_with_data(
     request: Request,
@@ -396,7 +423,7 @@ async def admin_mongodb_sessions_with_data(
 # PLOT INVENTORY & BACKFILL (V2)
 # ============================================================================
 
-@router.get('/api/admin/plots/missing', tags=["General"])
+@router.get('/api/admin/plots/missing', tags=["Admin"])
 @apply_tiered_limit("standard")
 async def admin_plots_missing(
     request: Request,
@@ -418,7 +445,7 @@ async def admin_plots_missing(
         raise HTTPException(status_code=500, detail="Failed to compute missing plots")
 
 
-@router.get('/api/admin/plots/catalog', tags=["General"])
+@router.get('/api/admin/plots/catalog', tags=["Admin"])
 @apply_tiered_limit("standard")
 async def admin_plots_catalog(
     request: Request,
@@ -440,7 +467,7 @@ async def admin_plots_catalog(
     }
 
 
-@router.get('/api/admin/plots/season', tags=["General"])
+@router.get('/api/admin/plots/season', tags=["Admin"])
 @apply_tiered_limit("standard")
 async def admin_plots_season(
     request: Request,
@@ -451,7 +478,7 @@ async def admin_plots_season(
     return await run_in_threadpool(plot_inventory.season_inventory, year)
 
 
-@router.get('/api/admin/sessions/{year}/{gp}/{session}/drivers', tags=["General"])
+@router.get('/api/admin/sessions/{year}/{gp}/{session}/drivers', tags=["Admin"])
 @apply_tiered_limit("standard")
 async def admin_session_drivers(
     request: Request,
@@ -518,7 +545,7 @@ def _selection_from_request(
     )
 
 
-@router.post('/api/admin/plots/estimate', tags=["General"])
+@router.post('/api/admin/plots/estimate', tags=["Admin"])
 @apply_tiered_limit("standard")
 async def admin_plots_estimate(
     request: Request,
@@ -556,7 +583,7 @@ async def admin_plots_estimate(
         raise HTTPException(status_code=500, detail="Failed to estimate plot generation")
 
 
-@router.post('/api/admin/plots/generate', tags=["General"])
+@router.post('/api/admin/plots/generate', tags=["Admin"])
 @apply_tiered_limit("standard")
 async def admin_plots_generate(
     request: Request,
@@ -621,7 +648,7 @@ async def admin_plots_generate(
         raise HTTPException(status_code=500, detail="Failed to start plot generation")
 
 
-@router.get('/api/admin/plots/jobs', tags=["General"])
+@router.get('/api/admin/plots/jobs', tags=["Admin"])
 @apply_tiered_limit("standard")
 async def admin_plots_jobs(
     request: Request,
@@ -634,7 +661,7 @@ async def admin_plots_jobs(
     return {"count": len(jobs), "jobs": jobs}
 
 
-@router.get('/api/admin/plots/jobs/{job_id}', tags=["General"])
+@router.get('/api/admin/plots/jobs/{job_id}', tags=["Admin"])
 @apply_tiered_limit("standard")
 async def admin_plots_job_status(
     request: Request,
@@ -648,7 +675,7 @@ async def admin_plots_job_status(
     return job
 
 
-@router.post('/api/admin/plots/jobs/{job_id}/cancel', tags=["General"])
+@router.post('/api/admin/plots/jobs/{job_id}/cancel', tags=["Admin"])
 @apply_tiered_limit("standard")
 async def admin_plots_job_cancel(
     request: Request,
@@ -669,7 +696,7 @@ async def admin_plots_job_cancel(
 # USER / API-KEY MANAGEMENT
 # ============================================================================
 
-@router.get('/api/admin/users', tags=["General"])
+@router.get('/api/admin/users', tags=["Admin"])
 @apply_tiered_limit("standard")
 async def admin_list_users(
     request: Request,
@@ -681,7 +708,7 @@ async def admin_list_users(
     return {"count": len(users), "users": users}
 
 
-@router.get('/api/admin/keys', tags=["General"])
+@router.get('/api/admin/keys', tags=["Admin"])
 @apply_tiered_limit("standard")
 async def admin_list_keys(
     request: Request,
@@ -693,7 +720,7 @@ async def admin_list_keys(
     return {"count": len(keys), "keys": keys}
 
 
-@router.get('/api/admin/keys/verify', tags=["General"])
+@router.get('/api/admin/keys/verify', tags=["Admin"])
 @apply_tiered_limit("standard")
 async def admin_verify_key(
     request: Request,
@@ -746,7 +773,7 @@ async def admin_verify_key(
     }
 
 
-@router.post('/api/admin/keys/{key_id}/revoke', tags=["General"])
+@router.post('/api/admin/keys/{key_id}/revoke', tags=["Admin"])
 @apply_tiered_limit("standard")
 async def admin_revoke_key(
     request: Request,
@@ -762,7 +789,7 @@ async def admin_revoke_key(
     return {"id": key_id, "revoked": bool(revoked)}
 
 
-@router.get('/api/admin/usage/top', tags=["General"])
+@router.get('/api/admin/usage/top', tags=["Admin"])
 @apply_tiered_limit("standard")
 async def admin_usage_top(
     request: Request,
@@ -785,7 +812,7 @@ async def admin_usage_top(
     return {"window_hours": hours, "count": len(enriched), "rows": enriched}
 
 
-@router.get('/api/admin/usage/keys/{key_id}', tags=["General"])
+@router.get('/api/admin/usage/keys/{key_id}', tags=["Admin"])
 @apply_tiered_limit("standard")
 async def admin_usage_for_key(
     request: Request,
@@ -807,7 +834,7 @@ async def admin_usage_for_key(
     }
 
 
-@router.get('/api/admin/dashboard', tags=["General"])
+@router.get('/api/admin/dashboard', tags=["Admin"])
 @apply_tiered_limit("standard")
 async def admin_dashboard(
     request: Request,
@@ -839,7 +866,7 @@ async def admin_dashboard(
     }
 
 
-@router.get('/api/admin/peak-hours', tags=["General"])
+@router.get('/api/admin/peak-hours', tags=["Admin"])
 @apply_tiered_limit("standard")
 async def admin_peak_hours(
     request: Request,
@@ -852,7 +879,7 @@ async def admin_peak_hours(
     return {"days": days, "peak_hour_utc": peak, "by_hour": series}
 
 
-@router.get('/api/admin/quota-usage', tags=["General"])
+@router.get('/api/admin/quota-usage', tags=["Admin"])
 @apply_tiered_limit("standard")
 async def admin_quota_usage(
     request: Request,
@@ -890,7 +917,7 @@ async def admin_quota_usage(
     return {"count": len(rows), "rows": rows}
 
 
-@router.get('/api/admin/users/{user_id}/usage', tags=["General"])
+@router.get('/api/admin/users/{user_id}/usage', tags=["Admin"])
 @apply_tiered_limit("standard")
 async def admin_user_usage(
     request: Request,
@@ -939,7 +966,7 @@ async def admin_user_usage(
     }
 
 
-@router.get('/api/admin/keys/{key_id}/analytics', tags=["General"])
+@router.get('/api/admin/keys/{key_id}/analytics', tags=["Admin"])
 @apply_tiered_limit("standard")
 async def admin_key_analytics(
     request: Request,
@@ -985,7 +1012,7 @@ async def admin_key_analytics(
     }
 
 
-@router.get('/api/admin/performance', tags=["General"])
+@router.get('/api/admin/performance', tags=["Admin"])
 @apply_tiered_limit("standard")
 async def admin_performance(
     request: Request,

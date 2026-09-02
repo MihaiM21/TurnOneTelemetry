@@ -17,13 +17,14 @@ from src.workers import plot_inventory
 def admin_client(client, monkeypatch):
     """A TestClient carrying a valid admin session cookie.
 
-    The cookie value is derived from the JWT/API secret (see
-    ``admin_ui._expected_token``), and the IP allowlist is bypassed because the
-    TestClient's synthetic client host is not in any configured allowlist.
+    The cookie is a freshly minted, signed session token (see
+    ``admin_security.create_session_token``), and the IP allowlist is
+    bypassed because the TestClient's synthetic client host is not in any
+    configured allowlist.
     """
     monkeypatch.setattr(admin_security, "enforce_ip_allowlist", lambda request: None)
     monkeypatch.setattr(admin_ui, "enforce_ip_allowlist", lambda request: None)
-    client.cookies.set(admin_ui._COOKIE, admin_ui._expected_token())
+    client.cookies.set(admin_ui._COOKIE, admin_security.create_session_token())
     return client
 
 
@@ -151,10 +152,18 @@ def test_estimate_endpoint_returns_a_breakdown(admin_client, monkeypatch, csrf):
     )
     response = admin_client.post(
         "/admin/plots/estimate",
-        data={"year": 2025, "session": "R", "features": ["driver_pace"]},
+        data={"year": 2025, "session": "R", "features": ["driver_pace"], "csrf_token": csrf},
     )
     assert response.status_code == 200
     assert response.json()["units"] == 42
+
+
+def test_estimate_requires_a_valid_csrf_token(admin_client):
+    response = admin_client.post(
+        "/admin/plots/estimate",
+        data={"year": 2025, "session": "R", "csrf_token": "forged"},
+    )
+    assert response.status_code in (400, 403)
 
 
 def test_generate_requires_a_valid_csrf_token(admin_client):

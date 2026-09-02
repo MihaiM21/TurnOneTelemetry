@@ -1041,7 +1041,7 @@ async def track_evolution_data_v2(
         raise
 
 
-@router.get('/theoretical-best-plot', tags=["API v2", "Qualifying Analysis"])
+@router.get('/theoretical-best-plot', tags=["API v2", "Qualifying"])
 @apply_tiered_limit("standard")
 async def theoretical_best_plot_v2(
     request: Request,
@@ -1062,7 +1062,7 @@ async def theoretical_best_plot_v2(
         raise HTTPException(status_code=404, detail="Plot not found")
 
 
-@router.get('/theoretical-best-data', tags=["API v2", "Qualifying Analysis"])
+@router.get('/theoretical-best-data', tags=["API v2", "Qualifying"])
 @apply_tiered_limit("data")
 async def theoretical_best_data_v2(
     request: Request,

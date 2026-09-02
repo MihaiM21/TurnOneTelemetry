@@ -21,13 +21,14 @@ from fastapi.templating import Jinja2Templates
 from src.api.admin_security import (
     apply_no_index,
     check_login_allowed,
-    compare_cookie,
+    create_session_token,
     csrf_token_for,
     enforce_ip_allowlist,
     enforce_ui_rate_limit,
     record_login_failure,
     record_login_success,
     verify_csrf,
+    verify_session_token,
 )
 from src.core.config import settings
 from src.core.logging import get_logger
@@ -63,16 +64,7 @@ _COOKIE = "t1api_admin_session"
 
 
 def _is_admin_session(request: Request) -> bool:
-    return compare_cookie(request.cookies.get(_COOKIE, ""), _expected_token())
-
-
-def _expected_token() -> str:
-    # Derive a stable per-process token from the JWT secret. This is fine for
-    # a small operator-only dashboard; rotating the secret invalidates it.
-    import hashlib
-
-    secret = settings.jwt_secret_key or settings.api_secret_key or "dev"
-    return hashlib.sha256(f"admin-ui::{secret}".encode()).hexdigest()
+    return verify_session_token(request.cookies.get(_COOKIE))
 
 
 def _check_credentials(username: str, password: str) -> bool:
@@ -98,10 +90,6 @@ def _render(request: Request, template: str, context: dict) -> HTMLResponse:
     return apply_no_index(resp)
 
 
-def _is_prod_cookie() -> bool:
-    return (settings.environment or "").lower() == "production"
-
-
 def _set_session_cookie(resp, token: str) -> None:
     resp.set_cookie(
         _COOKIE,
@@ -109,7 +97,7 @@ def _set_session_cookie(resp, token: str) -> None:
         max_age=8 * 3600,
         httponly=True,
         samesite="strict",
-        secure=_is_prod_cookie(),
+        secure=settings.is_production,
         path="/",
     )
 
@@ -136,8 +124,9 @@ async def admin_login_submit(
         resp = RedirectResponse("/admin/login?error=true", status_code=302)
         return apply_no_index(resp)
     record_login_success(request)
+    token = create_session_token()
     resp = RedirectResponse("/admin", status_code=302)
-    _set_session_cookie(resp, _expected_token())
+    _set_session_cookie(resp, token)
     return apply_no_index(resp)
 
 
@@ -492,10 +481,12 @@ async def admin_plots_estimate(
     drivers: List[str] = Form([]),
     lap_from: Optional[int] = Form(None),
     lap_to: Optional[int] = Form(None),
+    csrf_token: str = Form(...),
 ):
     """Cost a selection without generating anything, for the live estimate panel."""
     if not _is_admin_session(request):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    verify_csrf(request, csrf_token)
 
     summary = await run_in_threadpool(
         plot_inventory.estimate_plan,

@@ -26,7 +26,7 @@ def _gate(request: Request) -> None:
     enforce_ui_rate_limit(request)
 
 
-router = APIRouter(prefix="/api/admin/backup", tags=["General"], dependencies=[Depends(_gate)])
+router = APIRouter(prefix="/api/admin/backup", tags=["Admin"], dependencies=[Depends(_gate)])
 
 
 def _require_enabled() -> None:

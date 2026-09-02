@@ -15,7 +15,7 @@ matplotlib.use("Agg")  # Must precede any import that could pull in pyplot.
 
 import asyncio  # noqa: E402
 from contextlib import asynccontextmanager  # noqa: E402
-from datetime import datetime  # noqa: E402
+from datetime import datetime, timezone  # noqa: E402
 from pathlib import Path  # noqa: E402
 
 from fastapi import FastAPI, HTTPException, Request, status  # noqa: E402
@@ -28,7 +28,7 @@ from slowapi.errors import RateLimitExceeded  # noqa: E402
 
 from src.api.docs_auth import setup_docs_auth  # noqa: E402
 from src.api.schemas.health import HealthCheckResponse  # noqa: E402
-from src.core.config import settings  # noqa: E402
+from src.core.config import check_production_safety, settings  # noqa: E402
 from src.core.exceptions import (  # noqa: E402
     DataNotAvailableError,
     SessionNotFoundError,
@@ -52,6 +52,15 @@ from src.workers.circuits_sync import (  # noqa: E402
     start_circuits_sync,
     stop_circuits_sync,
 )
+
+
+def _now_iso() -> str:
+    """Timezone-aware UTC timestamp for error envelopes.
+
+    ``datetime.utcnow()`` is deprecated from 3.12 and produced a *naive*
+    timestamp with no offset, which clients could not interpret unambiguously.
+    """
+    return datetime.now(timezone.utc).isoformat()
 
 
 SWAGGER_UI_PARAMETERS = {
@@ -90,15 +99,109 @@ All endpoints support both plot (PNG) and data (JSON) responses.
 """
 
 TAGS_METADATA = [
-    {"name": "General", "description": "System health, welcome messages, and daily summaries"},
-    {"name": "Monitoring", "description": "Observability, metrics, request tracing, and system monitoring"},
-    {"name": "API v1", "description": "Version 1 API endpoints - Analysis and seasonal data"},
-    {"name": "API v2", "description": "Version 2 API endpoints - Analysis and seasonal data"},
-    {"name": "Latest Session", "description": "Aggregated data for the main frontend dashboard"},
-    {"name": "Seasonal Data", "description": "Season-specific data including drivers, teams, and race schedules"},
-    {"name": "Simple Analysis", "description": "Analysis focused on general session stats or single driver metrics"},
-    {"name": "Driver Comparison", "description": "Head-to-head driver comparisons"},
-    {"name": "Static", "description": "Static data endpoints for drivers, teams, and race schedules"},
+    # Order here is the order Swagger renders the groups, so the surface reads
+    # top-down: what the API is, then the data, then operations, then the
+    # deprecated tail. Every tag a router actually uses must appear here --
+    # undeclared tags render without a description and in arbitrary order.
+    {
+        "name": "General",
+        "description": "Service metadata: welcome payload and health checks.",
+    },
+    {
+        "name": "Latest Session",
+        "description": (
+            "Aggregated payload for the most recently completed session. "
+            "Powers the main dashboard. Unlike the rest of v2 this response is "
+            "**not** immutable -- it changes as a race weekend progresses."
+        ),
+    },
+    {
+        "name": "Simple Analysis",
+        "description": (
+            "Single-session, whole-field metrics: top speeds, throttle traces "
+            "and speed distributions."
+        ),
+    },
+    {
+        "name": "Qualifying",
+        "description": "Qualifying results, lap-time analysis and track comparison.",
+    },
+    {
+        "name": "Pace Analysis",
+        "description": "Driver and constructor race-pace comparisons.",
+    },
+    {
+        "name": "Race Analysis",
+        "description": (
+            "Race-only features: position changes, gaps, tyre degradation, pit "
+            "strategy, weather and race story."
+        ),
+    },
+    {
+        "name": "Telemetry",
+        "description": (
+            "Per-lap and per-corner telemetry: track maps, corner duels, "
+            "driver radars and full lap data."
+        ),
+    },
+    {
+        "name": "Driver Comparison",
+        "description": "Head-to-head comparisons between two drivers.",
+    },
+    {
+        "name": "Seasonal Data",
+        "description": (
+            "Season-scoped data: event schedules, sessions, teammate battles "
+            "and form guides."
+        ),
+    },
+    {
+        "name": "Static",
+        "description": (
+            "Reference data that changes rarely: drivers, teams and circuits."
+        ),
+    },
+    {
+        "name": "Auth",
+        "description": (
+            "Account signup/login and self-service API key management. "
+            "These endpoints use a JWT bearer token, not an API key."
+        ),
+    },
+    {
+        "name": "Monitoring",
+        "description": (
+            "Observability: metrics, request tracing and system health. "
+            "Operator-only."
+        ),
+    },
+    {
+        "name": "Admin",
+        "description": (
+            "Operational endpoints for data backfill, cache and backups. "
+            "Requires an operator key from `ADMIN_API_KEYS`; ordinary consumer "
+            "keys are rejected."
+        ),
+    },
+    {
+        "name": "Admin UI",
+        "description": "Cookie-authenticated HTML console. Hidden from this schema.",
+    },
+    {
+        "name": "API v2",
+        "description": (
+            "Current analysis API, backed by the F1 live-timing feed. "
+            "**Prefer these endpoints for all new integrations.**"
+        ),
+    },
+    {
+        "name": "API v1",
+        "description": (
+            "**Deprecated.** FastF1-backed predecessor to v2, retained for "
+            "compatibility. Every v1 endpoint has a v2 equivalent; see each "
+            "operation's description for its replacement."
+        ),
+    },
 ]
 
 
@@ -137,6 +240,12 @@ def create_app() -> FastAPI:
     async def lifespan(app: FastAPI):
         logger.info(f"Starting {settings.app_name} v{settings.app_version}")
         logger.info(f"Environment: {settings.environment}")
+
+        # Refuse to serve a production process that is configured to fail open
+        # (default secrets, dev auth bypass, wildcard CORS with credentials).
+        # Raises InsecureConfigurationError on a fatal finding.
+        for warning in check_production_safety():
+            logger.warning("Configuration: %s", warning)
         logger.info(f"CORS Origins: {settings.cors_origins_list}")
         logger.info(
             "Rate limiting - "
@@ -155,7 +264,8 @@ def create_app() -> FastAPI:
         try:
             from src.repositories.mongo import ensure_indexes
             created = ensure_indexes()
-            logger.info(f"MongoDB indexes ready: {sum(len(v) for v in created.values())} across {len(created)} collections")
+            total = sum(len(v) for v in created.values())
+            logger.info(f"MongoDB indexes ready: {total} across {len(created)} collections")
         except Exception as e:
             logger.warning(f"ensure_indexes() failed: {e}")
 
@@ -280,7 +390,7 @@ def create_app() -> FastAPI:
             content={
                 "detail": "Internal server error",
                 "request_id": request_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": _now_iso(),
             },
         )
 
@@ -307,7 +417,7 @@ def create_app() -> FastAPI:
             content={
                 "detail": exc.detail,
                 "request_id": request_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": _now_iso(),
             },
         )
 
@@ -331,7 +441,7 @@ def create_app() -> FastAPI:
                 "sources_tried": exc.sources_tried,
                 "retry_after_seconds": 300,
                 "request_id": request_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": _now_iso(),
             },
         )
 
@@ -351,7 +461,7 @@ def create_app() -> FastAPI:
                 "source": exc.source,
                 "retry_after_seconds": 60,
                 "request_id": request_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": _now_iso(),
             },
         )
 
@@ -369,7 +479,7 @@ def create_app() -> FastAPI:
             "gp": exc.gp,
             "session": exc.session,
             "request_id": request_id,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": _now_iso(),
         }
         if exc.valid_rounds:
             payload["valid_rounds"] = exc.valid_rounds
@@ -389,7 +499,7 @@ def create_app() -> FastAPI:
             content={
                 "detail": str(exc),
                 "request_id": request_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": _now_iso(),
             },
         )
 

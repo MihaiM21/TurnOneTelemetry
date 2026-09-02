@@ -41,7 +41,7 @@ def _admin_api_gate(request: Request, response: Response) -> None:
         response.headers[k] = v
 
 
-router = APIRouter(prefix="/api/admin/cache", tags=["General"],
+router = APIRouter(prefix="/api/admin/cache", tags=["Admin"],
                    dependencies=[Depends(_admin_api_gate)])
 
 

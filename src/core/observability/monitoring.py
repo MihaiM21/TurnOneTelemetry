@@ -405,8 +405,8 @@ class RequestTracingMiddleware(BaseHTTPMiddleware):
                 try:
                     body = await request.body()
                     REQUEST_SIZE.labels(method=method, endpoint=path).observe(len(body))
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Could not record request size: {e}")
             
             return response
             
@@ -470,7 +470,7 @@ class RequestTracingMiddleware(BaseHTTPMiddleware):
                 else:
                     final_tier, final_hash, final_prefix = resolve_tier_sync(api_key)
                 if api_key and not final_prefix:
-                    final_prefix = f"raw:{api_key[:6]}"
+                    final_prefix = "unknown"
                 if api_key:
                     T1API_REQUESTS_BY_KEY.labels(
                         key_prefix=final_prefix or "unknown",
@@ -498,8 +498,8 @@ class RequestTracingMiddleware(BaseHTTPMiddleware):
                         endpoint=path,
                         status=status_code
                     ).observe(len(response.body))
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Could not record response size: {e}")
             
             # Build detailed request record
             request_data = {

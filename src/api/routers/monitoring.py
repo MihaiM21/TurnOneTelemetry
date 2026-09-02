@@ -13,6 +13,7 @@ from src.core.observability.monitoring import (
     ACTIVE_REQUESTS
 )
 from src.core.config import settings
+from src.api.routers.admin import require_admin_key
 
 logger = get_logger(__name__)
 
@@ -22,8 +23,9 @@ router = APIRouter()
 # MONITORING & OBSERVABILITY ENDPOINTS
 # ============================================================================
 
-@router.get('/metrics', tags=["Monitoring"], include_in_schema=True)
-async def metrics():
+@router.get('/metrics', tags=["Monitoring"], include_in_schema=False)
+@apply_tiered_limit("standard")
+async def metrics(request: Request, api_key: str = Depends(require_admin_key)):
     """
     Prometheus metrics endpoint
     Returns metrics in Prometheus text format for scraping
@@ -35,7 +37,7 @@ async def metrics():
 
 @router.get('/api/monitoring/system', tags=["Monitoring"])
 @apply_tiered_limit("standard")
-async def get_system_metrics(request: Request, api_key: str = Depends(verify_api_key)):
+async def get_system_metrics(request: Request, api_key: str = Depends(require_admin_key)):
     """
     Get real-time system metrics
     Shows CPU, memory, disk, network usage and uptime
@@ -53,7 +55,7 @@ async def get_system_metrics(request: Request, api_key: str = Depends(verify_api
 async def get_recent_requests(
     request: Request,
     limit: int = Query(100, ge=1, le=1000, description="Number of recent requests to return"),
-    api_key: str = Depends(verify_api_key)
+    api_key: str = Depends(require_admin_key)
 ):
     """
     Get recent requests with full traceability
@@ -76,7 +78,7 @@ async def get_recent_requests(
 async def get_recent_errors(
     request: Request,
     limit: int = Query(50, ge=1, le=500, description="Number of recent errors to return"),
-    api_key: str = Depends(verify_api_key)
+    api_key: str = Depends(require_admin_key)
 ):
     """
     Get recent errors with full details
@@ -116,7 +118,7 @@ async def get_endpoint_stats(request: Request, api_key: str = Depends(verify_api
 
 @router.get('/api/monitoring/load', tags=["Monitoring"])
 @apply_tiered_limit("standard")
-async def get_current_load(request: Request, api_key: str = Depends(verify_api_key)):
+async def get_current_load(request: Request, api_key: str = Depends(require_admin_key)):
     """
     Get current load and active requests
     Real-time view of system load and active API requests
@@ -155,7 +157,7 @@ async def get_current_load(request: Request, api_key: str = Depends(verify_api_k
 
 @router.get('/api/monitoring/health-detailed', tags=["Monitoring"])
 @apply_tiered_limit("standard")
-async def get_detailed_health(request: Request, api_key: str = Depends(verify_api_key)):
+async def get_detailed_health(request: Request, api_key: str = Depends(require_admin_key)):
     """
     Comprehensive health check with full observability
     Combines system metrics, request stats, and service health in one endpoint
@@ -182,7 +184,8 @@ async def get_detailed_health(request: Request, api_key: str = Depends(verify_ap
         try:
             session_tracker = SessionTracker()
             session_tracker_status = "healthy"
-        except:
+        except Exception as e:
+            logger.debug(f"Session tracker unavailable: {e}")
             session_tracker_status = "unavailable"
         
         return {
@@ -221,7 +224,7 @@ async def get_detailed_health(request: Request, api_key: str = Depends(verify_ap
 
 @router.get('/api/test/ping', tags=["Monitoring"])
 @apply_tiered_limit("public")
-async def test_ping(request: Request):
+async def test_ping(request: Request, api_key: str = Depends(verify_api_key)):
     """
     Simple ping endpoint for testing
     Returns request ID and timing info - useful for load testing
@@ -245,8 +248,11 @@ async def test_error(
     Test error handling and tracing
     Useful for testing error logging and monitoring systems
     """
+    if settings.is_production:
+        raise HTTPException(status_code=404, detail="Not found")
+
     request_id = getattr(request.state, 'request_id', 'unknown')
-    
+
     if error_type == "400":
         raise HTTPException(status_code=400, detail=f"[{request_id}] Test bad request error")
     elif error_type == "404":
@@ -260,7 +266,7 @@ async def test_error(
 
 @router.get('/api/diagnostics', tags=["Monitoring"])
 @apply_tiered_limit("standard")
-async def get_diagnostics(request: Request, api_key: str = Depends(verify_api_key)):
+async def get_diagnostics(request: Request, api_key: str = Depends(require_admin_key)):
     """
     Complete diagnostics overview
     Everything you need to know about the API status in one endpoint
@@ -300,7 +306,8 @@ async def get_diagnostics(request: Request, api_key: str = Depends(verify_api_ke
         try:
             session_tracker = SessionTracker()
             session_tracker_status = "healthy"
-        except:
+        except Exception as e:
+            logger.debug(f"Session tracker unavailable: {e}")
             session_tracker_status = "unavailable"
         
         return {

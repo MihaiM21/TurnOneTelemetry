@@ -42,8 +42,32 @@ async def test_verify_api_key_invalid_raises_403():
 async def test_verify_api_key_dev_bypass(monkeypatch):
     monkeypatch.setattr(settings, "environment", "development")
     monkeypatch.setattr(settings, "allowed_api_keys", "")
+    monkeypatch.setattr(settings, "allow_insecure_dev_auth", True)
     result = await ak.verify_api_key(None)
     assert result == "dev-key"
+
+
+@pytest.mark.asyncio
+async def test_verify_api_key_dev_bypass_requires_explicit_opt_in(monkeypatch):
+    """The default-config fail-open regression: environment=development and
+    no ALLOWED_API_KEYS are both defaults, so without ALLOW_INSECURE_DEV_AUTH
+    the bypass must NOT activate -- a missing key should still 401."""
+    monkeypatch.setattr(settings, "environment", "development")
+    monkeypatch.setattr(settings, "allowed_api_keys", "")
+    monkeypatch.setattr(settings, "allow_insecure_dev_auth", False)
+    with pytest.raises(HTTPException) as exc:
+        await ak.verify_api_key(None)
+    assert exc.value.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_get_api_key_tier_dev_bypass_requires_explicit_opt_in(monkeypatch):
+    monkeypatch.setattr(settings, "environment", "development")
+    monkeypatch.setattr(settings, "allowed_api_keys", "")
+    monkeypatch.setattr(settings, "allow_insecure_dev_auth", False)
+    with pytest.raises(HTTPException) as exc:
+        await ak.get_api_key_tier("anything")
+    assert exc.value.status_code == 403
 
 
 def test_get_optional_api_key_none_when_missing():
@@ -113,6 +137,7 @@ async def test_verify_api_key_stashes_env_resolution():
 async def test_verify_api_key_dev_bypass_stashes(monkeypatch):
     monkeypatch.setattr(settings, "environment", "development")
     monkeypatch.setattr(settings, "allowed_api_keys", "")
+    monkeypatch.setattr(settings, "allow_insecure_dev_auth", True)
     req = _fake_request()
     result = await ak.verify_api_key(None, request=req)
     assert result == "dev-key"
@@ -133,7 +158,26 @@ async def test_get_api_key_tier_stashes_env_resolution():
 async def test_get_api_key_tier_dev_bypass_stashes(monkeypatch):
     monkeypatch.setattr(settings, "environment", "development")
     monkeypatch.setattr(settings, "allowed_api_keys", "")
+    monkeypatch.setattr(settings, "allow_insecure_dev_auth", True)
     req = _fake_request()
     key, tier = await ak.get_api_key_tier("anything", request=req)
     assert tier == "standard"
     assert req.state.api_key_resolution["key_prefix"] == "dev"
+
+
+def test_match_constant_time_finds_match():
+    assert ak._match_constant_time("abc", ["xyz", "abc", "123"]) is True
+
+
+def test_match_constant_time_no_match():
+    assert ak._match_constant_time("nope", ["xyz", "abc", "123"]) is False
+
+
+def test_match_constant_time_empty_list():
+    assert ak._match_constant_time("anything", []) is False
+
+
+def test_resolve_env_tier_premium_wins_over_standard():
+    # test-premium-key is in both ALLOWED_API_KEYS and PREMIUM_API_KEYS (see
+    # tests/conftest.py); premium must take precedence.
+    assert ak._resolve_env_tier("test-premium-key") == "premium"
