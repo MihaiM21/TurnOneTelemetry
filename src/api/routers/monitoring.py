@@ -14,6 +14,22 @@ from src.core.observability.monitoring import (
 )
 from src.core.config import settings
 from src.api.routers.admin import require_admin_key
+from src.api.schemas.common import COMMON_ERROR_RESPONSES, ErrorEnvelope
+from src.api.schemas.monitoring import (
+    CurrentLoadResponse,
+    DetailedHealthResponse,
+    DiagnosticsResponse,
+    EndpointStatsResponse,
+    RecentErrorsResponse,
+    RecentRequestsResponse,
+    SystemMetricsResponse,
+    TestPingResponse,
+)
+
+#: Operator-only endpoints in this router are gated by `require_admin_key`, which itself
+#: depends on `verify_api_key` — so both "no/invalid key" (401/403) and "valid key but not
+#: admin" (403) fall out of `COMMON_ERROR_RESPONSES` already.
+_ADMIN_NOTE = "**Operator only** — requires an admin API key (`require_admin_key`)."
 
 logger = get_logger(__name__)
 
@@ -23,7 +39,18 @@ router = APIRouter()
 # MONITORING & OBSERVABILITY ENDPOINTS
 # ============================================================================
 
-@router.get('/metrics', tags=["Monitoring"], include_in_schema=False)
+@router.get(
+    '/metrics',
+    tags=["Monitoring"],
+    include_in_schema=False,
+    summary="Prometheus metrics",
+    operation_id="monitoring_prometheus_metrics",
+    description=f"Prometheus text-format metrics for scraping. {_ADMIN_NOTE}",
+    responses={
+        200: {"content": {"text/plain": {}}, "description": "Prometheus exposition-format text."},
+        **COMMON_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def metrics(request: Request, api_key: str = Depends(require_admin_key)):
     """
@@ -35,7 +62,17 @@ async def metrics(request: Request, api_key: str = Depends(require_admin_key)):
         media_type=get_prometheus_content_type()
     )
 
-@router.get('/api/monitoring/system', tags=["Monitoring"])
+@router.get(
+    '/api/monitoring/system',
+    tags=["Monitoring"],
+    summary="Get real-time system metrics",
+    operation_id="monitoring_system_metrics",
+    description=f"CPU, memory, disk, network usage and uptime. {_ADMIN_NOTE}",
+    responses={
+        200: {"model": SystemMetricsResponse, "description": "Current system metrics."},
+        **COMMON_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def get_system_metrics(request: Request, api_key: str = Depends(require_admin_key)):
     """
@@ -50,7 +87,18 @@ async def get_system_metrics(request: Request, api_key: str = Depends(require_ad
         logger.error(f"Error getting system metrics: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to get system metrics")
 
-@router.get('/api/monitoring/requests', tags=["Monitoring"])
+@router.get(
+    '/api/monitoring/requests',
+    tags=["Monitoring"],
+    summary="List recent requests",
+    operation_id="monitoring_recent_requests",
+    description=f"Recent requests with full traceability (ID, timestamp, endpoint, status, duration, client). "
+    f"{_ADMIN_NOTE}",
+    responses={
+        200: {"model": RecentRequestsResponse, "description": "Recent request records."},
+        **COMMON_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def get_recent_requests(
     request: Request,
@@ -73,7 +121,14 @@ async def get_recent_requests(
         logger.error(f"Error getting recent requests: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to get recent requests")
 
-@router.get('/api/monitoring/errors', tags=["Monitoring"])
+@router.get(
+    '/api/monitoring/errors',
+    tags=["Monitoring"],
+    summary="List recent errors",
+    operation_id="monitoring_recent_errors",
+    description=f"Recent errors with stack traces, request context, and error types. {_ADMIN_NOTE}",
+    responses={200: {"model": RecentErrorsResponse, "description": "Recent error records."}, **COMMON_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def get_recent_errors(
     request: Request,
@@ -96,7 +151,18 @@ async def get_recent_errors(
         logger.error(f"Error getting recent errors: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to get recent errors")
 
-@router.get('/api/monitoring/stats', tags=["Monitoring"])
+@router.get(
+    '/api/monitoring/stats',
+    tags=["Monitoring"],
+    summary="Get per-endpoint request statistics",
+    operation_id="monitoring_endpoint_stats",
+    description="Request counts, error rates, and duration stats per endpoint. Requires any valid API key "
+    "(not operator-only).",
+    responses={
+        200: {"model": EndpointStatsResponse, "description": "Per-endpoint statistics."},
+        **COMMON_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def get_endpoint_stats(request: Request, api_key: str = Depends(verify_api_key)):
     """
@@ -116,7 +182,14 @@ async def get_endpoint_stats(request: Request, api_key: str = Depends(verify_api
         logger.error(f"Error getting endpoint stats: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to get endpoint stats")
 
-@router.get('/api/monitoring/load', tags=["Monitoring"])
+@router.get(
+    '/api/monitoring/load',
+    tags=["Monitoring"],
+    summary="Get current load and active requests",
+    operation_id="monitoring_current_load",
+    description=f"Real-time system load and active API request count. {_ADMIN_NOTE}",
+    responses={200: {"model": CurrentLoadResponse, "description": "Current load snapshot."}, **COMMON_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def get_current_load(request: Request, api_key: str = Depends(require_admin_key)):
     """
@@ -155,7 +228,18 @@ async def get_current_load(request: Request, api_key: str = Depends(require_admi
         logger.error(f"Error getting current load: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to get current load")
 
-@router.get('/api/monitoring/health-detailed', tags=["Monitoring"])
+@router.get(
+    '/api/monitoring/health-detailed',
+    tags=["Monitoring"],
+    summary="Get comprehensive health with observability",
+    operation_id="monitoring_health_detailed",
+    description=f"System metrics, request stats, and service health combined. {_ADMIN_NOTE}",
+    responses={
+        200: {"model": DetailedHealthResponse, "description": "Combined health/observability snapshot."},
+        **COMMON_ERROR_RESPONSES,
+        503: {"model": ErrorEnvelope, "description": "Health check itself failed while introspecting services."},
+    },
+)
 @apply_tiered_limit("standard")
 async def get_detailed_health(request: Request, api_key: str = Depends(require_admin_key)):
     """
@@ -222,7 +306,14 @@ async def get_detailed_health(request: Request, api_key: str = Depends(require_a
 # TEST & DIAGNOSTICS ENDPOINTS
 # ============================================================================
 
-@router.get('/api/test/ping', tags=["Monitoring"])
+@router.get(
+    '/api/test/ping',
+    tags=["Monitoring"],
+    summary="Ping the API",
+    operation_id="monitoring_test_ping",
+    description="Simple liveness ping. Returns request ID and timing info — useful for load testing.",
+    responses={200: {"model": TestPingResponse, "description": "Pong."}, **COMMON_ERROR_RESPONSES},
+)
 @apply_tiered_limit("public")
 async def test_ping(request: Request, api_key: str = Depends(verify_api_key)):
     """
@@ -237,7 +328,28 @@ async def test_ping(request: Request, api_key: str = Depends(verify_api_key)):
         "message": "API is responding"
     }
 
-@router.get('/api/test/error', tags=["Monitoring"])
+@router.get(
+    '/api/test/error',
+    tags=["Monitoring"],
+    summary="Trigger a test error",
+    operation_id="monitoring_test_error",
+    description=(
+        "Deliberately raises an error for testing error logging/tracing. In production "
+        "(`settings.is_production`) this always returns 404 regardless of `error_type`."
+    ),
+    responses={
+        400: {"model": ErrorEnvelope, "description": "`error_type=400` (non-production only)."},
+        404: {
+            "model": ErrorEnvelope,
+            "description": "`error_type=404`, an unrecognised `error_type`, or any call in production.",
+        },
+        500: {
+            "model": ErrorEnvelope,
+            "description": "`error_type=500`, or `error_type=exception` (raises an uncaught `ValueError`).",
+        },
+        **{k: v for k, v in COMMON_ERROR_RESPONSES.items() if k != 500},
+    },
+)
 @apply_tiered_limit("standard")
 async def test_error(
     request: Request,
@@ -264,7 +376,18 @@ async def test_error(
     else:
         raise HTTPException(status_code=400, detail="Invalid error_type. Use: 400, 404, 500, or exception")
 
-@router.get('/api/diagnostics', tags=["Monitoring"])
+@router.get(
+    '/api/diagnostics',
+    tags=["Monitoring"],
+    summary="Get complete diagnostics overview",
+    operation_id="monitoring_diagnostics",
+    description=f"Everything about API status in one call: system, requests, top/error-prone endpoints, "
+    f"recent error samples, background processor, and service health. {_ADMIN_NOTE}",
+    responses={
+        200: {"model": DiagnosticsResponse, "description": "Full diagnostics snapshot."},
+        **COMMON_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def get_diagnostics(request: Request, api_key: str = Depends(require_admin_key)):
     """

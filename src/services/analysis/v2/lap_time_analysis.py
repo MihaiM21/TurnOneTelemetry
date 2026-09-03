@@ -25,6 +25,9 @@ from src.services.analysis.v2._helpers import (
     extract_telemetry_for_lap, extract_position_for_lap,
     compute_distance, merge_distance_onto_telemetry, build_session_store,
 )
+from src.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 DATA_TYPE = 'lap_time_analysis'
 
@@ -44,12 +47,12 @@ def _get_driver_telemetry(base_url: str, client: F1StaticClient, driver_tla: str
 
     driver_num = tla_to_num.get(driver_tla.upper())
     if not driver_num:
-        print(f"Driver {driver_tla} not found in session")
+        logger.warning("Driver %s not found in session", driver_tla)
         return pd.DataFrame(), None
 
     df_windows = get_fastest_lap_windows(base_url, client, target_driver_num=driver_num, store=store)
     if df_windows.empty:
-        print(f"No fastest lap found for {driver_tla}")
+        logger.warning("No fastest lap found for %s", driver_tla)
         return pd.DataFrame(), None
 
     row = df_windows.iloc[0]
@@ -247,14 +250,14 @@ def LapTimeAnalysisData(y: int, identifier: Union[int, str], e: str, d1: str, d2
 
 
 if __name__ == "__main__":
-    print("Testing V2 Lap Time Analysis...")
+    logger.info("Testing V2 Lap Time Analysis...")
     try:
         plot_path = LapTimeAnalysisPlot(2023, 14, "Qualifying", "VER", "NOR")
-        print(f"Plot: {plot_path}")
+        logger.info("Plot: %s", plot_path)
         data = LapTimeAnalysisData(2023, 14, "Qualifying", "VER", "NOR")
-        print(f"Telemetry points: {len(data.get('telemetry', []))}, "
-              f"delta points: {len(data.get('delta', []))}")
+        logger.info("Telemetry points: %s, delta points: %s",
+                    len(data.get('telemetry', [])), len(data.get('delta', [])))
     except Exception as ex:
-        print(f"Error: {ex}")
+        logger.error("Error: %s", ex)
         import traceback
         traceback.print_exc()

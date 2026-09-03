@@ -434,14 +434,14 @@ class CareerRadarPlot:
 
 
 if __name__ == "__main__":
-    print("Testing V2 Driver Radar...")
+    logger.info("Testing V2 Driver Radar...")
     try:
         data = DriverRadarData()(2025, 1, "R", "VER,NOR")
-        print(f"Session radar drivers: {[d['tla'] for d in data['drivers']]}")
-        print(f"Axes: {data['axes']}")
+        logger.info("Session radar drivers: %s", [d['tla'] for d in data['drivers']])
+        logger.info("Axes: %s", data['axes'])
         for d in data["drivers"]:
-            print(f"  {d['tla']}: {d['values']}")
+            logger.info("  %s: %s", d['tla'], d['values'])
     except Exception as ex:
-        print(f"Error: {ex}")
+        logger.error("Error: %s", ex)
         import traceback
         traceback.print_exc()

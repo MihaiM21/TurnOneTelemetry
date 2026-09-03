@@ -250,18 +250,17 @@ class TheoreticalBestPlot:
 
 
 if __name__ == "__main__":
-    print("Testing V2 Theoretical Best...")
+    logger.info("Testing V2 Theoretical Best...")
     try:
         data = TheoreticalBestData()(2024, 1, "Q")
-        print(f"Drivers: {len(data)}")
+        logger.info("Drivers: %s", len(data))
         if data:
             fastest = data[0]
-            print(f"Fastest theoretical: {fastest['driver']} "
-                  f"theo={fastest['theoretical_s']} actual={fastest['actual_s']} "
-                  f"delta={fastest['delta_s']}")
+            logger.info("Fastest theoretical: %s theo=%s actual=%s delta=%s",
+                       fastest['driver'], fastest['theoretical_s'], fastest['actual_s'], fastest['delta_s'])
         plot_path = TheoreticalBestPlot()(2024, 1, "Q")
-        print(f"Plot: {plot_path}")
+        logger.info("Plot: %s", plot_path)
     except Exception as ex:
-        print(f"Error: {ex}")
+        logger.error("Error: %s", ex)
         import traceback
         traceback.print_exc()

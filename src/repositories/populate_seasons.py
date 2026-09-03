@@ -7,8 +7,11 @@ import traceback
 from src.repositories.seasons_manager import SeasonsDataManager
 from src.repositories.mongo import MongoDBManager
 from src.ingestion.reference import get_season_events, get_season_drivers_and_teams
+from src.core.logging import get_logger
 
 import json
+
+logger = get_logger(__name__)
 
 def populate_2026_season():
     """Populate 2026 season data"""
@@ -37,75 +40,70 @@ def populate_2024_season():
 def main():
     """Main function to populate seasons data"""
 
-    print("=" * 60)
-    print("Populating Seasons Data Collection")
-    print("=" * 60)
+    logger.info("Populating Seasons Data Collection")
 
     # Initialize manager
     seasons_manager = SeasonsDataManager()
 
     # Populate 2026 season
-    print("\n1. Populating 2026 Season Data...")
+    logger.info("Populating 2026 Season Data...")
     drivers_2026, teams_2026 = populate_2026_season()
-    success_2026 = seasons_manager.create_season_document(2026, drivers_2026, teams_2026, get_season_events(2026))
+    success_2026 = seasons_manager.create_season_document(2026, drivers_2026, teams_2026,
+                                                           get_season_events(2026))
 
     if success_2026:
-        print(f"   ✓ Added {len(drivers_2026)} drivers")
-        print(f"   ✓ Added {len(teams_2026)} teams")
-        print(f"   ✓ Added {len(get_season_events(2026))} races")
+        logger.info("Added %s drivers, %s teams, %s races for 2026", len(drivers_2026),
+                    len(teams_2026), len(get_season_events(2026)))
 
     # Populate 2025 season
-    print("\n2. Populating 2025 Season Data...")
+    logger.info("Populating 2025 Season Data...")
     drivers_2025, teams_2025 = populate_2025_season()
-    success_2025 = seasons_manager.create_season_document(2025, drivers_2025, teams_2025, get_season_events(2025))
+    success_2025 = seasons_manager.create_season_document(2025, drivers_2025, teams_2025,
+                                                           get_season_events(2025))
 
     if success_2025:
-        print(f"   ✓ Added {len(drivers_2025)} drivers")
-        print(f"   ✓ Added {len(teams_2025)} teams")
-        print(f"   ✓ Added {len(get_season_events(2025))} races")
+        logger.info("Added %s drivers, %s teams, %s races for 2025", len(drivers_2025),
+                    len(teams_2025), len(get_season_events(2025)))
 
     # Populate 2024 season
-    print("\n3. Populating 2024 Season Data...")
+    logger.info("Populating 2024 Season Data...")
     drivers_2024, teams_2024 = populate_2024_season()
     success_2024 = seasons_manager.create_season_document(2024, drivers_2024, teams_2024)
 
     if success_2024:
-        print(f"   ✓ Added {len(drivers_2024)} drivers")
-        print(f"   ✓ Added {len(teams_2024)} teams")
-        print(f"   ✓ No race data available for 2024")
+        logger.info("Added %s drivers, %s teams for 2024 (no race data available)", len(drivers_2024),
+                    len(teams_2024))
 
     # Verify data
-    print("\n4. Verifying Data...")
+    logger.info("Verifying Data...")
     available_seasons = seasons_manager.list_all_seasons()
-    print(f"   Available seasons: {available_seasons}")
+    logger.info("Available seasons: %s", available_seasons)
 
     # Test retrieval
-    print("\n5. Testing Data Retrieval...")
+    logger.info("Testing Data Retrieval...")
     for year in available_seasons:
         drivers = seasons_manager.get_drivers(year)
         teams = seasons_manager.get_teams(year)
-        print(f"   Year {year}: {len(drivers)} drivers, {len(teams)} teams")
+        logger.info("Year %s: %s drivers, %s teams", year, len(drivers), len(teams))
 
         # Show sample driver
         if drivers:
             sample_driver = drivers[0]
-            print(f"      Sample driver: {sample_driver['full_name']} ({sample_driver['code']}) - {sample_driver['team']}")
+            logger.info("Sample driver: %s (%s) - %s", sample_driver['full_name'],
+                        sample_driver['code'], sample_driver['team'])
 
         # Show sample team
         if teams:
             sample_team = teams[0]
-            print(f"      Sample team: {sample_team['name']} - Drivers: {', '.join(sample_team['drivers'])}")
+            logger.info("Sample team: %s - Drivers: %s", sample_team['name'],
+                        ', '.join(sample_team['drivers']))
 
-    print("\n" + "=" * 60)
-    print("Seasons Data Population Complete!")
-    print("=" * 60)
+    logger.info("Seasons Data Population Complete!")
 
 
 if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        print(f"\n✗ Population failed with error: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("Population failed with error: %s", e)
 

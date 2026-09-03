@@ -9,6 +9,9 @@ from pathlib import Path
 from typing import Optional
 from src.repositories.mongo import MongoDBManager
 from src.repositories.plots import normalize_session_type
+from src.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 # Map output folder structure to data types
 DATA_TYPE_MAPPING = {
@@ -94,9 +97,7 @@ def bulk_store_plots(base_path: str = "outputs/plots", year: Optional[int] = Non
             if not year_path.exists():
                 continue
 
-            print(f"\n{'='*60}")
-            print(f"Processing year: {yr}")
-            print(f"{'='*60}")
+            logger.info("Processing year: %s", yr)
 
             # Iterate through GP folders
             gp_folders = [f for f in year_path.iterdir() if f.is_dir()]
@@ -106,7 +107,7 @@ def bulk_store_plots(base_path: str = "outputs/plots", year: Optional[int] = Non
                 country_code = get_country_code(gp_name)
                 gp_id = f"{yr}_{country_code}"
 
-                print(f"\n[{gp_idx}/{len(gp_folders)}] Processing: {gp_name}")
+                logger.info("[%s/%s] Processing: %s", gp_idx, len(gp_folders), gp_name)
 
                 # Get or create GP document (round number will be approximate)
                 db_manager.get_or_create_gp(yr, gp_idx, gp_name.replace(' ', ''), gp_id)
@@ -117,7 +118,7 @@ def bulk_store_plots(base_path: str = "outputs/plots", year: Optional[int] = Non
                 for session_folder in session_folders:
                     session_name = parse_session_name(session_folder.name)
                     if not session_name:
-                        print(f"  ⚠ Skipping unknown session: {session_folder.name}")
+                        logger.warning("Skipping unknown session: %s", session_folder.name)
                         continue
 
                     # Find all JSON files in this session
@@ -127,7 +128,7 @@ def bulk_store_plots(base_path: str = "outputs/plots", year: Optional[int] = Non
                         data_type = infer_data_type_from_filename(json_file.name)
 
                         if not data_type:
-                            print(f"  ⚠ Unknown data type for: {json_file.name}")
+                            logger.warning("Unknown data type for: %s", json_file.name)
                             continue
 
                         try:
@@ -145,21 +146,16 @@ def bulk_store_plots(base_path: str = "outputs/plots", year: Optional[int] = Non
 
                             if success:
                                 total_stored += 1
-                                print(f"  ✓ Stored: {session_name} - {data_type}")
+                                logger.info("Stored: %s - %s", session_name, data_type)
                             else:
                                 total_failed += 1
-                                print(f"  ✗ Failed: {session_name} - {data_type}")
+                                logger.warning("Failed: %s - %s", session_name, data_type)
 
                         except Exception as e:
                             total_failed += 1
-                            print(f"  ✗ Error processing {json_file.name}: {e}")
+                            logger.error("Error processing %s: %s", json_file.name, e)
 
-        print(f"\n{'='*60}")
-        print(f"SUMMARY")
-        print(f"{'='*60}")
-        print(f"Total files stored: {total_stored}")
-        print(f"Total files failed: {total_failed}")
-        print(f"{'='*60}\n")
+        logger.info("Bulk store complete: %s files stored, %s files failed", total_stored, total_failed)
 
     finally:
         db_manager.close()
@@ -210,9 +206,9 @@ def store_custom_data(year: int, round_nr: int, gp_name: str, session_type: str,
         )
 
         if success:
-            print(f"✓ Successfully stored {data_type} for {gp_name} - {session_type}")
+            logger.info("Successfully stored %s for %s - %s", data_type, gp_name, session_type)
         else:
-            print(f"✗ Failed to store {data_type}")
+            logger.warning("Failed to store %s", data_type)
 
         return success
 

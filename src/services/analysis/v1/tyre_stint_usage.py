@@ -9,11 +9,14 @@ import matplotlib.image as mpimg
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 
+from src.core.logging import get_logger
 from src.ingestion import fastf1_client as data_aqcuisition
 from src.repositories.plots import get_plot_data_from_mongo, store_data_dict_to_mongo
 from src.services.plotting import output as dirOrg
 from src.services.plotting import theme as setup_theme
 from src.services.plotting.colors import compound_colors, get_compound_color
+
+logger = get_logger(__name__)
 
 
 DATA_TYPE = "tyre_stint_usage"
@@ -56,7 +59,7 @@ def _finishing_order(session) -> dict:
                 if abbr is not None and pos is not None and not pd.isna(pos):
                     order[str(abbr)] = int(pos)
     except Exception as err:
-        print(f"Warning: could not read finishing order: {err}")
+        logger.warning("Could not read finishing order: %s", err)
     return order
 
 
@@ -144,7 +147,7 @@ def _render_plot(records: list, y: int, event_name: str, session_name: str) -> s
 def TyreStintUsageData(y, r, e, store_to_mongo=True):
     cached = get_plot_data_from_mongo(y, r, e, DATA_TYPE, version='v1')
     if cached:
-        print("Using cached Tyre Stint Usage data from MongoDB (v1)")
+        logger.info("Using cached Tyre Stint Usage data from MongoDB (v1)")
         return cached['data']
 
     session = data_aqcuisition.SessionLoader(y, r, e).get_session()
@@ -157,9 +160,9 @@ def TyreStintUsageData(y, r, e, store_to_mongo=True):
                 event_name=session.event['EventName'],
                 data_type=DATA_TYPE, data=records, version='v1',
             )
-            print("✓ Tyre stint usage cached to MongoDB (v1)")
+            logger.info("Tyre stint usage cached to MongoDB (v1)")
         except Exception as err:
-            print(f"Warning: Failed to store to MongoDB: {err}")
+            logger.warning("Failed to store to MongoDB: %s", err)
 
     return records
 
@@ -181,6 +184,6 @@ def TyreStintUsagePlot(y, r, e):
                 data_type=DATA_TYPE, data=records, version='v1',
             )
         except Exception as err:
-            print(f"Warning: Failed to store to MongoDB: {err}")
+            logger.warning("Failed to store to MongoDB: %s", err)
 
     return _render_plot(records, y, event_name, e)

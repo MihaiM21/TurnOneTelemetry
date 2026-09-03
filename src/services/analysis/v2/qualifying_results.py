@@ -11,6 +11,9 @@ from src.ingestion.static_client import F1StaticClient
 from src.services.analysis.v2._helpers import (
     format_lap_time, get_qualifying_classification, get_driver_team_from_list
 )
+from src.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def _init(y: int, event_name: str, session_name: str):
@@ -80,8 +83,8 @@ def _generate_plot(data: List[Dict], y: int, event_name: str, session_name: str,
     try:
         logo = mpimg.imread('assets/images/logo mic.png')
         fig.figimage(logo, 575, 575, zorder=3, alpha=.6)
-    except:
-        pass
+    except (FileNotFoundError, OSError) as exc:
+        logger.debug("Watermark logo unavailable, skipping: %s", exc)
 
     setup_theme.add_glow(ax)
     plt.savefig(f"{location}/{name}")
@@ -149,15 +152,15 @@ def QualiResultsData(y: int, identifier: Union[int, str], e: str,
 
 
 if __name__ == "__main__":
-    print("Testing V2 Qualifying Results...")
+    logger.info("Testing V2 Qualifying Results...")
     try:
         plot_path = QualiResultsPlot(2023, 14, "Qualifying")
-        print(f"Plot: {plot_path}")
+        logger.info("Plot: %s", plot_path)
         data = QualiResultsData(2023, 14, "Qualifying")
-        print(f"Drivers: {len(data)}")
+        logger.info("Drivers: %s", len(data))
         if data:
-            print(f"P1: {data[0]}")
+            logger.info("P1: %s", data[0])
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error("Error: %s", e)
         import traceback
         traceback.print_exc()

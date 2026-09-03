@@ -342,15 +342,15 @@ class RacePaceHeatmapPlot:
 
 
 if __name__ == "__main__":
-    print("Testing V2 Race Pace Heatmap...")
+    logger.info("Testing V2 Race Pace Heatmap...")
     try:
         data = RacePaceHeatmapData()(2025, 1, "R")
-        print(f"Drivers: {len(data['drivers'])}")
-        print(f"Laps: {len(data['laps'])}")
-        print(f"SC laps: {data['sc_laps']}")
+        logger.info("Drivers: %s", len(data['drivers']))
+        logger.info("Laps: %s", len(data['laps']))
+        logger.info("SC laps: %s", data['sc_laps'])
         plot_path = RacePaceHeatmapPlot()(2025, 1, "R")
-        print(f"Plot: {plot_path}")
+        logger.info("Plot: %s", plot_path)
     except Exception as ex:
-        print(f"Error: {ex}")
+        logger.error("Error: %s", ex)
         import traceback
         traceback.print_exc()

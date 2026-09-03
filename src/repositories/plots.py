@@ -8,8 +8,11 @@ from src.core.exceptions import (
     SessionNotFoundError as _SNFErr,
     UpstreamUnavailableError as _UUErr,
 )
+from src.core.logging import get_logger
 from typing import Dict, Any, Optional, Union
 import json
+
+logger = get_logger(__name__)
 
 # Session type mapping from FastF1 to our standard format
 SESSION_TYPE_MAP = {
@@ -172,7 +175,7 @@ def store_season_data_to_mongo(year: int, data_type: str, data: Any,
             year=year,
         )
     except Exception as e:
-        print(f"✗ Error storing season data to MongoDB: {e}")
+        logger.exception("Error storing season data to MongoDB: %s", e)
         return False
     finally:
         if should_close and db_manager:
@@ -239,9 +242,7 @@ def store_plot_data_to_mongo(session: Any, data_type: str, json_file_path: str,
         return success
 
     except Exception as e:
-        print(f"✗ Error storing plot data to MongoDB: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("Error storing plot data to MongoDB: %s", e)
         return False
 
     finally:
@@ -347,9 +348,7 @@ def store_data_dict_to_mongo(year: int, round_nr: int, session_name: str,
         return success
 
     except Exception as e:
-        print(f"✗ Error storing data to MongoDB: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("Error storing data to MongoDB: %s", e)
         return False
 
     finally:
@@ -463,21 +462,24 @@ def get_plot_data_from_mongo(year: int, identifier: Union[int, str], event_name:
         except (_SNFErr, _DNAErr, _UUErr):
             raise
         except Exception as e:
-            print(f"✗ Could not get event info: {e}")
+            logger.error("Could not get event info: %s", e)
             return None
-        
+
         if not gp_doc:
-            print(f"✗ No GP found for year={year}, identifier={identifier}")
+            logger.warning("No GP found for year=%s, identifier=%s", year, identifier)
             return None
 
         gp_id = gp_doc['gp_id']
         if round_nr is None:
             round_nr = gp_doc.get('round_nr')
 
-        print(f"🔍 Searching MongoDB cache (v{version[-1]}): year={year}, round={round_nr}, event={event_name} -> gp_id={gp_id}, session_type={session_type}, data_type={standard_data_type}")
+        logger.debug(
+            "Searching MongoDB cache (v%s): year=%s, round=%s, event=%s -> gp_id=%s, "
+            "session_type=%s, data_type=%s", version[-1], year, round_nr, event_name, gp_id,
+            session_type, standard_data_type)
 
         gp_name = gp_doc['name']
-        print(f"✓ Found GP: {gp_id} ({gp_name})")
+        logger.info("Found GP: %s (%s)", gp_id, gp_name)
 
         # Try to get data from MongoDB. For legacy compatibility, try both mapped and raw keys.
         data_type_candidates = [standard_data_type]
@@ -504,7 +506,8 @@ def get_plot_data_from_mongo(year: int, identifier: Union[int, str], event_name:
                 break
 
         if data:
-            print(f"✓ Retrieved {selected_data_type} from MongoDB cache for {gp_id} - {session_type}")
+            logger.info("Retrieved %s from MongoDB cache for %s - %s", selected_data_type, gp_id,
+                        session_type)
             # Return data with metadata so we don't need to load session
             return {
                 'data': data,
@@ -517,21 +520,22 @@ def get_plot_data_from_mongo(year: int, identifier: Union[int, str], event_name:
                 }
             }
         else:
-            print(f"✗ No data found in GP {gp_id} for session_type={session_type}, tried_data_types={data_type_candidates}")
+            logger.warning("No data found in GP %s for session_type=%s, tried_data_types=%s", gp_id,
+                           session_type, data_type_candidates)
             # Let's check what sessions exist
             sessions = gp_doc.get('sessions', [])
-            print(f"📋 Available sessions in GP: {[s.get('session_type') for s in sessions]}")
+            logger.debug("Available sessions in GP: %s", [s.get('session_type') for s in sessions])
             for session in sessions:
                 if session.get('session_type') == session_type:
                     data_types = [d.get('data_type') for d in session.get('data', [])]
-                    print(f"📋 Available data_types in {session_type}: {data_types}")
+                    logger.debug("Available data_types in %s: %s", session_type, data_types)
             return None
 
     except (_SNFErr, _DNAErr, _UUErr):
         # Resolution / upstream errors must surface to the API layer.
         raise
     except Exception as e:
-        print(f"✗ Error retrieving plot data from MongoDB: {e}")
+        logger.error("Error retrieving plot data from MongoDB: %s", e)
         return None
 
     finally:

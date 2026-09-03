@@ -13,6 +13,9 @@ from src.services.analysis.v2._helpers import (
     extract_telemetry_for_lap, extract_position_for_lap,
     compute_distance, merge_distance_onto_telemetry, build_session_store
 )
+from src.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def _init(y: int, event_name: str, session_name: str, d1: str, d2: str):
@@ -31,12 +34,12 @@ def _get_driver_telemetry(base_url: str, client: F1StaticClient, driver_tla: str
 
     driver_num = tla_to_num.get(driver_tla.upper())
     if not driver_num:
-        print(f"Driver {driver_tla} not found in session")
+        logger.warning("Driver %s not found in session", driver_tla)
         return pd.DataFrame()
 
     df_windows = get_fastest_lap_windows(base_url, client, target_driver_num=driver_num, store=store)
     if df_windows.empty:
-        print(f"No fastest lap found for {driver_tla}")
+        logger.warning("No fastest lap found for %s", driver_tla)
         return pd.DataFrame()
 
     row = df_windows.iloc[0]
@@ -121,8 +124,8 @@ def _generate_plot(data: Dict, y: int, event_name: str, session_name: str,
     try:
         logo = mpimg.imread('assets/images/logo mic.png')
         fig.figimage(logo, 575, 575, zorder=3, alpha=.6)
-    except:
-        pass
+    except (FileNotFoundError, OSError) as exc:
+        logger.debug("Watermark logo unavailable, skipping: %s", exc)
 
     plt.savefig(f"{location}/{name}")
     plt.close()
@@ -195,13 +198,13 @@ def ThrottleBrakeCompData(y: int, identifier: Union[int, str], e: str, d1: str, 
 
 
 if __name__ == "__main__":
-    print("Testing V2 Throttle/Brake Comparison...")
+    logger.info("Testing V2 Throttle/Brake Comparison...")
     try:
         plot_path = ThrottleBrakeComp(2023, 14, "Qualifying", "VER", "NOR")
-        print(f"Plot: {plot_path}")
+        logger.info("Plot: %s", plot_path)
         data = ThrottleBrakeCompData(2023, 14, "Qualifying", "VER", "NOR")
-        print(f"Telemetry points: {len(data.get('telemetry', []))}")
+        logger.info("Telemetry points: %s", len(data.get('telemetry', [])))
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error("Error: %s", e)
         import traceback
         traceback.print_exc()

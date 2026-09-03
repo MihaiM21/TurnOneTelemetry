@@ -24,7 +24,7 @@ import re
 from dataclasses import dataclass
 from typing import Optional, Union
 
-from fastapi import Depends, HTTPException, Query, status
+from fastapi import Depends, HTTPException, Query, Request, status
 
 from src.core.config import settings
 
@@ -169,3 +169,49 @@ def driver_pair_query(
     return DriverPairQuery(
         year=base.year, gp=base.gp, session=base.session, driver1=d1, driver2=d2
     )
+
+
+# ---------------------------------------------------------------------------
+# Router-level guards
+# ---------------------------------------------------------------------------
+#
+# The dataclass dependencies above are the clean way to declare parameters, but
+# retrofitting them across ~100 existing endpoints would rewrite every
+# signature -- and the query-parameter names are part of a frozen public
+# contract. These guards give the same validation with zero signature churn:
+# they read the raw query string, so they add no OpenAPI parameters and change
+# no schema.
+
+
+async def guard_session_params(request: Request) -> None:
+    """Reject malformed ``session``/``driver`` query values with a 400.
+
+    Without this, a bad ``session`` propagated all the way to the upstream
+    session lookup and surfaced as an opaque **500**, even though it is plainly
+    a client error. It is also the outer half of the path-traversal defence:
+    ``session`` is interpolated into ``outputs/plots/{year}/{event}/{session}``,
+    with :func:`src.services.plotting.output.resolve_within` as the inner half.
+    """
+    session = request.query_params.get("session")
+    if session is not None and session != "":
+        validate_session(session)
+
+    # Single-TLA parameters. The API spells this several ways across versions
+    # (`driver`, `driver1`/`driver2`, and `d1`/`d2` on the comparison
+    # endpoints); all of them are frozen public names, so validate each rather
+    # than renaming.
+    for name in ("driver", "driver1", "driver2", "d1", "d2"):
+        value = request.query_params.get(name)
+        if value:
+            validate_driver(value)
+
+    # `drivers` is a comma-separated TLA list.
+    drivers = request.query_params.get("drivers")
+    if drivers:
+        for tla in drivers.split(","):
+            if tla.strip():
+                validate_driver(tla)
+
+    # NOTE: `driver_name` is deliberately excluded -- it carries a full name
+    # ("Max Verstappen"), not a TLA, so the 3-letter rule would reject valid
+    # input.

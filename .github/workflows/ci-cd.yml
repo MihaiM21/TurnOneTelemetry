@@ -35,19 +35,56 @@ jobs:
           python -m pip install --upgrade pip
           pip install flake8 pylint black isort mypy
 
-      - name: Run Black (Code Formatter Check)
+      # HARD GATE. Syntax errors, undefined names and broken f-strings are
+      # always real bugs, never style opinions. An F821 shipped to production
+      # once already: a missing import meant v1 lap-times data silently failed
+      # to cache for months, because the NameError was swallowed by a broad
+      # `except Exception` and printed as a warning.
+      - name: Flake8 (errors that are always bugs)
+        run: flake8 src/ server.py --select=E9,F63,F7,F82 --show-source --statistics
+
+      # HARD GATE, on the modules that have been cleaned. Keeping these at zero
+      # is cheap and stops the backlog growing. ADD FILES HERE as they are
+      # cleaned -- that is how the advisory full-repo run below eventually
+      # becomes the only run.
+      - name: Flake8 (strict, on cleaned modules)
+        run: |
+          flake8 --max-line-length=120 \
+            src/api/app.py \
+            src/api/deps.py \
+            src/api/http_cache.py \
+            src/api/admin_security.py \
+            src/api/middleware/ \
+            src/api/schemas/common.py \
+            src/api/schemas/analysis.py \
+            src/api/schemas/accounts.py \
+            src/api/schemas/monitoring.py \
+            src/api/schemas/seasonal.py \
+            src/core/config.py \
+            src/core/security/ \
+            src/core/cache/redis_cache.py \
+            src/core/observability/analytics.py \
+            src/services/plotting/ \
+            src/services/backup/ \
+            src/domain/mappings.py \
+            tests/unit/api/
+
+      # ADVISORY, for now. The repo still carries ~1200 whitespace-class
+      # findings; these run so the count is visible and shrinking, and should
+      # be promoted to hard gates once that backlog is cleared.
+      - name: Flake8 (full repo, advisory)
+        run: flake8 src/ server.py --max-line-length=120 --statistics
+        continue-on-error: true
+
+      - name: Black (advisory)
         run: black --check --line-length=120 src/ server.py
         continue-on-error: true
 
-      - name: Run isort (Import Sorting Check)
+      - name: isort (advisory)
         run: isort --check-only --profile black src/ server.py
         continue-on-error: true
 
-      - name: Run Flake8
-        run: flake8 src/ server.py --max-line-length=120 --ignore=E203,W503,E501 --max-complexity=10
-        continue-on-error: true
-
-      - name: Run Pylint
+      - name: Pylint (advisory)
         run: pylint src/ server.py --max-line-length=120 --disable=C0111,R0903
         continue-on-error: true
 
@@ -70,7 +107,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install bandit safety
 
-      - name: Run Bandit (Security Linter)
+      # HARD GATE at high severity + high confidence. The repo is currently
+      # clean at this level; a regression here means something like the
+      # tarfile-extractall traversal (CVE-2007-4559) that this gate was added
+      # after fixing.
+      - name: Bandit (high severity, hard gate)
+        run: bandit -r src/ server.py -lll -iii
+
+      - name: Bandit (medium severity, advisory)
         run: bandit -r src/ server.py -ll
         continue-on-error: true
 

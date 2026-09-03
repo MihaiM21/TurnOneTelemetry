@@ -680,33 +680,30 @@ def save_to_json(data: Any, filename: str):
     try:
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=4, default=str)
-        print(f"\n[SAVED] Data successfully saved to: {os.path.abspath(filename)}")
+        logger.info("Data successfully saved to: %s", os.path.abspath(filename))
     except IOError as e:
-        print(f"\n[ERROR] Could not save file: {e}")
+        logger.error("Could not save file: %s", e)
 
 def demo_task_1_scraper():
     """
     Task 1 Demo: Scrape the 2023 Italian Grand Prix Race session
     """
-    print("=" * 80)
-    print("TASK 1: THE SCRAPER")
-    print("=" * 80)
-    
+    logger.info("TASK 1: THE SCRAPER")
+
     client = F1StaticClient()
-    
+
     # Find the TimingData.jsonStream URL
     url = client.get_timing_data_url(
         year=2023,
         event_name="Italian Grand Prix",
         session_name="Race"
     )
-    
+
     if url:
-        print(f"\n[SUCCESS] TimingData URL:")
-        print(f"   {url}")
+        logger.info("TimingData URL: %s", url)
     else:
-        print("\n[FAILED] Could not find the session")
-    
+        logger.error("Could not find the session")
+
     return url
 
 
@@ -714,30 +711,26 @@ def demo_task_2_parser(url: Optional[str] = None):
     """
     Task 2 Demo: Parse the TimingData.jsonStream
     """
-    print("\n" + "=" * 80)
-    print("TASK 2: THE PARSER")
-    print("=" * 80)
-    
+    logger.info("TASK 2: THE PARSER")
+
     client = F1StaticClient()
-    
+
     if not url:
         url = client.get_timing_data_url(2023, "Italian Grand Prix", "Race")
-    
+
     if not url:
-        print("[FAILED] No URL available to parse")
+        logger.error("No URL available to parse")
         return []
-    
+
     # Parse the first 5 entries
-    print(f"\nParsing first 5 entries from: {url}")
+    logger.info("Parsing first 5 entries from: %s", url)
     entries = client.parse_jsonstream_simple(url, limit=5)
-    
-    print(f"\n[SUCCESS] Parsed {len(entries)} entries\n")
-    
+
+    logger.info("Parsed %s entries", len(entries))
+
     for i, entry in enumerate(entries, 1):
-        print(f"Entry {i}:")
-        print(json.dumps(entry, indent=2))
-        print("-" * 40)
-    
+        logger.info("Entry %s: %s", i, json.dumps(entry, indent=2))
+
     return entries
 
 
@@ -745,39 +738,34 @@ def demo_task_3_decompressor():
     """
     Task 3 Demo: Decompress a .z.jsonStream file
     """
-    print("\n" + "=" * 80)
-    print("TASK 3: THE DECOMPRESSOR")
-    print("=" * 80)
-    
+    logger.info("TASK 3: THE DECOMPRESSOR")
+
     client = F1StaticClient()
-    
+
     # Get the session base URL
     base_url = client.get_event_session_url(2023, "Italian Grand Prix", "Race")
-    
+
     if not base_url:
-        print("[FAILED] Could not find session")
+        logger.error("Could not find session")
         return []
-    
+
     # Try CarData.z.jsonStream
     car_data_url = urljoin(base_url, "CarData.z.jsonStream")
-    
-    print(f"\nParsing compressed stream: {car_data_url}")
-    
+
+    logger.info("Parsing compressed stream: %s", car_data_url)
+
     try:
         entries = client.parse_compressed_stream(car_data_url, limit=3)
-        
-        print(f"\n[SUCCESS] Decompressed {len(entries)} entries\n")
-        
+
+        logger.info("Decompressed %s entries", len(entries))
+
         for i, entry in enumerate(entries, 1):
-            print(f"Entry {i}:")
-            print(json.dumps(entry, indent=2, default=str))
-            print("-" * 40)
-        
+            logger.info("Entry %s: %s", i, json.dumps(entry, indent=2, default=str))
+
         return entries
-        
+
     except Exception as e:
-        logger.error(f"Failed to parse compressed stream: {e}")
-        print(f"\n[ERROR] {e}")
+        logger.error("Failed to parse compressed stream: %s", e)
         return []
 
 
@@ -786,32 +774,25 @@ def run_all_demos():
     """
     Run all three task demonstrations in sequence and save result
     """
-    print("\n")
-    print("=" * 80)
-    print("         F1 STATIC CONTENT INGESTION PIPELINE")
-    print("                  Complete Demonstration")
-    print("=" * 80)
-    
+    logger.info("F1 STATIC CONTENT INGESTION PIPELINE - Complete Demonstration")
+
     # Task 1
     url = demo_task_1_scraper()
-    
+
     # Task 2
     if url:
         demo_task_2_parser(url)
-    
+
     # Task 3 - This returns the most complex data, let's capture and save this
     car_telemetry_data = demo_task_3_decompressor()
-    
-    print("\n" + "=" * 80)
-    
+
     if car_telemetry_data:
         # SAVE THE FILE
         output_filename = "f1_telemetry_output.json"
-        print(f"Saving {len(car_telemetry_data)} telemetry entries to disk...")
+        logger.info("Saving %s telemetry entries to disk...", len(car_telemetry_data))
         save_to_json(car_telemetry_data, output_filename)
-        
-    print("ALL TASKS COMPLETED SUCCESSFULLY")
-    print("=" * 80)
+
+    logger.info("ALL TASKS COMPLETED SUCCESSFULLY")
 
 
 if __name__ == "__main__":

@@ -196,15 +196,15 @@ class PositionChangesPlot:
 
 
 if __name__ == "__main__":
-    print("Testing V2 Position Changes...")
+    logger.info("Testing V2 Position Changes...")
     try:
         data = PositionChangesData()(2025, 1, "R")
-        print(f"Drivers: {len(data)}")
+        logger.info("Drivers: %s", len(data))
         if data:
-            print(f"Winner: {data[0]}")
+            logger.info("Winner: %s", data[0])
         plot_path = PositionChangesPlot()(2025, 1, "R")
-        print(f"Plot: {plot_path}")
+        logger.info("Plot: %s", plot_path)
     except Exception as ex:
-        print(f"Error: {ex}")
+        logger.error("Error: %s", ex)
         import traceback
         traceback.print_exc()

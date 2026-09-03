@@ -17,6 +17,9 @@ from src.services.analysis.v2._helpers import (
     extract_telemetry_for_lap, extract_position_for_lap, compute_distance,
     build_session_store,
 )
+from src.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def _init(y: int, event_name: str, session_name: str, d1: str, d2: str):
@@ -35,12 +38,12 @@ def _get_driver_track_data(base_url: str, client: F1StaticClient,
 
     driver_num = tla_to_num.get(driver_tla.upper())
     if not driver_num:
-        print(f"Driver {driver_tla} not found in session")
+        logger.warning("Driver %s not found in session", driver_tla)
         return pd.DataFrame()
 
     df_windows = get_fastest_lap_windows(base_url, client, target_driver_num=driver_num, store=store)
     if df_windows.empty:
-        print(f"No fastest lap found for {driver_tla}")
+        logger.warning("No fastest lap found for %s", driver_tla)
         return pd.DataFrame()
 
     row = df_windows.iloc[0]
@@ -48,7 +51,7 @@ def _get_driver_track_data(base_url: str, client: F1StaticClient,
 
     df_pos = extract_position_for_lap(base_url, client, driver_num, start_t, end_t, store=store)
     if df_pos.empty:
-        print(f"No position data for {driver_tla}")
+        logger.warning("No position data for %s", driver_tla)
         return pd.DataFrame()
 
     df_pos = compute_distance(df_pos)
@@ -169,8 +172,8 @@ def _generate_plot(data: Dict, y: int, event_name: str, session_name: str,
     try:
         logo = mpimg.imread('assets/images/logo mic.png')
         plt.figimage(logo, 575, 575, zorder=3, alpha=.6)
-    except:
-        pass
+    except (FileNotFoundError, OSError) as exc:
+        logger.debug("Watermark logo unavailable, skipping: %s", exc)
 
     plt.savefig(f"{location}/{name}")
     plt.close()
@@ -243,13 +246,13 @@ def TrackComparisonData(y: int, identifier: Union[int, str], e: str, d1: str, d2
 
 
 if __name__ == "__main__":
-    print("Testing V2 Track Comparison...")
+    logger.info("Testing V2 Track Comparison...")
     try:
         plot_path = TrackComparisonPlot(2023, 14, "Qualifying", "VER", "NOR")
-        print(f"Plot: {plot_path}")
+        logger.info("Plot: %s", plot_path)
         data = TrackComparisonData(2023, 14, "Qualifying", "VER", "NOR")
-        print(f"Telemetry points: {len(data.get('telemetry', []))}")
+        logger.info("Telemetry points: %s", len(data.get('telemetry', [])))
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error("Error: %s", e)
         import traceback
         traceback.print_exc()

@@ -5,6 +5,9 @@ Manages season-specific data including drivers, teams, colors, and compositions
 
 from typing import Dict, List, Optional, Any
 from src.repositories.mongo import MongoDBManager
+from src.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class SeasonsDataManager:
@@ -76,16 +79,14 @@ class SeasonsDataManager:
             )
 
             if result.upserted_id:
-                print(f"✓ Created season document for {year}")
+                logger.info("Created season document for %s", year)
             else:
-                print(f"✓ Updated season document for {year}")
+                logger.info("Updated season document for %s", year)
 
             return True
 
         except Exception as e:
-            print(f"✗ Error creating/updating season document: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception("Error creating/updating season document: %s", e)
             return False
 
     def add_driver(self, year: int, driver: Dict) -> bool:
@@ -105,10 +106,10 @@ class SeasonsDataManager:
                 {"$push": {"drivers": driver}},
                 upsert=True
             )
-            print(f"✓ Added driver {driver.get('code')} to {year} season")
+            logger.info("Added driver %s to %s season", driver.get('code'), year)
             return True
         except Exception as e:
-            print(f"✗ Error adding driver: {e}")
+            logger.error("Error adding driver: %s", e)
             return False
 
     def update_driver(self, year: int, driver_code: str, updates: Dict) -> bool:
@@ -133,14 +134,14 @@ class SeasonsDataManager:
             )
 
             if result.modified_count > 0:
-                print(f"✓ Updated driver {driver_code} in {year} season")
+                logger.info("Updated driver %s in %s season", driver_code, year)
                 return True
             else:
-                print(f"✗ Driver {driver_code} not found in {year} season")
+                logger.warning("Driver %s not found in %s season", driver_code, year)
                 return False
 
         except Exception as e:
-            print(f"✗ Error updating driver: {e}")
+            logger.error("Error updating driver: %s", e)
             return False
 
     def add_team(self, year: int, team: Dict) -> bool:
@@ -160,10 +161,10 @@ class SeasonsDataManager:
                 {"$push": {"teams": team}},
                 upsert=True
             )
-            print(f"✓ Added team {team.get('name')} to {year} season")
+            logger.info("Added team %s to %s season", team.get('name'), year)
             return True
         except Exception as e:
-            print(f"✗ Error adding team: {e}")
+            logger.error("Error adding team: %s", e)
             return False
 
     def update_team(self, year: int, team_name: str, updates: Dict) -> bool:
@@ -187,14 +188,14 @@ class SeasonsDataManager:
             )
 
             if result.modified_count > 0:
-                print(f"✓ Updated team {team_name} in {year} season")
+                logger.info("Updated team %s in %s season", team_name, year)
                 return True
             else:
-                print(f"✗ Team {team_name} not found in {year} season")
+                logger.warning("Team %s not found in %s season", team_name, year)
                 return False
 
         except Exception as e:
-            print(f"✗ Error updating team: {e}")
+            logger.error("Error updating team: %s", e)
             return False
 
     def get_season_data(self, year: int) -> Optional[Dict]:
@@ -211,7 +212,7 @@ class SeasonsDataManager:
             season_doc = self.collection.find_one({"year": year}, {"_id": 0})
             return season_doc
         except Exception as e:
-            print(f"✗ Error retrieving season data: {e}")
+            logger.error("Error retrieving season data: %s", e)
             return None
 
     def get_drivers(self, year: int) -> List[Dict]:
@@ -228,7 +229,7 @@ class SeasonsDataManager:
             season_doc = self.collection.find_one({"year": year}, {"drivers": 1, "_id": 0})
             return season_doc.get('drivers', []) if season_doc else []
         except Exception as e:
-            print(f"✗ Error retrieving drivers: {e}")
+            logger.error("Error retrieving drivers: %s", e)
             return []
 
     def get_driver(self, year: int, driver_code: str) -> Optional[Dict]:
@@ -249,7 +250,7 @@ class SeasonsDataManager:
                     return driver
             return None
         except Exception as e:
-            print(f"✗ Error retrieving driver: {e}")
+            logger.error("Error retrieving driver: %s", e)
             return None
 
     def get_teams(self, year: int) -> List[Dict]:
@@ -266,7 +267,7 @@ class SeasonsDataManager:
             season_doc = self.collection.find_one({"year": year}, {"teams": 1, "_id": 0})
             return season_doc.get('teams', []) if season_doc else []
         except Exception as e:
-            print(f"✗ Error retrieving teams: {e}")
+            logger.error("Error retrieving teams: %s", e)
             return []
 
     def get_team(self, year: int, team_name: str) -> Optional[Dict]:
@@ -287,7 +288,7 @@ class SeasonsDataManager:
                     return team
             return None
         except Exception as e:
-            print(f"✗ Error retrieving team: {e}")
+            logger.error("Error retrieving team: %s", e)
             return None
 
     def get_driver_color(self, year: int, driver_code: str) -> str:
@@ -343,7 +344,7 @@ class SeasonsDataManager:
             seasons = self.collection.find({}, {"year": 1, "_id": 0}).sort("year", 1)
             return [s['year'] for s in seasons]
         except Exception as e:
-            print(f"✗ Error listing seasons: {e}")
+            logger.error("Error listing seasons: %s", e)
             return []
 
     def delete_season(self, year: int) -> bool:
@@ -359,12 +360,12 @@ class SeasonsDataManager:
         try:
             result = self.collection.delete_one({"year": year})
             if result.deleted_count > 0:
-                print(f"✓ Deleted season {year}")
+                logger.info("Deleted season %s", year)
                 return True
             else:
-                print(f"✗ Season {year} not found")
+                logger.warning("Season %s not found", year)
                 return False
         except Exception as e:
-            print(f"✗ Error deleting season: {e}")
+            logger.error("Error deleting season: %s", e)
             return False
 

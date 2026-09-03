@@ -25,7 +25,13 @@ from src.api.admin_security import (
     enforce_ip_allowlist,
     enforce_ui_rate_limit,
 )
-from src.api.routers.admin import require_admin_key
+from src.api.routers.admin import ADMIN_ERROR_RESPONSES, _err, require_admin_key
+from src.api.schemas.admin import (
+    CacheInventoryResponse,
+    CachePrewarmResponse,
+    CachePurgeBundleResponse,
+    CachePurgeRawResponse,
+)
 from src.core.logging import get_logger
 from src.core.security.rate_limiting import apply_tiered_limit
 from src.repositories import raw_stream_cache, session_cache
@@ -45,7 +51,12 @@ router = APIRouter(prefix="/api/admin/cache", tags=["Admin"],
                    dependencies=[Depends(_admin_api_gate)])
 
 
-@router.get("/inventory")
+@router.get(
+    "/inventory",
+    summary="V2 cache inventory (raw + derived)",
+    operation_id="admin_cache_inventory",
+    responses={200: {"model": CacheInventoryResponse}, **ADMIN_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def admin_cache_inventory(
     request: Request,
@@ -56,34 +67,64 @@ async def admin_cache_inventory(
     return await run_in_threadpool(cache_inventory, year)
 
 
-@router.post("/purge/raw/{session_key}")
+@router.post(
+    "/purge/raw/{session_key}",
+    summary="Delete cached raw streams for a session (destructive)",
+    operation_id="admin_cache_purge_raw",
+    responses={
+        200: {"model": CachePurgeRawResponse},
+        404: _err("No cached raw streams for that session key."),
+        **ADMIN_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def admin_cache_purge_raw(
     request: Request,
     session_key: str,
     api_key: str = Depends(require_admin_key),
 ):
-    """Drop every raw stream blob for one session (``{year}_{round}_{session}``)."""
+    """Permanently drop every raw stream blob (GridFS) for one session
+    (``{year}_{round}_{session}``). Not reversible — the streams are re-fetched
+    from livetiming the next time something needs them."""
     removed = await run_in_threadpool(raw_stream_cache.delete_raw_streams, session_key)
     if not removed:
         raise HTTPException(status_code=404, detail="No cached streams for that session")
     return {"session_key": session_key, "removed": removed}
 
 
-@router.post("/purge/bundle/{doc_id}")
+@router.post(
+    "/purge/bundle/{doc_id}",
+    summary="Delete one derived session bundle (destructive)",
+    operation_id="admin_cache_purge_bundle",
+    responses={
+        200: {"model": CachePurgeBundleResponse},
+        404: _err("No derived bundle with that document id."),
+        **ADMIN_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def admin_cache_purge_bundle(
     request: Request,
     doc_id: str,
     api_key: str = Depends(require_admin_key),
 ):
-    """Drop one derived bundle so it is recomputed from the raw streams."""
+    """Permanently drop one derived bundle. Not reversible — it is recomputed
+    from the raw streams (or re-fetched, if those are also gone) on next read."""
     if not await run_in_threadpool(session_cache.delete_bundle, doc_id):
         raise HTTPException(status_code=404, detail="No bundle with that id")
     return {"doc_id": doc_id, "removed": True}
 
 
-@router.post("/prewarm")
+@router.post(
+    "/prewarm",
+    summary="Prewarm both cache tiers for a session",
+    operation_id="admin_cache_prewarm",
+    responses={
+        200: {"model": CachePrewarmResponse},
+        502: _err("Prewarm failed (upstream/livetiming fetch error)."),
+        **ADMIN_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def admin_cache_prewarm(
     request: Request,

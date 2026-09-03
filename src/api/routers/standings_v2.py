@@ -6,6 +6,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Request
 from fastapi.concurrency import run_in_threadpool
 
+from src.api.schemas.common import ANALYSIS_ERROR_RESPONSES
 from src.api.schemas.standings import (
     ConstructorsStandingsResponse,
     DriversStandingsResponse,
@@ -50,6 +51,13 @@ def _resolve_current_year_constructors() -> dict:
     "/seasons/{year}/drivers-standings",
     tags=["API v2", "Seasonal Data"],
     response_model=DriversStandingsResponse,
+    summary="Drivers' standings for a season",
+    operation_id="v2_season_drivers_standings",
+    description=(
+        "Full-season drivers' championship standings. This is the **canonical** form of this "
+        "data; `/api/v2/standings/drivers` returns the same shape for the current season only."
+    ),
+    responses={**ANALYSIS_ERROR_RESPONSES},
 )
 @apply_tiered_limit("standard")
 async def drivers_standings_for_season(
@@ -64,6 +72,14 @@ async def drivers_standings_for_season(
     "/seasons/{year}/constructors-standings",
     tags=["API v2", "Seasonal Data"],
     response_model=ConstructorsStandingsResponse,
+    summary="Constructors' standings for a season",
+    operation_id="v2_season_constructors_standings",
+    description=(
+        "Full-season constructors' championship standings. This is the **canonical** form of "
+        "this data; `/api/v2/standings/constructors` returns the same shape for the current "
+        "season only."
+    ),
+    responses={**ANALYSIS_ERROR_RESPONSES},
 )
 @apply_tiered_limit("standard")
 async def constructors_standings_for_season(
@@ -78,6 +94,10 @@ async def constructors_standings_for_season(
     "/seasons/{year}/round/{round_nr}/drivers-standings",
     tags=["API v2", "Seasonal Data"],
     response_model=DriversStandingsResponse,
+    summary="Drivers' standings after a round",
+    operation_id="v2_round_drivers_standings",
+    description="Drivers' championship standings as they stood immediately after `round_nr`.",
+    responses={**ANALYSIS_ERROR_RESPONSES},
 )
 @apply_tiered_limit("standard")
 async def drivers_standings_after_round(
@@ -93,6 +113,10 @@ async def drivers_standings_after_round(
     "/seasons/{year}/round/{round_nr}/constructors-standings",
     tags=["API v2", "Seasonal Data"],
     response_model=ConstructorsStandingsResponse,
+    summary="Constructors' standings after a round",
+    operation_id="v2_round_constructors_standings",
+    description="Constructors' championship standings as they stood immediately after `round_nr`.",
+    responses={**ANALYSIS_ERROR_RESPONSES},
 )
 @apply_tiered_limit("standard")
 async def constructors_standings_after_round(
@@ -108,6 +132,14 @@ async def constructors_standings_after_round(
     "/standings/drivers",
     tags=["API v2", "Seasonal Data"],
     response_model=DriversStandingsResponse,
+    summary="Current drivers' standings",
+    operation_id="v2_current_drivers_standings",
+    description=(
+        "Drivers' championship standings for the current season, falling back to the prior "
+        "season if the current one has no results yet. Short form of the canonical "
+        "`/api/v2/seasons/{year}/drivers-standings`; defaults to the current season."
+    ),
+    responses={**ANALYSIS_ERROR_RESPONSES},
 )
 @apply_tiered_limit("standard")
 async def current_drivers_standings(
@@ -121,6 +153,14 @@ async def current_drivers_standings(
     "/standings/constructors",
     tags=["API v2", "Seasonal Data"],
     response_model=ConstructorsStandingsResponse,
+    summary="Current constructors' standings",
+    operation_id="v2_current_constructors_standings",
+    description=(
+        "Constructors' championship standings for the current season, falling back to the "
+        "prior season if the current one has no results yet. Short form of the canonical "
+        "`/api/v2/seasons/{year}/constructors-standings`; defaults to the current season."
+    ),
+    responses={**ANALYSIS_ERROR_RESPONSES},
 )
 @apply_tiered_limit("standard")
 async def current_constructors_standings(

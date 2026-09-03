@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, HTTPException, Depends, Query
+from fastapi import APIRouter, Request, HTTPException, Depends, Query, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.concurrency import run_in_threadpool
 
@@ -31,10 +31,6 @@ from src.services.analysis.v2.throttle_comparison import (
 from src.services.analysis.v2.qualifying_results import (
     QualiResultsPlot as V2_QualiResultsPlot,
 )
-from src.services.analysis.v2.speed_distribution import (
-    SpeedDistributionPlot as V2_SpeedDistributionPlot,
-    SpeedDistributionData as V2_SpeedDistributionData,
-)
 from src.services.analysis.v2.driver_pace import (
     DriverPacePlot as V2_DriverPacePlot,
     DriverPaceData as V2_DriverPaceData,
@@ -53,6 +49,23 @@ from src.services.analysis.v2.tyre_stint_usage import (
 )
 from src.services.analysis.base import with_fallback
 from src.core.exceptions import T1APIError
+from src.api.schemas.common import ANALYSIS_ERROR_RESPONSES, COMMON_ERROR_RESPONSES, ErrorEnvelope
+from src.api.schemas.legacy_v1 import (
+    LegacyDashboardResponse,
+    LegacyDailyDataResponse,
+    LegacyDailyStatsResponse,
+    LegacyTopSpeedDataResponse,
+    LegacyThrottleComparisonDataResponse,
+    LegacySpeedDistributionDataResponse,
+    LegacyLaptimesDataResponse,
+    LegacyQualifyingResultsDataResponse,
+    LegacyTrackComparisonResponse,
+    LegacyThrottleBrakeComparisonResponse,
+    LegacyLapTimeAnalysisResponse,
+    LegacyDriverPaceDataResponse,
+    LegacyTeamsPaceDataResponse,
+    LegacyTyreStintUsageDataResponse,
+)
 
 logger = get_logger(__name__)
 
@@ -65,16 +78,45 @@ def _track(event_name, *args):
     except Exception:
         pass
 
-router = APIRouter(prefix="/api/v1")
+
+def _sunset_headers(response: Response) -> None:
+    """RFC 8594 retirement notice, applied to every ``/api/v1`` response.
+
+    A router-level dependency rather than per-endpoint code: it takes the framework's
+    ``Response`` object (excluded from OpenAPI parameter generation like ``Request``), so
+    no endpoint signature or documented parameter changes.
+    """
+    response.headers["Deprecation"] = "true"
+    response.headers["Sunset"] = "Sun, 01 Sep 2027 00:00:00 GMT"
+
+
+#: Documentation-only shape for every ``-plot`` endpoint: a PNG body, no JSON schema.
+_PNG_RESPONSE = {"content": {"image/png": {}}, "description": "PNG plot."}
+
+router = APIRouter(prefix="/api/v1", dependencies=[Depends(_sunset_headers)])
 
 # ============================================================================
 # ANALYSIS ENDPOINTS
 # ============================================================================
 
-@router.get('/daily-data', tags=["API v1", "General"])
+
+@router.get(
+    '/daily-data',
+    tags=["API v1"],
+    deprecated=True,
+    summary="Random daily featured plot bundle",
+    operation_id="v1_daily_data",
+    description=(
+        "Generate a daily 'featured session' data bundle (top speed + throttle comparison "
+        "for a randomly chosen round/session, cached for the day). **Deprecated, no V2 "
+        "equivalent** — this was a novelty endpoint for a rotating daily highlight, not a "
+        "stable data contract; callers should request `top-speed-data` / "
+        "`throttle-comparison-data` for a specific session instead."
+    ),
+    responses={200: {"model": LegacyDailyDataResponse}, **COMMON_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def daily_data(request: Request, api_key: str = Depends(verify_api_key)):
-    """Generate daily data summary plot (Standard rate limit)"""
     try:
         logger.info("Generating daily data plot")
         from src.workers.daily import DailyPlotData
@@ -84,24 +126,36 @@ async def daily_data(request: Request, api_key: str = Depends(verify_api_key)):
         logger.error(f"Error generating daily data: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to generate daily data")
 
-@router.get('/dashboard', tags=["API v1", "Latest Session"])
+
+@router.get(
+    '/dashboard',
+    tags=["API v1"],
+    deprecated=True,
+    summary="Latest session dashboard (FastF1)",
+    operation_id="v1_dashboard_latest_session",
+    description=(
+        "Get main latest session data. Automatically detects the most recent completed "
+        "session. **Deprecated** — use `GET /api/v2/dashboard` instead."
+    ),
+    responses={
+        200: {"model": LegacyDashboardResponse},
+        404: {"model": ErrorEnvelope, "description": "No finished sessions found in the schedule."},
+        **COMMON_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("data")
 async def get_dashboard_data(request: Request, api_key: str = Depends(verify_api_key)):
-    """
-    Get main latest session data.
-    Automatically detects the most recent completed session.
-    """
     try:
         logger.info("Fetching dashboard data for latest session")
         latest_session = await run_in_threadpool(get_latest_finished_session)
-        
+
         if not latest_session:
             logger.warning("No finished sessions found")
             raise HTTPException(status_code=404, detail="No finished sessions found")
-        
+
         result = await run_in_threadpool(latest_session_analised, latest_session)
         return result
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -110,7 +164,20 @@ async def get_dashboard_data(request: Request, api_key: str = Depends(verify_api
 
 # --- Simple Analysis ---
 
-@router.get('/top-speed-plot', tags=["API v1", "Simple Analysis"])
+
+@router.get(
+    '/top-speed-plot',
+    tags=["API v1"],
+    deprecated=True,
+    summary="Top speed per team (FastF1) plot",
+    operation_id="v1_top_speed_plot",
+    description=(
+        "Generate PNG plot of top speeds (max CarData telemetry speed per team). Falls "
+        "back to V2 if FastF1 lacks data. **Deprecated** — use "
+        "`GET /api/v2/top-speed-telemetry-plot` instead (same CarData-telemetry source)."
+    ),
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def quali_top_speed_plot(
     request: Request,
@@ -119,7 +186,6 @@ async def quali_top_speed_plot(
     session: str = Query('Q'),
     api_key: str = Depends(verify_api_key)
 ):
-    """Generate PNG plot of top speeds. Falls back to V2 if FastF1 lacks data."""
     logger.info(f"Generating top speed plot: Y{year} GP{gp} {session}")
     try:
         output_path = await run_in_threadpool(
@@ -137,7 +203,20 @@ async def quali_top_speed_plot(
         logger.error(f"Plot file not found: Y{year} GP{gp} {session}")
         raise HTTPException(status_code=404, detail="Plot not found")
 
-@router.get('/top-speed-data', tags=["API v1", "Simple Analysis"])
+
+@router.get(
+    '/top-speed-data',
+    tags=["API v1"],
+    deprecated=True,
+    summary="Top speed per team (FastF1) data",
+    operation_id="v1_top_speed_data",
+    description=(
+        "Get raw JSON data for top speed analysis (max CarData telemetry speed per team). "
+        "Falls back to V2 if FastF1 lacks data. **Deprecated** — use "
+        "`GET /api/v2/top-speed-telemetry-data` instead (same CarData-telemetry source)."
+    ),
+    responses={200: {"model": LegacyTopSpeedDataResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def quali_top_speed_data(
     request: Request,
@@ -146,7 +225,6 @@ async def quali_top_speed_data(
     session: str = Query('Q'),
     api_key: str = Depends(verify_api_key)
 ):
-    """Get raw JSON data for top speed analysis. Falls back to V2 if FastF1 lacks data."""
     logger.info(f"Fetching top speed data: Y{year} GP{gp} {session}")
     try:
         result = await run_in_threadpool(
@@ -166,7 +244,19 @@ async def quali_top_speed_data(
         logger.error(f"Data file not found: Y{year} GP{gp} {session}")
         raise HTTPException(status_code=404, detail="Data not found")
 
-@router.get('/throttle-comparison-plot', tags=["API v1", "Simple Analysis"])
+
+@router.get(
+    '/throttle-comparison-plot',
+    tags=["API v1"],
+    deprecated=True,
+    summary="Throttle comparison plot",
+    operation_id="v1_throttle_comparison_plot",
+    description=(
+        "Generate PNG plot comparing throttle application. Falls back to V2 if FastF1 "
+        "lacks data. **Deprecated** — use `GET /api/v2/throttle-comparison-plot` instead."
+    ),
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def throttle_comparison_plot(
     request: Request,
@@ -175,7 +265,6 @@ async def throttle_comparison_plot(
     session: str = Query('Q'),
     api_key: str = Depends(verify_api_key)
 ):
-    """Generate PNG plot comparing throttle application. Falls back to V2 if FastF1 lacks data."""
     logger.info(f"Generating throttle comparison plot: Y{year} GP{gp} {session}")
     try:
         output_path = await run_in_threadpool(
@@ -190,7 +279,19 @@ async def throttle_comparison_plot(
     except T1APIError:
         raise
 
-@router.get('/throttle-comparison-data', tags=["API v1", "Simple Analysis"])
+
+@router.get(
+    '/throttle-comparison-data',
+    tags=["API v1"],
+    deprecated=True,
+    summary="Throttle comparison data",
+    operation_id="v1_throttle_comparison_data",
+    description=(
+        "Get raw JSON data for throttle comparison. Falls back to V2 if FastF1 lacks "
+        "data. **Deprecated** — use `GET /api/v2/throttle-comparison-data` instead."
+    ),
+    responses={200: {"model": LegacyThrottleComparisonDataResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def throttle_comparison_data(
     request: Request,
@@ -199,7 +300,6 @@ async def throttle_comparison_data(
     session: str = Query('Q'),
     api_key: str = Depends(verify_api_key)
 ):
-    """Get raw JSON data for throttle comparison. Falls back to V2 if FastF1 lacks data."""
     logger.info(f"Fetching throttle comparison data: Y{year} GP{gp} {session}")
     try:
         result = await run_in_threadpool(
@@ -216,7 +316,19 @@ async def throttle_comparison_data(
     except T1APIError:
         raise
 
-@router.get('/qualifying-results-plot', tags=["API v1", "Simple Analysis"])
+
+@router.get(
+    '/qualifying-results-plot',
+    tags=["API v1"],
+    deprecated=True,
+    summary="Qualifying results plot",
+    operation_id="v1_qualifying_results_plot",
+    description=(
+        "Generate PNG plot of qualifying results. Falls back to V2 if FastF1 lacks data. "
+        "**Deprecated** — use `GET /api/v2/qualifying-results-plot` instead."
+    ),
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def qualifying_results_plot(
     request: Request,
@@ -225,7 +337,6 @@ async def qualifying_results_plot(
     session: str = Query('Q'),
     api_key: str = Depends(verify_api_key)
 ):
-    """Generate PNG plot of qualifying results. Falls back to V2 if FastF1 lacks data."""
     logger.info(f"Generating qualifying results plot: Y{year} GP{gp} {session}")
     try:
         output_path = await run_in_threadpool(
@@ -240,7 +351,19 @@ async def qualifying_results_plot(
     except T1APIError:
         raise
 
-@router.get('/qualifying-results-data', tags=["API v1", "Simple Analysis"])
+
+@router.get(
+    '/qualifying-results-data',
+    tags=["API v1"],
+    deprecated=True,
+    summary="Qualifying results data",
+    operation_id="v1_qualifying_results_data",
+    description=(
+        "Get raw JSON data for qualifying results. **Deprecated** — use "
+        "`GET /api/v2/qualifying-results-data` instead."
+    ),
+    responses={200: {"model": LegacyQualifyingResultsDataResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def qualifying_results_data(
     request: Request,
@@ -249,19 +372,11 @@ async def qualifying_results_data(
     session: str = Query('Q'),
     api_key: str = Depends(verify_api_key)
 ):
-    """Get raw JSON data for qualifying results"""
     try:
         logger.info(f"Fetching qualifying results data: Y{year} GP{gp} {session}")
         result = await run_in_threadpool(QualiResultsData, year, gp, session)
-        
-        # Track session if tracker is available
-        try:
-            from src.core.observability.analytics import SessionTracker
-            session_tracker = SessionTracker()
-            session_tracker.track_session('qualifying-results', year, gp, session)
-        except:
-            pass
-        
+        _track('qualifying-results', year, gp, session)
+
         # Check if result is cached data (dict/list) or file path (str)
         if isinstance(result, (dict, list)):
             return result
@@ -273,7 +388,19 @@ async def qualifying_results_data(
         logger.error(f"Error fetching qualifying data: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch data")
 
-@router.get('/laptimes', tags=["API v1", "Simple Analysis"])
+
+@router.get(
+    '/laptimes',
+    tags=["API v1"],
+    deprecated=True,
+    summary="Lap time distribution for a driver",
+    operation_id="v1_laptimes",
+    description=(
+        "Get laptime distribution data for a specific driver. **Deprecated** — use "
+        "`GET /api/v2/laptimes-distribution-data` instead."
+    ),
+    responses={200: {"model": LegacyLaptimesDataResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def get_laptimes(
     request: Request,
@@ -283,19 +410,11 @@ async def get_laptimes(
     driver: str = Query('VER', min_length=3, max_length=3),
     api_key: str = Depends(verify_api_key)
 ):
-    """Get laptime distribution data for a specific driver"""
     try:
         logger.info(f"Fetching lap times: Y{year} GP{gp} {session} Driver:{driver}")
         result = await run_in_threadpool(LatimesDistribution, year, gp, session, driver)
-        
-        # Track session if tracker is available
-        try:
-            from src.core.observability.analytics import SessionTracker
-            session_tracker = SessionTracker()
-            session_tracker.track_session('laptimes', year, gp, session, driver)
-        except:
-            pass
-        
+        _track('laptimes', year, gp, session, driver)
+
         # Handle both cached data (list) and file path (string)
         if isinstance(result, list):
             return JSONResponse(content=result)
@@ -307,7 +426,19 @@ async def get_laptimes(
         logger.error(f"Error fetching lap times: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch lap times")
 
-@router.get('/speed-distribution-plot', tags=["API v1", "Simple Analysis"])
+
+@router.get(
+    '/speed-distribution-plot',
+    tags=["API v1"],
+    deprecated=True,
+    summary="Speed distribution plot",
+    operation_id="v1_speed_distribution_plot",
+    description=(
+        "Generate PNG plot of speed distribution. **Deprecated** — use "
+        "`GET /api/v2/speed-distribution-plot` instead."
+    ),
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def speed_distribution_plot(
     request: Request,
@@ -317,19 +448,10 @@ async def speed_distribution_plot(
     driver: str = Query(None, description="Optional driver TLA (e.g., VER)"),
     api_key: str = Depends(verify_api_key)
 ):
-    """Generate PNG plot of speed distribution"""
     try:
         logger.info(f"Generating speed distribution plot: Y{year} GP{gp} {session} Driver={driver}")
         output_path = await run_in_threadpool(SpeedDistributionPlot, year, gp, session, driver)
-        
-        # Track session if tracker is available
-        try:
-            from src.core.observability.analytics import SessionTracker
-            session_tracker = SessionTracker()
-            session_tracker.track_session('speed-distribution', year, gp, session)
-        except:
-            pass
-        
+        _track('speed-distribution', year, gp, session)
         return FileResponse(output_path, media_type='image/png')
     except ValueError as ve:
         logger.warning(f"Data error in speed distribution plot: {ve}")
@@ -340,7 +462,19 @@ async def speed_distribution_plot(
         logger.error(f"Error generating speed distribution plot: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to generate plot")
 
-@router.get('/speed-distribution-data', tags=["API v1", "Simple Analysis"])
+
+@router.get(
+    '/speed-distribution-data',
+    tags=["API v1"],
+    deprecated=True,
+    summary="Speed distribution data",
+    operation_id="v1_speed_distribution_data",
+    description=(
+        "Get raw JSON data for speed distribution. **Deprecated** — use "
+        "`GET /api/v2/speed-distribution-data` instead."
+    ),
+    responses={200: {"model": LegacySpeedDistributionDataResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def speed_distribution_data(
     request: Request,
@@ -350,19 +484,11 @@ async def speed_distribution_data(
     driver: str = Query(None, description="Optional driver TLA (e.g., VER)"),
     api_key: str = Depends(verify_api_key)
 ):
-    """Get raw JSON data for speed distribution"""
     try:
         logger.info(f"Fetching speed distribution data: Y{year} GP{gp} {session} Driver={driver}")
         result = await run_in_threadpool(SpeedDistributionData, year, gp, session, driver)
-        
-        # Track session if tracker is available
-        try:
-            from src.core.observability.analytics import SessionTracker
-            session_tracker = SessionTracker()
-            session_tracker.track_session('speed-distribution', year, gp, session)
-        except:
-            pass
-        
+        _track('speed-distribution', year, gp, session)
+
         if isinstance(result, (dict, list)):
             return result
         else:
@@ -378,7 +504,19 @@ async def speed_distribution_data(
 
 # --- Driver Comparison ---
 
-@router.get('/track-comparison-2drivers-plot', tags=["API v1", "Driver Comparison"])
+
+@router.get(
+    '/track-comparison-2drivers-plot',
+    tags=["API v1"],
+    deprecated=True,
+    summary="Track map comparison (2 drivers) plot",
+    operation_id="v1_track_comparison_2drivers_plot",
+    description=(
+        "Generate track map comparing two drivers. **Deprecated** — use "
+        "`GET /api/v2/track-comparison-plot` instead."
+    ),
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def track_comparison_2drivers_plot(
     request: Request,
@@ -389,19 +527,10 @@ async def track_comparison_2drivers_plot(
     driver2: str = Query('HAM', min_length=3, max_length=3),
     api_key: str = Depends(verify_api_key)
 ):
-    """Generate track map comparing two drivers"""
     try:
         logger.info(f"Generating track comparison: Y{year} GP{gp} {session} {driver1} vs {driver2}")
         output_path = await run_in_threadpool(TrackComparisonPlot, year, gp, session, driver1, driver2)
-        
-        # Track session if tracker is available
-        try:
-            from src.core.observability.analytics import SessionTracker
-            session_tracker = SessionTracker()
-            session_tracker.track_session('track-comparison-2drivers', year, gp, session, driver1, driver2)
-        except:
-            pass
-        
+        _track('track-comparison-2drivers', year, gp, session, driver1, driver2)
         return FileResponse(output_path, media_type='image/png')
     except T1APIError:
         raise
@@ -409,7 +538,19 @@ async def track_comparison_2drivers_plot(
         logger.error(f"Error generating track comparison: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to generate plot")
 
-@router.get('/track-comparison-2drivers-data', tags=["API v1", "Driver Comparison"])
+
+@router.get(
+    '/track-comparison-2drivers-data',
+    tags=["API v1"],
+    deprecated=True,
+    summary="Track map comparison (2 drivers) data",
+    operation_id="v1_track_comparison_2drivers_data",
+    description=(
+        "Get raw data for 2-driver track comparison. **Deprecated** — use "
+        "`GET /api/v2/track-comparison-data` instead."
+    ),
+    responses={200: {"model": LegacyTrackComparisonResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def track_comparison_2drivers_data(
     request: Request,
@@ -420,19 +561,11 @@ async def track_comparison_2drivers_data(
     driver2: str = Query('HAM', min_length=3, max_length=3),
     api_key: str = Depends(verify_api_key)
 ):
-    """Get raw data for 2-driver track comparison"""
     try:
         logger.info(f"Fetching track comparison data: Y{year} GP{gp} {session} {driver1} vs {driver2}")
         result = await run_in_threadpool(TrackComparisonData, year, gp, session, driver1, driver2)
-        
-        # Track session if tracker is available
-        try:
-            from src.core.observability.analytics import SessionTracker
-            session_tracker = SessionTracker()
-            session_tracker.track_session('track-comparison-2drivers', year, gp, session, driver1, driver2)
-        except:
-            pass
-        
+        _track('track-comparison-2drivers', year, gp, session, driver1, driver2)
+
         # Check if result is cached data (dict/list) or file path (str)
         if isinstance(result, (dict, list)):
             return result
@@ -444,7 +577,19 @@ async def track_comparison_2drivers_data(
         logger.error(f"Error fetching track comparison data: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch data")
 
-@router.get('/throttleBrake-comparison-2drivers-plot', tags=["API v1", "Driver Comparison"])
+
+@router.get(
+    '/throttleBrake-comparison-2drivers-plot',
+    tags=["API v1"],
+    deprecated=True,
+    summary="Throttle/brake comparison (2 drivers) plot",
+    operation_id="v1_throttle_brake_comparison_2drivers_plot",
+    description=(
+        "Generate throttle/brake telemetry graph for 2 drivers. **Deprecated** — use "
+        "`GET /api/v2/throttle-brake-comparison-plot` instead."
+    ),
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def throttle_brake_comparison_2drivers_plot(
     request: Request,
@@ -455,7 +600,6 @@ async def throttle_brake_comparison_2drivers_plot(
     driver2: str = Query('HAM', min_length=3, max_length=3),
     api_key: str = Depends(verify_api_key)
 ):
-    """Generate throttle/brake telemetry graph for 2 drivers"""
     try:
         logger.info(f"Generating throttle/brake comparison: Y{year} GP{gp} {session} {driver1} vs {driver2}")
         output_path = await run_in_threadpool(throttle_graph, year, gp, session, driver1, driver2)
@@ -466,7 +610,19 @@ async def throttle_brake_comparison_2drivers_plot(
         logger.error(f"Error generating throttle/brake plot: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to generate plot")
 
-@router.get('/throttleBrake-comparison-2drivers-data', tags=["API v1", "Driver Comparison"])
+
+@router.get(
+    '/throttleBrake-comparison-2drivers-data',
+    tags=["API v1"],
+    deprecated=True,
+    summary="Throttle/brake comparison (2 drivers) data",
+    operation_id="v1_throttle_brake_comparison_2drivers_data",
+    description=(
+        "Get raw data for 2-driver throttle/brake comparison. **Deprecated** — use "
+        "`GET /api/v2/throttle-brake-comparison-data` instead."
+    ),
+    responses={200: {"model": LegacyThrottleBrakeComparisonResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def throttle_brake_comparison_2drivers_data(
     request: Request,
@@ -477,19 +633,11 @@ async def throttle_brake_comparison_2drivers_data(
     driver2: str = Query('HAM', min_length=3, max_length=3),
     api_key: str = Depends(verify_api_key)
 ):
-    """Get raw data for 2-driver throttle/brake comparison"""
     try:
         logger.info(f"Fetching throttle/brake data: Y{year} GP{gp} {session} {driver1} vs {driver2}")
         result = await run_in_threadpool(throttle_graph_data, year, gp, session, driver1, driver2)
-        
-        # Track session if tracker is available
-        try:
-            from src.core.observability.analytics import SessionTracker
-            session_tracker = SessionTracker()
-            session_tracker.track_session('track-comparison-2drivers', year, gp, session, driver1, driver2)
-        except:
-            pass
-        
+        _track('track-comparison-2drivers', year, gp, session, driver1, driver2)
+
         # Check if result is cached data (dict/list) or file path (str)
         if isinstance(result, (dict, list)):
             return result
@@ -501,7 +649,19 @@ async def throttle_brake_comparison_2drivers_data(
         logger.error(f"Error fetching throttle/brake data: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch data")
 
-@router.get('/lap-time-analysis-plot', tags=["API v1", "Driver Comparison"])
+
+@router.get(
+    '/lap-time-analysis-plot',
+    tags=["API v1"],
+    deprecated=True,
+    summary="Lap time analysis plot",
+    operation_id="v1_lap_time_analysis_plot",
+    description=(
+        "Speed / Delta time / Throttle comparison for two drivers' fastest laps. Falls "
+        "back to V2. **Deprecated** — use `GET /api/v2/lap-time-analysis-plot` instead."
+    ),
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def lap_time_analysis_plot(
     request: Request,
@@ -512,7 +672,6 @@ async def lap_time_analysis_plot(
     driver2: str = Query('HAM', min_length=3, max_length=3),
     api_key: str = Depends(verify_api_key)
 ):
-    """Speed / Delta time / Throttle comparison for two drivers' fastest laps. Falls back to V2."""
     logger.info(f"Generating lap time analysis plot: Y{year} GP{gp} {session} {driver1} vs {driver2}")
     try:
         output_path = await run_in_threadpool(
@@ -530,7 +689,19 @@ async def lap_time_analysis_plot(
         raise HTTPException(status_code=404, detail="Plot not found")
 
 
-@router.get('/lap-time-analysis-data', tags=["API v1", "Driver Comparison"])
+@router.get(
+    '/lap-time-analysis-data',
+    tags=["API v1"],
+    deprecated=True,
+    summary="Lap time analysis data",
+    operation_id="v1_lap_time_analysis_data",
+    description=(
+        "Speed/Throttle telemetry + delta-time series for two drivers' fastest laps. "
+        "Falls back to V2. **Deprecated** — use `GET /api/v2/lap-time-analysis-data` "
+        "instead."
+    ),
+    responses={200: {"model": LegacyLapTimeAnalysisResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def lap_time_analysis_data(
     request: Request,
@@ -541,7 +712,6 @@ async def lap_time_analysis_data(
     driver2: str = Query('HAM', min_length=3, max_length=3),
     api_key: str = Depends(verify_api_key)
 ):
-    """Speed/Throttle telemetry + delta-time series for two drivers' fastest laps. Falls back to V2."""
     logger.info(f"Fetching lap time analysis data: Y{year} GP{gp} {session} {driver1} vs {driver2}")
     try:
         result = await run_in_threadpool(
@@ -559,31 +729,48 @@ async def lap_time_analysis_data(
         raise
 
 
-@router.get('/analytics/daily', tags=["API v1", "General"])
+@router.get(
+    '/analytics/daily',
+    tags=["API v1"],
+    deprecated=True,
+    summary="Daily session-tracker analytics",
+    operation_id="v1_analytics_daily",
+    description=(
+        "Get daily session analytics. **Deprecated, no V2 equivalent** — this is internal "
+        "request-tracking telemetry (`SessionTracker`, SQLite-backed), not an analysis "
+        "feature; it has no V2 counterpart and none is planned."
+    ),
+    responses={
+        200: {"model": LegacyDailyStatsResponse},
+        400: {"model": ErrorEnvelope, "description": "`date_str` is not in YYYY-MM-DD format."},
+        503: {"model": ErrorEnvelope, "description": "Session tracker unavailable."},
+        **COMMON_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def get_daily_analytics(
     request: Request,
     date_str: str = Query(None, description='Date in YYYY-MM-DD format'),
     api_key: str = Depends(verify_api_key)
 ):
-    """Get daily session analytics"""
     try:
         from src.core.observability.analytics import SessionTracker
         from datetime import datetime
-        
+
         if date_str:
             target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         else:
             target_date = None
-        
+
         try:
             session_tracker = SessionTracker()
-        except:
+        except Exception as tracker_err:
+            logger.warning(f"Session tracker unavailable: {tracker_err}")
             raise HTTPException(status_code=503, detail="Session tracker unavailable")
-        
+
         stats = session_tracker.get_daily_stats(target_date)
         return stats
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
     except HTTPException:
         raise
@@ -591,21 +778,38 @@ async def get_daily_analytics(
         logger.error(f"Error fetching daily analytics: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch analytics")
 
-@router.get('/analytics/total', tags=["API v1", "General"])
+
+@router.get(
+    '/analytics/total',
+    tags=["API v1"],
+    deprecated=True,
+    summary="Total session-tracker analytics",
+    operation_id="v1_analytics_total",
+    description=(
+        "Get total session analytics. **Deprecated, no V2 equivalent** — this is internal "
+        "request-tracking telemetry (`SessionTracker`, SQLite-backed), not an analysis "
+        "feature; it has no V2 counterpart and none is planned."
+    ),
+    responses={
+        200: {"model": LegacyDailyStatsResponse},
+        503: {"model": ErrorEnvelope, "description": "Session tracker unavailable."},
+        **COMMON_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def get_total_analytics(
     request: Request,
     api_key: str = Depends(verify_api_key)
 ):
-    """Get total session analytics"""
     try:
         from src.core.observability.analytics import SessionTracker
-        
+
         try:
             session_tracker = SessionTracker()
-        except:
+        except Exception as tracker_err:
+            logger.warning(f"Session tracker unavailable: {tracker_err}")
             raise HTTPException(status_code=503, detail="Session tracker unavailable")
-        
+
         stats = session_tracker.get_total_stats()
         return stats
     except HTTPException:
@@ -617,7 +821,18 @@ async def get_total_analytics(
 
 # --- Pace Analysis ---
 
-@router.get('/driver-pace-plot', tags=["API v1", "Pace Analysis"])
+@router.get(
+    '/driver-pace-plot',
+    tags=["API v1"],
+    deprecated=True,
+    summary="Driver pace distribution plot",
+    operation_id="v1_driver_pace_plot",
+    description=(
+        "Box-and-whisker pace plot per driver (107% quicklap filter). Falls back to V2. "
+        "**Deprecated** — use `GET /api/v2/driver-pace-plot` instead."
+    ),
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def driver_pace_plot(
     request: Request,
@@ -626,7 +841,6 @@ async def driver_pace_plot(
     session: str = Query('R'),
     api_key: str = Depends(verify_api_key)
 ):
-    """Box-and-whisker pace plot per driver (107% quicklap filter). Falls back to V2."""
     logger.info(f"Generating driver pace plot: Y{year} GP{gp} {session}")
     try:
         output_path = await run_in_threadpool(
@@ -644,7 +858,18 @@ async def driver_pace_plot(
         raise HTTPException(status_code=404, detail="Plot not found")
 
 
-@router.get('/driver-pace-data', tags=["API v1", "Pace Analysis"])
+@router.get(
+    '/driver-pace-data',
+    tags=["API v1"],
+    deprecated=True,
+    summary="Driver pace distribution data",
+    operation_id="v1_driver_pace_data",
+    description=(
+        "JSON pace distribution per driver: lap times + min/q1/median/q3/max. Falls back "
+        "to V2. **Deprecated** — use `GET /api/v2/driver-pace-data` instead."
+    ),
+    responses={200: {"model": LegacyDriverPaceDataResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def driver_pace_data(
     request: Request,
@@ -653,7 +878,6 @@ async def driver_pace_data(
     session: str = Query('R'),
     api_key: str = Depends(verify_api_key)
 ):
-    """JSON pace distribution per driver: lap times + min/q1/median/q3/max. Falls back to V2."""
     logger.info(f"Fetching driver pace data: Y{year} GP{gp} {session}")
     try:
         result = await run_in_threadpool(
@@ -671,7 +895,18 @@ async def driver_pace_data(
         raise
 
 
-@router.get('/teams-pace-plot', tags=["API v1", "Pace Analysis"])
+@router.get(
+    '/teams-pace-plot',
+    tags=["API v1"],
+    deprecated=True,
+    summary="Team pace distribution plot",
+    operation_id="v1_teams_pace_plot",
+    description=(
+        "Box-and-whisker pace plot per team (laps from both drivers aggregated). Falls "
+        "back to V2. **Deprecated** — use `GET /api/v2/teams-pace-plot` instead."
+    ),
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def teams_pace_plot(
     request: Request,
@@ -680,7 +915,6 @@ async def teams_pace_plot(
     session: str = Query('R'),
     api_key: str = Depends(verify_api_key)
 ):
-    """Box-and-whisker pace plot per team (laps from both drivers aggregated). Falls back to V2."""
     logger.info(f"Generating teams pace plot: Y{year} GP{gp} {session}")
     try:
         output_path = await run_in_threadpool(
@@ -698,7 +932,18 @@ async def teams_pace_plot(
         raise HTTPException(status_code=404, detail="Plot not found")
 
 
-@router.get('/teams-pace-data', tags=["API v1", "Pace Analysis"])
+@router.get(
+    '/teams-pace-data',
+    tags=["API v1"],
+    deprecated=True,
+    summary="Team pace distribution data",
+    operation_id="v1_teams_pace_data",
+    description=(
+        "JSON pace distribution per team. Falls back to V2. **Deprecated** — use "
+        "`GET /api/v2/teams-pace-data` instead."
+    ),
+    responses={200: {"model": LegacyTeamsPaceDataResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def teams_pace_data(
     request: Request,
@@ -707,7 +952,6 @@ async def teams_pace_data(
     session: str = Query('R'),
     api_key: str = Depends(verify_api_key)
 ):
-    """JSON pace distribution per team. Falls back to V2."""
     logger.info(f"Fetching teams pace data: Y{year} GP{gp} {session}")
     try:
         result = await run_in_threadpool(
@@ -725,7 +969,18 @@ async def teams_pace_data(
         raise
 
 
-@router.get('/tyre-stint-usage-plot', tags=["API v1", "Race Analysis"])
+@router.get(
+    '/tyre-stint-usage-plot',
+    tags=["API v1"],
+    deprecated=True,
+    summary="Tyre stint usage plot",
+    operation_id="v1_tyre_stint_usage_plot",
+    description=(
+        "Stint strategy timeline: per-driver compound stints across the race. Falls back "
+        "to V2. **Deprecated** — use `GET /api/v2/tyre-stint-usage-plot` instead."
+    ),
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def tyre_stint_usage_plot(
     request: Request,
@@ -734,7 +989,6 @@ async def tyre_stint_usage_plot(
     session: str = Query('R'),
     api_key: str = Depends(verify_api_key)
 ):
-    """Stint strategy timeline: per-driver compound stints across the race. Falls back to V2."""
     logger.info(f"Generating tyre stint usage plot: Y{year} GP{gp} {session}")
     try:
         output_path = await run_in_threadpool(
@@ -752,7 +1006,18 @@ async def tyre_stint_usage_plot(
         raise HTTPException(status_code=404, detail="Plot not found")
 
 
-@router.get('/tyre-stint-usage-data', tags=["API v1", "Race Analysis"])
+@router.get(
+    '/tyre-stint-usage-data',
+    tags=["API v1"],
+    deprecated=True,
+    summary="Tyre stint usage data",
+    operation_id="v1_tyre_stint_usage_data",
+    description=(
+        "JSON per-stint records (driver, compound, start_lap, end_lap, lap_count). Falls "
+        "back to V2. **Deprecated** — use `GET /api/v2/tyre-stint-usage-data` instead."
+    ),
+    responses={200: {"model": LegacyTyreStintUsageDataResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def tyre_stint_usage_data(
     request: Request,
@@ -761,7 +1026,6 @@ async def tyre_stint_usage_data(
     session: str = Query('R'),
     api_key: str = Depends(verify_api_key)
 ):
-    """JSON per-stint records (driver, compound, start_lap, end_lap, lap_count). Falls back to V2."""
     logger.info(f"Fetching tyre stint usage data: Y{year} GP{gp} {session}")
     try:
         result = await run_in_threadpool(

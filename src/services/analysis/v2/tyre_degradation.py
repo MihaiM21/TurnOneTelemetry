@@ -425,16 +425,15 @@ class TyreDegradationPlot:
 
 
 if __name__ == "__main__":
-    print("Testing V2 Tyre Degradation...")
+    logger.info("Testing V2 Tyre Degradation...")
     try:
         data = TyreDegradationData()(2025, 1, "R")
-        print(f"Compounds: {len(data)}")
+        logger.info("Compounds: %s", len(data))
         for comp in data:
-            print(f"  {comp['compound']}: deg={comp['deg_rate_s_per_lap']} "
-                  f"R2={comp['r_squared']} n={comp['n_points']}")
+            logger.info("  %s: deg=%s R2=%s n=%s", comp['compound'], comp['deg_rate_s_per_lap'], comp['r_squared'], comp['n_points'])
         plot_path = TyreDegradationPlot()(2025, 1, "R")
-        print(f"Plot: {plot_path}")
+        logger.info("Plot: %s", plot_path)
     except Exception as ex:
-        print(f"Error: {ex}")
+        logger.error("Error: %s", ex)
         import traceback
         traceback.print_exc()

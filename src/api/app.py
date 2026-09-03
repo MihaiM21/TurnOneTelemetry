@@ -27,6 +27,7 @@ from slowapi import _rate_limit_exceeded_handler  # noqa: E402
 from slowapi.errors import RateLimitExceeded  # noqa: E402
 
 from src.api.docs_auth import setup_docs_auth  # noqa: E402
+from src.api.schemas.common import ErrorEnvelope  # noqa: E402
 from src.api.schemas.health import HealthCheckResponse  # noqa: E402
 from src.core.config import check_production_safety, settings  # noqa: E402
 from src.core.exceptions import (  # noqa: E402
@@ -73,29 +74,63 @@ SWAGGER_UI_PARAMETERS = {
 }
 
 DESCRIPTION = """
-# T1API - Formula 1 Telemetry Analysis
+# T1API — Formula 1 Telemetry Analysis
 
-This API provides advanced telemetry analysis for Formula 1 sessions.
-It powers the dashboards at **t1f1.com** and **turnonehub.com**.
+Telemetry, timing and seasonal analysis for Formula 1 sessions, powering the
+dashboards at **t1f1.com** and **turnonehub.com**.
+
+Most features are available two ways: a `-plot` endpoint returning a rendered
+**PNG**, and a `-data` endpoint returning the same analysis as **JSON**.
+
+## Versions
+
+| | |
+|---|---|
+| **v2** (`/api/v2`) | Current. Built on the F1 live-timing feed. **Use this.** |
+| **v1** (`/api/v1`) | Deprecated. FastF1-backed. Still served; every endpoint names its v2 replacement. |
+
+v2 falls back to the v1 data source automatically when live-timing lacks data, so
+a v2 endpoint may still answer for older sessions.
 
 ## Authentication
-All endpoints require an API key passed via the `X-API-Key` header.
 
-## Features
-* **Daily Data**: High-level daily summary plots
-* **Telemetry Comparison**: Throttle, brake, and speed comparisons between drivers
-* **Qualifying Analysis**: Lap time distributions and top speed charts
-* **Dashboards**: Aggregated data for specific race sessions
+Most endpoints require an API key in the `X-API-Key` header.
 
-## Rate Limits
-The API implements tiered rate limiting:
-- **Public**: 30 requests/minute (unauthenticated)
-- **Standard**: 100 requests/minute (with API key)
-- **Premium**: 300 requests/minute (premium API keys)
-- **Data endpoints**: 60 requests/minute (separate counter)
+* `/api/static/*` — currently served **without** authentication.
+* `/api/auth/*`, `/api/keys/*`, `/api/me/*` — use a **JWT bearer token**, not an API key.
+  Sign up via `/api/auth/signup`, then mint keys at `/api/keys`.
+* `/api/admin/*` and `/metrics` — require an **operator** key. Ordinary consumer keys are
+  rejected.
 
-## Usage
-All endpoints support both plot (PNG) and data (JSON) responses.
+A newly created key is shown **once** and stored hashed; it cannot be retrieved again.
+
+## Rate limits
+
+Applied per key (unauthenticated callers are bucketed by IP):
+
+| Tier | Per minute | Per hour |
+|---|---|---|
+| Public (no key) | 30 | 500 |
+| Standard | 100 | 2,000 |
+| Premium | 300 | 10,000 |
+
+Data-heavy endpoints carry a separate 60/min counter. Exceeding a limit returns
+**429** with a `Retry-After` header.
+
+## Caching
+
+Historical session data never changes once processed, so those responses are
+`private, max-age=86400, immutable` and carry a weak `ETag` — send `If-None-Match`
+to get a **304** and skip the transfer. `/api/v2/dashboard` is the exception: it
+tracks the latest session and is revalidated frequently.
+
+## Errors
+
+Errors share a common envelope carrying `detail`, a `request_id` for correlating
+with server logs, and a `timestamp`. Session-addressed endpoints add richer
+shapes: **404** may include `valid_rounds`/`suggestions`, and **503** distinguishes
+*data not yet available upstream* from *an upstream source being down*, both with
+`Retry-After`.
 """
 
 TAGS_METADATA = [
@@ -205,9 +240,42 @@ TAGS_METADATA = [
 ]
 
 
+def _init_sentry(logger) -> None:
+    """Initialise Sentry error tracking when a DSN is configured.
+
+    The settings (``sentry_dsn``, ``sentry_environment``,
+    ``sentry_traces_sample_rate``) and the dependency have been present for a
+    long time, but ``sentry_sdk.init()`` was never actually called, so every
+    production error went unreported. No DSN means no-op, so this is safe in
+    development and in tests.
+    """
+    if not settings.sentry_dsn:
+        return
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+        from sentry_sdk.integrations.starlette import StarletteIntegration
+
+        sentry_sdk.init(
+            dsn=settings.sentry_dsn,
+            environment=settings.sentry_environment,
+            traces_sample_rate=settings.sentry_traces_sample_rate,
+            release=settings.app_version,
+            integrations=[StarletteIntegration(), FastApiIntegration()],
+            # Request bodies can carry API keys; headers are scrubbed by
+            # Sentry's default denylist but bodies are not.
+            send_default_pii=False,
+        )
+        logger.info("Sentry initialised (environment=%s)", settings.sentry_environment)
+    except Exception as exc:  # never let telemetry break startup
+        logger.warning("Sentry initialisation failed: %s", exc)
+
+
 def create_app() -> FastAPI:
     setup_logging(level=settings.log_level, log_file=settings.log_file)
     logger = get_logger(__name__)
+
+    _init_sentry(logger)
 
     limiter = init_limiter()
 
@@ -339,6 +407,12 @@ def create_app() -> FastAPI:
         },
         license_info={"name": "Proprietary / Internal Use"},
         openapi_tags=TAGS_METADATA,
+        # Declared so "Try it out" targets the right host instead of whatever
+        # origin happens to be serving the docs page.
+        servers=[
+            {"url": "https://api.t1f1.com", "description": "Production"},
+            {"url": "http://localhost:5000", "description": "Local development"},
+        ],
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
@@ -512,7 +586,16 @@ def create_app() -> FastAPI:
             headers={"Cache-Control": "public, max-age=86400", "X-Robots-Tag": "noindex"},
         )
 
-    @app.get("/", tags=["General"])
+    @app.get(
+        "/",
+        tags=["General"],
+        summary="Service banner",
+        operation_id="root_welcome",
+        description=(
+            "Unauthenticated service banner: name, running version, and where to "
+            "find the documentation and health check."
+        ),
+    )
     async def welcome():
         return {
             "message": "Welcome to the T1API",
@@ -521,7 +604,23 @@ def create_app() -> FastAPI:
             "health": "/api/health",
         }
 
-    @app.get("/api/health", tags=["General"], response_model=HealthCheckResponse)
+    @app.get(
+        "/api/health",
+        tags=["General"],
+        response_model=HealthCheckResponse,
+        summary="Health check",
+        operation_id="health_check",
+        description=(
+            "Liveness and dependency check. Unauthenticated, so it can be used as "
+            "a container or load-balancer probe. "
+            "Returns `status: healthy` when MongoDB is reachable, `degraded` when "
+            "it is not (the API can still serve cached responses), and **503** if "
+            "the check itself fails."
+        ),
+        responses={
+            503: {"model": ErrorEnvelope, "description": "Service unhealthy."},
+        },
+    )
     @limiter.limit(f"{settings.rate_limit_public_per_minute}/minute")
     async def health_check(request: Request):
         try:

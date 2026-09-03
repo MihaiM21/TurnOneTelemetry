@@ -389,18 +389,18 @@ class RaceGapsPlot:
 
 
 if __name__ == "__main__":
-    print("Testing V2 Race Gaps...")
+    logger.info("Testing V2 Race Gaps...")
     for ref in ("leader", "average"):
         try:
             data = RaceGapsData()(2025, 1, "R", ref)
-            print(f"[{ref}] Drivers: {len(data)}")
+            logger.info("[%s] Drivers: %s", ref, len(data))
             if data:
                 leader = data[0]
                 last = leader["laps"][-1] if leader["laps"] else None
-                print(f"[{ref}] Leader: {leader['driver']} last lap: {last}")
+                logger.info("[%s] Leader: %s last lap: %s", ref, leader['driver'], last)
             plot_path = RaceGapsPlot()(2025, 1, "R", ref)
-            print(f"[{ref}] Plot: {plot_path}")
+            logger.info("[%s] Plot: %s", ref, plot_path)
         except Exception as ex:
-            print(f"[{ref}] Error: {ex}")
+            logger.error("[%s] Error: %s", ref, ex)
             import traceback
             traceback.print_exc()

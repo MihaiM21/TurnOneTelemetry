@@ -56,8 +56,8 @@ def extract_top_speeds_from_telemetry(
     """
     car_data_url = base_url + "CarData.z.jsonStream"
 
-    print(f"\nExtracting Telemetry data (CarData): {car_data_url}")
-    print("Processing compressed stream (may take 10-20 seconds)...")
+    logger.info("Extracting Telemetry data (CarData): %s", car_data_url)
+    logger.info("Processing compressed stream (may take 10-20 seconds)...")
 
     try:
         telemetry_entries = store.car_data() if store is not None else client.parse_compressed_stream(car_data_url)
@@ -104,7 +104,7 @@ def extract_top_speeds_from_speed_trap(
     Extract official Speed Trap data from TimingData.jsonStream
     """
     timing_url = base_url + "TimingData.jsonStream"
-    print(f"\nExtracting Speed Trap data (TimingData): {timing_url}")
+    logger.info("Extracting Speed Trap data (TimingData): %s", timing_url)
     
     try:
         entries = client.parse_jsonstream_simple(timing_url)
@@ -201,12 +201,12 @@ def _generate_plot(
 def TopSpeedPlot_Telemetry(y: int, identifier: Union[int, str], e: str, store_to_mongo: bool = True) -> str:
     """
     Generate top speed plot from telemetry data (CarData)
-    
+
     Args:
         y: Year
         identifier: Round number, Event Key, or Official Name
         e: Session name (e.g., "Race", "Qualifying")
-    
+
     Returns:
         Path to the generated plot
     """
@@ -215,34 +215,34 @@ def TopSpeedPlot_Telemetry(y: int, identifier: Union[int, str], e: str, store_to
     if cached_result:
         cached_data = cached_result['data']
         metadata = cached_result['metadata']
-        
+
         # Generate plot from cached data
         setup_theme.setup_turnone_theme()
-        
+
         event_name = metadata['event_name']
         event_folder = event_name.replace(' ', '')
         dirOrg.checkForFolder(f"{y}/{event_folder}/{e}")
         location = f"outputs/plots/{y}/{event_folder}/{e}"
         name = f'Top speed comparison Telemetry {y} {event_name} {e}.png'
-        
+
         # Convert cached data to DataFrame
         df = pd.DataFrame(cached_data)
         teams_list = df['Team'].tolist()
         speeds_list = df['Top Speed (km/h)'].tolist()
         colors_list = df['Color'].tolist()
-        
+
         _generate_plot(
             teams_list, speeds_list, colors_list,
             y, event_name, e,
             location, name, "Telemetry"
         )
-        
+
         return location + "/" + name
-    
+
     # If not in cache, generate new data
     client = F1StaticClient()
-    
-    print(f"\nFetching {y} Identifier {identifier} {e}...")
+
+    logger.info("Fetching %s Identifier %s %s...", y, identifier, e)
     event_info = client.get_event_info(y, identifier)
     if not event_info:
         raise ValueError(f"Could not find event info for: {y} Identifier {identifier}")
@@ -298,9 +298,9 @@ def TopSpeedPlot_Telemetry(y: int, identifier: Union[int, str], e: str, store_to
             data=plot_data,
             version='v2'
         )
-        print(f"✓ Telemetry data cached to MongoDB (v2 collection)")
+        logger.info("Telemetry data cached to MongoDB (v2 collection)")
     except Exception as e:
-        print(f"Warning: Failed to store to MongoDB: {e}")
+        logger.warning("Failed to store to MongoDB: %s", e)
 
     # Generate plot
     _generate_plot(
@@ -308,9 +308,9 @@ def TopSpeedPlot_Telemetry(y: int, identifier: Union[int, str], e: str, store_to
         y, event_name, e,
         location, name, "Telemetry"
     )
-    
-    print(f"\n✓ Telemetry plot saved to: {location}/{name}")
-    
+
+    logger.info("Telemetry plot saved to: %s/%s", location, name)
+
     return location + "/" + name
 
 
@@ -330,35 +330,35 @@ def TopSpeedData_Telemetry(y: int, identifier: Union[int, str], e: str, store_to
     # Check MongoDB cache first (v2 collection)
     cached_result = get_plot_data_from_mongo(y, identifier, e, 'top_speed_telemetry', version='v2')
     if cached_result:
-        print("Using cached Telemetry Top Speed data from MongoDB (v2 collection)")
+        logger.info("Using cached Telemetry Top Speed data from MongoDB (v2 collection)")
         return cached_result['data']
-    
-    print("No cached Telemetry Top Speed data found in MongoDB, generating new data.")
+
+    logger.info("No cached Telemetry Top Speed data found in MongoDB, generating new data.")
     
     # Generate new data
     client = F1StaticClient()
-    
-    print(f"\nFetching {y} Identifier {identifier} {e}...")
+
+    logger.info("Fetching %s Identifier %s %s...", y, identifier, e)
     event_info = client.get_event_info(y, identifier)
     if not event_info:
         raise ValueError(f"Could not find event info for: {y} Identifier {identifier}")
-        
+
     event_name = event_info['name']
     round_nr = event_info['round_nr']
-    
+
     base_url = client.get_event_session_url(y, event_name, e, round_nr=round_nr)
 
     if not base_url:
         raise ValueError(f"Could not find session: {y} Event {event_name} {e}")
-    
+
     # Setup
     location, name, name_json = _init(y, event_name, e, "Telemetry")
-    
+
     # Get driver mapping and extract data
     driver_to_team = get_driver_team_mapping(base_url, client)
     store = build_session_store(y, identifier, e, client)
     telemetry_speeds = extract_top_speeds_from_telemetry(base_url, client, driver_to_team, store=store)
-    
+
     # Prepare data
     plot_data = []
     for team, speed in telemetry_speeds.items():
@@ -368,10 +368,10 @@ def TopSpeedData_Telemetry(y: int, identifier: Union[int, str], e: str, store_to
             'Top Speed (km/h)': speed,
             'Color': color
         })
-    
+
     # Sort by speed (descending)
     plot_data.sort(key=lambda x: x['Top Speed (km/h)'], reverse=True)
-    
+
     # Store to MongoDB (always when generating new data)
     try:
         from src.repositories.plots import store_data_dict_to_mongo
@@ -384,12 +384,12 @@ def TopSpeedData_Telemetry(y: int, identifier: Union[int, str], e: str, store_to
             data=plot_data,
             version='v2'
         )
-        print(f"✓ Telemetry data cached to MongoDB (v2 collection)")
+        logger.info("Telemetry data cached to MongoDB (v2 collection)")
     except Exception as e:
-        print(f"Warning: Failed to store to MongoDB: {e}")
-    
-    print(f"✓ Telemetry data generated successfully")
-    
+        logger.warning("Failed to store to MongoDB: %s", e)
+
+    logger.info("Telemetry data generated successfully")
+
     return plot_data
 
 
@@ -399,12 +399,12 @@ def TopSpeedData_Telemetry(y: int, identifier: Union[int, str], e: str, store_to
 def TopSpeedPlot_SpeedTrap(y: int, identifier: Union[int, str], e: str) -> str:
     """
     Generate top speed plot from Speed Trap data (TimingData)
-    
+
     Args:
         y: Year
         identifier: Round number, Event Key, or Official Name
         e: Session name (e.g., "Race", "Qualifying")
-    
+
     Returns:
         Path to the generated plot
     """
@@ -413,34 +413,34 @@ def TopSpeedPlot_SpeedTrap(y: int, identifier: Union[int, str], e: str) -> str:
     if cached_result:
         cached_data = cached_result['data']
         metadata = cached_result['metadata']
-        
+
         # Generate plot from cached data
         setup_theme.setup_turnone_theme()
-        
+
         event_name = metadata['event_name']
         event_folder = event_name.replace(' ', '')
         dirOrg.checkForFolder(f"{y}/{event_folder}/{e}")
         location = f"outputs/plots/{y}/{event_folder}/{e}"
         name = f'Top speed comparison SpeedTrap {y} {event_name} {e}.png'
-        
+
         # Convert cached data to DataFrame
         df = pd.DataFrame(cached_data)
         teams_list = df['Team'].tolist()
         speeds_list = df['Top Speed (km/h)'].tolist()
         colors_list = df['Color'].tolist()
-        
+
         _generate_plot(
             teams_list, speeds_list, colors_list,
             y, event_name, e,
             location, name, "Speed Trap"
         )
-        
+
         return location + "/" + name
-    
+
     # If not in cache, generate new data
     client = F1StaticClient()
-    
-    print(f"\nFetching {y} Identifier {identifier} {e}...")
+
+    logger.info("Fetching %s Identifier %s %s...", y, identifier, e)
     event_info = client.get_event_info(y, identifier)
     if not event_info:
         raise ValueError(f"Could not find event info for: {y} Identifier {identifier}")
@@ -495,9 +495,9 @@ def TopSpeedPlot_SpeedTrap(y: int, identifier: Union[int, str], e: str) -> str:
             data=plot_data,
             version='v2'
         )
-        print(f"✓ Speed Trap data cached to MongoDB (v2 collection)")
+        logger.info("Speed Trap data cached to MongoDB (v2 collection)")
     except Exception as e:
-        print(f"Warning: Failed to store to MongoDB: {e}")
+        logger.warning("Failed to store to MongoDB: %s", e)
 
     # Generate plot
     _generate_plot(
@@ -505,9 +505,9 @@ def TopSpeedPlot_SpeedTrap(y: int, identifier: Union[int, str], e: str) -> str:
         y, event_name, e,
         location, name, "Speed Trap"
     )
-    
-    print(f"\n✓ Speed Trap plot saved to: {location}/{name}")
-    
+
+    logger.info("Speed Trap plot saved to: %s/%s", location, name)
+
     return location + "/" + name
 
 
@@ -527,34 +527,34 @@ def TopSpeedData_SpeedTrap(y: int, identifier: Union[int, str], e: str, store_to
     # Check MongoDB cache first (v2 collection)
     cached_result = get_plot_data_from_mongo(y, identifier, e, 'top_speed_speedtrap', version='v2')
     if cached_result:
-        print("Using cached Speed Trap Top Speed data from MongoDB (v2 collection)")
+        logger.info("Using cached Speed Trap Top Speed data from MongoDB (v2 collection)")
         return cached_result['data']
-    
-    print("No cached Speed Trap Top Speed data found in MongoDB, generating new data.")
+
+    logger.info("No cached Speed Trap Top Speed data found in MongoDB, generating new data.")
     
     # Generate new data
     client = F1StaticClient()
-    
-    print(f"\nFetching {y} Identifier {identifier} {e}...")
+
+    logger.info("Fetching %s Identifier %s %s...", y, identifier, e)
     event_info = client.get_event_info(y, identifier)
     if not event_info:
         raise ValueError(f"Could not find event info for: {y} Identifier {identifier}")
-        
+
     event_name = event_info['name']
     round_nr = event_info['round_nr']
-    
+
     base_url = client.get_event_session_url(y, event_name, e, round_nr=round_nr)
 
     if not base_url:
         raise ValueError(f"Could not find session: {y} Event {event_name} {e}")
-    
+
     # Setup
     location, name, name_json = _init(y, event_name, e, "SpeedTrap")
-    
+
     # Get driver mapping and extract data
     driver_to_team = get_driver_team_mapping(base_url, client)
     st_speeds = extract_top_speeds_from_speed_trap(base_url, client, driver_to_team)
-    
+
     # Prepare data
     plot_data = []
     for team, speed in st_speeds.items():
@@ -564,10 +564,10 @@ def TopSpeedData_SpeedTrap(y: int, identifier: Union[int, str], e: str, store_to
             'Top Speed (km/h)': speed,
             'Color': color
         })
-    
+
     # Sort by speed (descending)
     plot_data.sort(key=lambda x: x['Top Speed (km/h)'], reverse=True)
-    
+
     # Store to MongoDB (always when generating new data)
     try:
         from src.repositories.plots import store_data_dict_to_mongo
@@ -580,47 +580,41 @@ def TopSpeedData_SpeedTrap(y: int, identifier: Union[int, str], e: str, store_to
             data=plot_data,
             version='v2'
         )
-        print(f"✓ Speed Trap data cached to MongoDB (v2 collection)")
+        logger.info("Speed Trap data cached to MongoDB (v2 collection)")
     except Exception as e:
-        print(f"Warning: Failed to store to MongoDB: {e}")
-    
-    print(f"✓ Speed Trap data generated successfully")
-    
+        logger.warning("Failed to store to MongoDB: %s", e)
+
+    logger.info("Speed Trap data generated successfully")
+
     return plot_data
 
 
 if __name__ == "__main__":
     # Test both data sources
-    print("Testing Top Speed functions with dual sources...")
-    
+    logger.info("Testing Top Speed functions with dual sources...")
+
     year = 2023
     round_nr = 14  # Italian GP
     session = "Race"
-    
+
     try:
         # Generate Telemetry plot and data
-        print("\n" + "="*80)
-        print("TELEMETRY SOURCE (CarData)")
-        print("="*80)
+        logger.info("TELEMETRY SOURCE (CarData)")
         plot_path_tel = TopSpeedPlot_Telemetry(year, round_nr, session)
         data_path_tel = TopSpeedData_Telemetry(year, round_nr, session)
-        print(f"\n✓ Telemetry Plot: {plot_path_tel}")
-        print(f"✓ Telemetry Data: {data_path_tel}")
-        
+        logger.info("Telemetry Plot: %s", plot_path_tel)
+        logger.info("Telemetry Data: %s", data_path_tel)
+
         # Generate Speed Trap plot and data
-        print("\n" + "="*80)
-        print("SPEED TRAP SOURCE (TimingData)")
-        print("="*80)
+        logger.info("SPEED TRAP SOURCE (TimingData)")
         plot_path_st = TopSpeedPlot_SpeedTrap(year, round_nr, session)
         data_path_st = TopSpeedData_SpeedTrap(year, round_nr, session)
-        print(f"\n✓ Speed Trap Plot: {plot_path_st}")
-        print(f"✓ Speed Trap Data: {data_path_st}")
-        
-        print("\n" + "="*80)
-        print("ALL OPERATIONS COMPLETED SUCCESSFULLY")
-        print("="*80)
-        
+        logger.info("Speed Trap Plot: %s", plot_path_st)
+        logger.info("Speed Trap Data: %s", data_path_st)
+
+        logger.info("ALL OPERATIONS COMPLETED SUCCESSFULLY")
+
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error("Error: %s", e)
         import traceback
         traceback.print_exc()

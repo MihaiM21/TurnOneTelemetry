@@ -17,7 +17,10 @@ from pathlib import Path
 from typing import Dict, Any
 import re
 
+from src.core.logging import get_logger
 from src.ingestion.circuit_sources.multiviewer_adapter import adapt_circuit_layout, adapt_circuit_summary
+
+logger = get_logger(__name__)
 
 
 def slugify(name: str) -> str:
@@ -43,16 +46,16 @@ def organize_circuits_data():
     """
     # Read the combined circuits file
     combined_file = Path("src/domain/data/circuits/all_circuits_2024-2026.json")
-    
+
     if not combined_file.exists():
-        print(f"✗ File not found: {combined_file}")
-        print("Run 'python fetch_circuits.py' first to fetch the data.")
+        logger.error("File not found: %s", combined_file)
+        logger.info("Run 'python fetch_circuits.py' first to fetch the data.")
         return
-    
-    print(f"✓ Reading {combined_file}")
+
+    logger.info("Reading %s", combined_file)
     with open(combined_file, "r", encoding="utf-8") as f:
         all_data = json.load(f)
-    
+
     base_dir = Path("src/domain/data/circuits")
     years = all_data.get("meta", {}).get("years", [2024, 2025, 2026])
     circuits = all_data.get("circuits", {})
@@ -63,7 +66,7 @@ def organize_circuits_data():
         year_dir = base_dir / str(year)
         year_dir.mkdir(parents=True, exist_ok=True)
 
-        print(f"\nProcessing year {year}:")
+        logger.info("Processing year %s", year)
 
         # Organize circuits for this year
         # Note: JSON keys are strings, so we need to use str(year)
@@ -96,27 +99,22 @@ def organize_circuits_data():
             with open(circuit_file, "w", encoding="utf-8") as f:
                 json.dump(layout.model_dump(), f, indent=2, ensure_ascii=False)
 
-            print(f"  ✓ {circuit_filename}")
-        
+            logger.debug("Created %s", circuit_filename)
+
         # Save all_circuits.json for this year
         all_circuits_file = year_dir / "all_circuits.json"
         with open(all_circuits_file, "w", encoding="utf-8") as f:
             json.dump(year_data, f, indent=2, ensure_ascii=False)
-        
-        print(f"  ✓ all_circuits.json (contains {len(year_circuits)} circuits)")
-    
-    print("\n" + "="*60)
-    print("ORGANIZATION COMPLETE")
-    print("="*60)
-    print(f"\nDirectory structure created:")
-    print("src/domain/data/circuits/")
+
+        logger.info("Created all_circuits.json (contains %s circuits)", len(year_circuits))
+
+    logger.info("ORGANIZATION COMPLETE")
+    logger.info("Directory structure created: src/domain/data/circuits/")
     for year in years:
         year_dir = base_dir / str(year)
         circuit_count = len(list(year_dir.glob("*.json"))) - 1  # -1 for all_circuits.json
-        print(f"  {year}/")
-        print(f"    all_circuits.json")
-        print(f"    {circuit_count} individual circuit files")
-    print("\n✓ All circuit data organized successfully!")
+        logger.info("  %s/ - %s individual circuit files", year, circuit_count)
+    logger.info("All circuit data organized successfully!")
 
 
 if __name__ == "__main__":

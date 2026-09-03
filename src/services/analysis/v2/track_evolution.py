@@ -352,15 +352,15 @@ class TrackEvolutionPlot:
 
 
 if __name__ == "__main__":
-    print("Testing V2 Track Evolution...")
+    logger.info("Testing V2 Track Evolution...")
     try:
         data = TrackEvolutionData()(2025, 1, "Q")
-        print(f"Overall points: {len(data['overall'])}")
-        print(f"Drivers: {list(data['drivers'].keys())}")
-        print(f"Weather points: {len(data['weather'])}")
+        logger.info("Overall points: %s", len(data['overall']))
+        logger.info("Drivers: %s", list(data['drivers'].keys()))
+        logger.info("Weather points: %s", len(data['weather']))
         plot_path = TrackEvolutionPlot()(2025, 1, "Q")
-        print(f"Plot: {plot_path}")
+        logger.info("Plot: %s", plot_path)
     except Exception as ex:
-        print(f"Error: {ex}")
+        logger.error("Error: %s", ex)
         import traceback
         traceback.print_exc()

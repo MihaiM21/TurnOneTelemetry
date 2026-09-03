@@ -2,11 +2,14 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import json
 
+from src.core.logging import get_logger
 from src.services.plotting import output as dirOrg
 from src.ingestion import fastf1_client as data_aqcuisition
 from src.services.plotting import theme as setup_theme
 from src.services.plotting.colors import team_colors, teams, get_team_color, get_driver_color
 from src.repositories.plots import store_data_dict_to_mongo, get_plot_data_from_mongo
+
+logger = get_logger(__name__)
 
 def _init(y, r, e, d1, d2, session):
     dirOrg.checkForFolder(str(y) + "/" + session.event['EventName'] + "/" + e)
@@ -211,9 +214,9 @@ def throttle_graph_data(y,r,e,d1,d2):
                 version='v1'
             )
         except Exception as e:
-            print(f"Warning: Failed to store to MongoDB: {e}")
+            logger.warning("Failed to store to MongoDB: %s", e)
         
         return json_data  # Return data directly
 
     except Exception as e:
-        print(f"Error generating telemetry data for drivers")
+        logger.error("Error generating telemetry data for drivers")

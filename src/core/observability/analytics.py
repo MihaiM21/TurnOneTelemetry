@@ -1,13 +1,99 @@
+import atexit
+import logging
+import queue
 import sqlite3
-import os
+import threading
 from datetime import datetime, date
 from typing import Dict, Optional
-import threading
+
+logger = logging.getLogger(__name__)
+
+# Sentinel telling the writer thread to drain and exit.
+_SHUTDOWN = object()
+
+
+class _AsyncWriter:
+    """Serialises tracking writes onto one background thread.
+
+    ``track_session`` performs a lock-held ``sqlite3.connect`` plus several
+    INSERT/UPDATE statements. It is called from ``_track()`` directly inside
+    ``async def`` request handlers on ~50 analysis endpoints, so every one of
+    those requests blocked the event loop on a lock-serialised disk write --
+    all concurrent requests stalled behind it.
+
+    Analytics are best-effort: a dropped counter is far cheaper than a stalled
+    API. Work is therefore queued and applied off-loop, and the queue is
+    bounded so a slow disk causes drops rather than unbounded memory growth.
+    """
+
+    def __init__(self, maxsize: int = 1000):
+        self._queue: "queue.Queue" = queue.Queue(maxsize=maxsize)
+        self._thread: Optional[threading.Thread] = None
+        self._start_lock = threading.Lock()
+        self._dropped = 0
+
+    def _ensure_started(self) -> None:
+        if self._thread is not None and self._thread.is_alive():
+            return
+        with self._start_lock:
+            if self._thread is not None and self._thread.is_alive():
+                return
+            self._thread = threading.Thread(
+                target=self._run, name="session-analytics", daemon=True
+            )
+            self._thread.start()
+            atexit.register(self.close)
+
+    def _run(self) -> None:
+        while True:
+            item = self._queue.get()
+            try:
+                if item is _SHUTDOWN:
+                    return
+                fn, args, kwargs = item
+                fn(*args, **kwargs)
+            except Exception as exc:
+                logger.debug("session analytics write failed: %s", exc)
+            finally:
+                self._queue.task_done()
+
+    def submit(self, fn, *args, **kwargs) -> bool:
+        """Queue a write. Returns False if it was dropped."""
+        self._ensure_started()
+        try:
+            self._queue.put_nowait((fn, args, kwargs))
+            return True
+        except queue.Full:
+            self._dropped += 1
+            if self._dropped % 100 == 1:
+                logger.warning(
+                    "session analytics queue full; dropped %d writes", self._dropped
+                )
+            return False
+
+    def flush(self, timeout: Optional[float] = None) -> None:
+        """Block until queued writes are applied. For tests and shutdown."""
+        if self._thread is None:
+            return
+        self._queue.join()
+
+    def close(self) -> None:
+        if self._thread is not None and self._thread.is_alive():
+            self._queue.put(_SHUTDOWN)
+            self._thread.join(timeout=5)
+
+
+_writer = _AsyncWriter()
+
 
 class SessionTracker:
     """
     SQLite-based session tracking for F1 telemetry analysis.
     Tracks daily, monthly, and total session counts.
+
+    ``track_session`` is fire-and-forget: it hands the write to a background
+    thread so it can be called safely from async request handlers. Use
+    ``flush()`` when a test needs to observe the result.
     """
 
     def __init__(self, db_path: str = "data/session_analytics.db"):
@@ -81,15 +167,31 @@ class SessionTracker:
 
             # Insert initial total stats record if it doesn't exist
             cursor.execute('''
-                INSERT OR IGNORE INTO total_stats (id, total_sessions) 
+                INSERT OR IGNORE INTO total_stats (id, total_sessions)
                 VALUES (1, 0)
             ''')
 
             conn.commit()
 
     def track_session(self, endpoint: str, year: int, gp: int, session: str,
-                     driver1: Optional[str] = None, driver2: Optional[str] = None):
-        """Track a new analyzed session."""
+                      driver1: Optional[str] = None, driver2: Optional[str] = None):
+        """Queue a session for tracking. Returns immediately.
+
+        Safe to call from an ``async def`` handler: the SQLite work happens on
+        a background thread rather than on the event loop.
+        """
+        _writer.submit(
+            self._track_session_blocking, endpoint, year, gp, session, driver1, driver2
+        )
+
+    @staticmethod
+    def flush(timeout: Optional[float] = None) -> None:
+        """Wait for queued analytics writes to be applied (tests/shutdown)."""
+        _writer.flush(timeout)
+
+    def _track_session_blocking(self, endpoint: str, year: int, gp: int, session: str,
+                                driver1: Optional[str] = None, driver2: Optional[str] = None):
+        """The actual write. Runs on the analytics thread, never the loop."""
         with self.lock:
             today = date.today()
             now = datetime.now()
@@ -99,7 +201,7 @@ class SessionTracker:
 
                 # Insert session record
                 cursor.execute('''
-                    INSERT INTO sessions 
+                    INSERT INTO sessions
                     (date, year, month, day, endpoint, session_type, gp_number, race_year, driver1, driver2, timestamp)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (today, today.year, today.month, today.day, endpoint, session, gp, year, driver1, driver2, now))
@@ -118,7 +220,7 @@ class SessionTracker:
     def _update_daily_stats(self, cursor, date_obj: date, endpoint: str):
         """Update daily statistics."""
         cursor.execute('''
-            INSERT OR IGNORE INTO daily_stats (date, total_sessions) 
+            INSERT OR IGNORE INTO daily_stats (date, total_sessions)
             VALUES (?, 0)
         ''', (date_obj,))
 
@@ -134,7 +236,7 @@ class SessionTracker:
 
         if session_column:
             cursor.execute(f'''
-                UPDATE daily_stats 
+                UPDATE daily_stats
                 SET total_sessions = total_sessions + 1,
                     {session_column} = {session_column} + 1,
                     last_updated = CURRENT_TIMESTAMP
@@ -142,7 +244,7 @@ class SessionTracker:
             ''', (date_obj,))
         else:
             cursor.execute('''
-                UPDATE daily_stats 
+                UPDATE daily_stats
                 SET total_sessions = total_sessions + 1,
                     last_updated = CURRENT_TIMESTAMP
                 WHERE date = ?
@@ -151,7 +253,7 @@ class SessionTracker:
     def _update_monthly_stats(self, cursor, year: int, month: int, endpoint: str):
         """Update monthly statistics."""
         cursor.execute('''
-            INSERT OR IGNORE INTO monthly_stats (year, month, total_sessions) 
+            INSERT OR IGNORE INTO monthly_stats (year, month, total_sessions)
             VALUES (?, ?, 0)
         ''', (year, month))
 
@@ -167,7 +269,7 @@ class SessionTracker:
 
         if session_column:
             cursor.execute(f'''
-                UPDATE monthly_stats 
+                UPDATE monthly_stats
                 SET total_sessions = total_sessions + 1,
                     {session_column} = {session_column} + 1,
                     last_updated = CURRENT_TIMESTAMP
@@ -175,7 +277,7 @@ class SessionTracker:
             ''', (year, month))
         else:
             cursor.execute('''
-                UPDATE monthly_stats 
+                UPDATE monthly_stats
                 SET total_sessions = total_sessions + 1,
                     last_updated = CURRENT_TIMESTAMP
                 WHERE year = ? AND month = ?
@@ -195,7 +297,7 @@ class SessionTracker:
 
         if session_column:
             cursor.execute(f'''
-                UPDATE total_stats 
+                UPDATE total_stats
                 SET total_sessions = total_sessions + 1,
                     {session_column} = {session_column} + 1,
                     last_updated = CURRENT_TIMESTAMP
@@ -203,7 +305,7 @@ class SessionTracker:
             ''')
         else:
             cursor.execute('''
-                UPDATE total_stats 
+                UPDATE total_stats
                 SET total_sessions = total_sessions + 1,
                     last_updated = CURRENT_TIMESTAMP
                 WHERE id = 1
@@ -217,9 +319,9 @@ class SessionTracker:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                SELECT total_sessions, top_speed_sessions, throttle_sessions, 
+                SELECT total_sessions, top_speed_sessions, throttle_sessions,
                        qualifying_sessions, track_comparison_sessions, last_updated
-                FROM daily_stats 
+                FROM daily_stats
                 WHERE date = ?
             ''', (date_obj,))
 
@@ -250,9 +352,9 @@ class SessionTracker:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                SELECT total_sessions, top_speed_sessions, throttle_sessions, 
+                SELECT total_sessions, top_speed_sessions, throttle_sessions,
                        qualifying_sessions, track_comparison_sessions, last_updated
-                FROM monthly_stats 
+                FROM monthly_stats
                 WHERE year = ? AND month = ?
             ''', (year, month))
 
@@ -285,9 +387,9 @@ class SessionTracker:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                SELECT total_sessions, top_speed_sessions, throttle_sessions, 
+                SELECT total_sessions, top_speed_sessions, throttle_sessions,
                        qualifying_sessions, track_comparison_sessions, last_updated
-                FROM total_stats 
+                FROM total_stats
                 WHERE id = 1
             ''')
 
@@ -317,8 +419,8 @@ class SessionTracker:
             cursor = conn.cursor()
             cursor.execute('''
                 SELECT endpoint, session_type, gp_number, race_year, driver1, driver2, timestamp
-                FROM sessions 
-                ORDER BY timestamp DESC 
+                FROM sessions
+                ORDER BY timestamp DESC
                 LIMIT ?
             ''', (limit,))
 

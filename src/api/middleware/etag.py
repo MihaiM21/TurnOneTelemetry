@@ -78,7 +78,10 @@ class ETagMiddleware(BaseHTTPMiddleware):
             body_chunks.append(chunk)
         body = b"".join(body_chunks)
 
-        etag = 'W/"' + hashlib.sha1(body).hexdigest() + '"'
+        # Weak validator -- an ETag is a change detector, not a security
+        # primitive, so SHA-1 is appropriate here.
+        digest = hashlib.sha1(body, usedforsecurity=False).hexdigest()
+        etag = 'W/"' + digest + '"'
         if_none_match = request.headers.get("if-none-match")
         if is_not_modified(if_none_match, etag):
             headers = dict(response.headers)

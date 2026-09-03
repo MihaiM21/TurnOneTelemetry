@@ -9,9 +9,12 @@ import os
 import threading
 from dotenv import load_dotenv
 import numpy as np
+from src.core.logging import get_logger
 
 # Load environment variables
 load_dotenv()
+
+logger = get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -129,10 +132,10 @@ class MongoDBManager:
         try:
             self.client.admin.command('ping')
             collection_name = self.collection.name
-            print(f"✓ Successfully connected to MongoDB at {host}:{port}")
-            print(f"✓ Using collection: {collection_name} (version: {version})")
+            logger.info("Successfully connected to MongoDB at %s:%s", host, port)
+            logger.info("Using collection: %s (version: %s)", collection_name, version)
         except Exception as e:
-            print(f"✗ MongoDB connection failed: {e}")
+            logger.error("MongoDB connection failed: %s", e)
             raise
 
     def _get_collection(self, year: Optional[int] = None, version: Optional[str] = None):
@@ -169,7 +172,7 @@ class MongoDBManager:
         """
         self.current_year = year
         self.collection = self._get_collection(year, self.version)
-        print(f"✓ Switched to collection: {self.collection.name}")
+        logger.info("Switched to collection: %s", self.collection.name)
 
     def get_current_year(self) -> int:
         """
@@ -245,7 +248,7 @@ class MongoDBManager:
 
         result = collection.insert_one(new_doc)
         new_doc['_id'] = result.inserted_id
-        print(f"✓ Created new GP document: {gp_id} in collection {collection.name}")
+        logger.info("Created new GP document: %s in collection %s", gp_id, collection.name)
 
         return new_doc
 
@@ -281,7 +284,7 @@ class MongoDBManager:
             gp_doc = collection.find_one({"gp_id": gp_id})
 
             if not gp_doc:
-                print(f"✗ GP document not found: {gp_id}")
+                logger.warning("GP document not found: %s", gp_id)
                 return False
 
             # Find or create session
@@ -315,14 +318,14 @@ class MongoDBManager:
                         {"gp_id": gp_id},
                         {"$set": {f"sessions.{session_index}.data.{data_type_index}": data_entry}}
                     )
-                    print(f"✓ Updated {data_type} for {gp_id} - {session_type}")
+                    logger.info("Updated %s for %s - %s", data_type, gp_id, session_type)
                 else:
                     # Add new data type to existing session
                     collection.update_one(
                         {"gp_id": gp_id},
                         {"$push": {f"sessions.{session_index}.data": data_entry}}
                     )
-                    print(f"✓ Added {data_type} to {gp_id} - {session_type}")
+                    logger.info("Added %s to %s - %s", data_type, gp_id, session_type)
             else:
                 # Create new session with data
                 new_session = {
@@ -339,14 +342,13 @@ class MongoDBManager:
                     {"gp_id": gp_id},
                     {"$push": {"sessions": new_session}}
                 )
-                print(f"✓ Created new session and added {data_type} for {gp_id} - {session_type}")
+                logger.info("Created new session and added %s for %s - %s", data_type, gp_id,
+                            session_type)
 
             return True
 
         except Exception as e:
-            print(f"✗ Error adding session data: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception("Error adding session data: %s", e)
             return False
 
     def store_plot_data(self, year: int, round_nr: int, session_type: str,
@@ -382,7 +384,7 @@ class MongoDBManager:
             return success
 
         except Exception as e:
-            print(f"✗ Error storing plot data: {e}")
+            logger.error("Error storing plot data: %s", e)
             return False
 
     def get_session_data(self, gp_id: str, session_type: str, data_type: Optional[str] = None, year: Optional[int] = None) -> Optional[Dict]:
@@ -428,7 +430,7 @@ class MongoDBManager:
             return session
 
         except Exception as e:
-            print(f"✗ Error retrieving session data: {e}")
+            logger.error("Error retrieving session data: %s", e)
             return None
 
     def delete_session_data(self, gp_id: str, session_type: str, data_type: str,
@@ -450,7 +452,7 @@ class MongoDBManager:
             )
             return result.modified_count > 0
         except Exception as e:
-            print(f"✗ Error deleting session data: {e}")
+            logger.error("Error deleting session data: %s", e)
             return False
 
     def summarize_stored_data(self, year: int) -> List[Dict]:
@@ -477,7 +479,7 @@ class MongoDBManager:
                         "count": len(entries),
                     })
         except Exception as e:
-            print(f"✗ Error summarizing stored data: {e}")
+            logger.error("Error summarizing stored data: %s", e)
         return sorted(rows, key=lambda r: (r.get("round_nr") or 0, r.get("session_type") or ""))
 
     def get_all_gp_data(self, gp_id: str, year: Optional[int] = None) -> Optional[Dict]:
@@ -500,7 +502,7 @@ class MongoDBManager:
             gp_doc = collection.find_one({"gp_id": gp_id}, {"_id": 0})
             return gp_doc
         except Exception as e:
-            print(f"✗ Error retrieving GP data: {e}")
+            logger.error("Error retrieving GP data: %s", e)
             return None
 
     def list_all_gps(self, year: Optional[int] = None) -> List[Dict]:
@@ -522,7 +524,7 @@ class MongoDBManager:
             gps = list(collection.find(query, {"_id": 0}).sort("round_nr", 1))
             return gps
         except Exception as e:
-            print(f"✗ Error listing GPs: {e}")
+            logger.error("Error listing GPs: %s", e)
             return []
 
     def list_all_years(self) -> List[int]:
@@ -548,7 +550,7 @@ class MongoDBManager:
 
             return sorted(years)
         except Exception as e:
-            print(f"✗ Error listing years: {e}")
+            logger.error("Error listing years: %s", e)
             return []
 
     def close(self):
@@ -644,11 +646,11 @@ def test_connection():
     """Test MongoDB connection"""
     try:
         manager = MongoDBManager()
-        print("MongoDB connection test successful!")
+        logger.info("MongoDB connection test successful!")
         manager.close()
         return True
     except Exception as e:
-        print(f"MongoDB connection test failed: {e}")
+        logger.error("MongoDB connection test failed: %s", e)
         return False
 
 

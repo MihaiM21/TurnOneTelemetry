@@ -12,6 +12,9 @@ from src.ingestion.static_client import F1StaticClient
 from src.domain.mappings import get_driver_team_mapping
 from src.services.plotting.colors import get_driver_color
 from src.services.analysis.v2._helpers import build_session_store
+from src.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 # ============================================================================
 # UTILS & PARSERS
@@ -30,7 +33,8 @@ def parse_f1_time(time_str: Any) -> float:
         elif len(parts) == 2: # mm:ss.ms
             return float(parts[0]) * 60 + float(parts[1])
         return float(parts[0])
-    except: return 0.0
+    except (ValueError, TypeError):
+        return 0.0
 
 def _init(y: int, event_name: str, session_name: str) -> Tuple[str, str, str]:
     event_folder = event_name.replace(' ', '')
@@ -94,8 +98,8 @@ def get_fastest_lap_windows_pandas(base_url: str, client: F1StaticClient) -> pd.
                                 'LapTime': lap_time
                             }
         return pd.DataFrame(list(best_laps.values()))
-    except Exception as ex: 
-        print(f"Error in fast laps: {ex}")
+    except Exception as ex:
+        logger.error("Error in fast laps: %s", ex)
         return pd.DataFrame(columns=columns)
 
 from datetime import datetime
@@ -132,7 +136,7 @@ def extract_telemetry_pandas(base_url: str, client: F1StaticClient, store=None) 
                         records.append({'Time': sample_time, 'Driver': drv_num, 'Throttle': float(thr)})
         return pd.DataFrame(records)
     except Exception as e:
-        print(f"Error in telemetry extraction: {e}")
+        logger.error("Error in telemetry extraction: %s", e)
         return pd.DataFrame()
 
 # ============================================================================
@@ -187,7 +191,8 @@ def get_all_driver_codes(base_url, client):
         r = client.session.get(base_url + "DriverList.json")
         data = json.loads(r.content.decode('utf-8-sig'))
         for k, v in data.items(): mapping[k] = v.get('Tla', k)
-    except: pass
+    except Exception as exc:
+        logger.warning("Error fetching driver codes from DriverList.json: %s", exc)
     return mapping
 
 # ============================================================================
@@ -251,7 +256,8 @@ def _generate_plot(drivers, throttles, colors, y, event, session, loc, name):
     try:
         logo = mpimg.imread('assets/images/logo mic.png')
         fig.figimage(logo, 575, 575, zorder=3, alpha=.6)
-    except: pass
+    except (FileNotFoundError, OSError) as exc:
+        logger.debug("Watermark logo unavailable, skipping: %s", exc)
     
     plt.suptitle(f'Throttle comparison (V2 Engine)\n{y} {event} {session}')
     setup_theme.add_glow(ax)

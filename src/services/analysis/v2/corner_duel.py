@@ -437,14 +437,14 @@ class CornerDuelPlot:
 
 
 if __name__ == "__main__":
-    print("Testing V2 Corner Duel...")
+    logger.info("Testing V2 Corner Duel...")
     try:
         client = F1StaticClient()
         data = CornerDuelData()(2025, 1, "Q", "VER", "NOR")
-        print(f"Corners: {len(data.get('corners', []))}")
+        logger.info("Corners: %s", len(data.get('corners', [])))
         plot_path = CornerDuelPlot()(2025, 1, "Q", "VER", "NOR")
-        print(f"Plot: {plot_path}")
+        logger.info("Plot: %s", plot_path)
     except Exception as ex:
-        print(f"Error: {ex}")
+        logger.error("Error: %s", ex)
         import traceback
         traceback.print_exc()

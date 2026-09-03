@@ -300,14 +300,14 @@ class SeasonFormPlot:
 
 
 if __name__ == "__main__":
-    print("Testing V2 Season Form...")
+    logger.info("Testing V2 Season Form...")
     try:
         data = SeasonFormData()(2025)
-        print(f"Drivers: {len(data['drivers'])}")
-        print(f"Rounds: {data['rounds']}")
+        logger.info("Drivers: %s", len(data['drivers']))
+        logger.info("Rounds: %s", data['rounds'])
         plot_path = SeasonFormPlot()(2025)
-        print(f"Plot: {plot_path}")
+        logger.info("Plot: %s", plot_path)
     except Exception as ex:
-        print(f"Error: {ex}")
+        logger.error("Error: %s", ex)
         import traceback
         traceback.print_exc()

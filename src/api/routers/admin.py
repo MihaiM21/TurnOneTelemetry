@@ -11,6 +11,34 @@ from src.api.admin_security import (
     enforce_ip_allowlist,
     enforce_ui_rate_limit,
 )
+from src.api.schemas.admin import (
+    AdminDashboardResponse,
+    JobCancelResponse,
+    JobRecord,
+    JobsListResponse,
+    KeyAnalyticsResponse,
+    KeyRevokeResponse,
+    KeysListResponse,
+    KeyVerifyResponse,
+    MongoOverviewResponse,
+    MongoSessionsCoverageResponse,
+    PeakHoursResponse,
+    PerformanceResponse,
+    PlanEstimateResponse,
+    PlotCatalogResponse,
+    PlotGenJobResponse,
+    PlotInventoryResponse,
+    ProcessLatestResponse,
+    ProcessorStatusResponse,
+    QuotaUsageResponse,
+    SeasonInventoryResponse,
+    SessionDriversResponse,
+    UsageForKeyResponse,
+    UsageTopResponse,
+    UsersListResponse,
+    UserUsageResponse,
+)
+from src.api.schemas.common import COMMON_ERROR_RESPONSES, ErrorEnvelope
 from src.core.logging import get_logger
 from src.core.security.api_keys import invalidate_key_cache, verify_api_key
 from src.core.security.rate_limiting import apply_tiered_limit, limits_for_tier
@@ -25,6 +53,7 @@ from src.services.analysis.v2 import registry
 from src.workers import plot_inventory
 
 logger = get_logger(__name__)
+
 
 def _admin_api_gate(request: Request, response: Response) -> None:
     """Apply IP allowlist + per-IP rate limit + noindex headers to every admin API call."""
@@ -88,6 +117,30 @@ async def require_admin_key(api_key: str = Depends(verify_api_key)) -> str:
         return api_key
 
     raise HTTPException(status_code=403, detail="Admin privileges required")
+
+
+#: 403 as ``require_admin_key`` actually raises it — spelled out so Swagger
+#: documents the operator-key requirement, not just a generic "forbidden".
+_ADMIN_KEY_REQUIRED = {
+    "model": ErrorEnvelope,
+    "description": (
+        "Admin privileges required. The API key must be listed in `ADMIN_API_KEYS`, or be a "
+        "database-issued key whose owner has `is_admin` set. Ordinary `ALLOWED_API_KEYS` / "
+        "`PREMIUM_API_KEYS` consumer keys are rejected unless the transitional "
+        "`ADMIN_ALLOW_LEGACY_ENV_KEYS` escape hatch is enabled."
+    ),
+}
+
+#: Baseline for every `/api/admin/*` endpoint: the common set with the 403
+#: description above substituted in.
+ADMIN_ERROR_RESPONSES = {**COMMON_ERROR_RESPONSES, 403: _ADMIN_KEY_REQUIRED}
+
+
+def _err(description: str) -> Dict[str, Any]:
+    """An ``ErrorEnvelope``-shaped response entry (every raw ``HTTPException``
+    in this router is rendered through that envelope by ``app.py``)."""
+    return {"model": ErrorEnvelope, "description": description}
+
 
 SUPPORTED_MONGO_VERSIONS = {"v1", "v2"}
 
@@ -303,11 +356,19 @@ def _query_mongodb_overview(version: str) -> Dict[str, Any]:
         if client:
             client.close()
 
+
 # ============================================================================
 # ADMIN & UTILITY ENDPOINTS
 # ============================================================================
 
-@router.post('/api/admin/populate-sessions', tags=["Admin"])
+@router.post(
+    '/api/admin/populate-sessions',
+    tags=["Admin"],
+    summary="Repopulate season reference data",
+    operation_id="admin_populate_sessions",
+    responses={200: {"description": "Population ran; always returns `null` (no summary value)."},
+               **ADMIN_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def admin_populate_sessions(request: Request, api_key: str = Depends(require_admin_key)):
     """
@@ -322,7 +383,14 @@ async def admin_populate_sessions(request: Request, api_key: str = Depends(requi
         logger.error(f"Error populating sessions: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to populate sessions")
 
-@router.post('/api/admin/process-latest', tags=["Admin"])
+
+@router.post(
+    '/api/admin/process-latest',
+    tags=["Admin"],
+    summary="Force-process the latest completed session",
+    operation_id="admin_process_latest",
+    responses={200: {"model": ProcessLatestResponse}, **ADMIN_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def admin_process_latest(request: Request, api_key: str = Depends(require_admin_key)):
     """
@@ -338,7 +406,14 @@ async def admin_process_latest(request: Request, api_key: str = Depends(require_
         logger.error(f"Error in manual processing: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to process latest session")
 
-@router.get('/api/admin/processor-status', tags=["Admin"])
+
+@router.get(
+    '/api/admin/processor-status',
+    tags=["Admin"],
+    summary="Background processor status",
+    operation_id="admin_processor_status",
+    responses={200: {"model": ProcessorStatusResponse}, **ADMIN_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def admin_processor_status(request: Request, api_key: str = Depends(require_admin_key)):
     """
@@ -359,7 +434,17 @@ async def admin_processor_status(request: Request, api_key: str = Depends(requir
         raise HTTPException(status_code=500, detail="Failed to get processor status")
 
 
-@router.get('/api/admin/mongodb/overview', tags=["Admin"])
+@router.get(
+    '/api/admin/mongodb/overview',
+    tags=["Admin"],
+    summary="MongoDB collection overview",
+    operation_id="admin_mongodb_overview",
+    responses={
+        200: {"model": MongoOverviewResponse},
+        400: _err("version was not 'v1' or 'v2'."),
+        **ADMIN_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def admin_mongodb_overview(
     request: Request,
@@ -381,7 +466,17 @@ async def admin_mongodb_overview(
         raise HTTPException(status_code=500, detail="Failed to fetch MongoDB overview")
 
 
-@router.get('/api/admin/mongodb/sessions-with-data', tags=["Admin"])
+@router.get(
+    '/api/admin/mongodb/sessions-with-data',
+    tags=["Admin"],
+    summary="MongoDB session/plot-type coverage",
+    operation_id="admin_mongodb_sessions_with_data",
+    responses={
+        200: {"model": MongoSessionsCoverageResponse},
+        400: _err("version was not 'v1' or 'v2'."),
+        **ADMIN_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def admin_mongodb_sessions_with_data(
     request: Request,
@@ -390,7 +485,9 @@ async def admin_mongodb_sessions_with_data(
     gp_id: Optional[str] = Query(None, description="Filter by GP ID (example: 2025_AUS)"),
     session_type: Optional[str] = Query(None, description="Filter by session type (FP1, FP2, Q, S, R, etc.)"),
     include_empty: bool = Query(False, description="Include sessions that exist but have no stored plot data"),
-    limit_per_year: int = Query(200, ge=1, le=1000, description="Max GP documents to scan per year when gp_id is not provided"),
+    limit_per_year: int = Query(
+        200, ge=1, le=1000, description="Max GP documents to scan per year when gp_id is not provided"
+    ),
     api_key: str = Depends(require_admin_key),
 ):
     """
@@ -423,7 +520,13 @@ async def admin_mongodb_sessions_with_data(
 # PLOT INVENTORY & BACKFILL (V2)
 # ============================================================================
 
-@router.get('/api/admin/plots/missing', tags=["Admin"])
+@router.get(
+    '/api/admin/plots/missing',
+    tags=["Admin"],
+    summary="Ungenerated V2 plots for a scope",
+    operation_id="admin_plots_missing",
+    responses={200: {"model": PlotInventoryResponse}, **ADMIN_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def admin_plots_missing(
     request: Request,
@@ -445,7 +548,13 @@ async def admin_plots_missing(
         raise HTTPException(status_code=500, detail="Failed to compute missing plots")
 
 
-@router.get('/api/admin/plots/catalog', tags=["Admin"])
+@router.get(
+    '/api/admin/plots/catalog',
+    tags=["Admin"],
+    summary="Every generatable V2 feature",
+    operation_id="admin_plots_catalog",
+    responses={200: {"model": PlotCatalogResponse}, **ADMIN_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def admin_plots_catalog(
     request: Request,
@@ -467,7 +576,13 @@ async def admin_plots_catalog(
     }
 
 
-@router.get('/api/admin/plots/season', tags=["Admin"])
+@router.get(
+    '/api/admin/plots/season',
+    tags=["Admin"],
+    summary="Season-scope payload inventory",
+    operation_id="admin_plots_season",
+    responses={200: {"model": SeasonInventoryResponse}, **ADMIN_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def admin_plots_season(
     request: Request,
@@ -478,7 +593,17 @@ async def admin_plots_season(
     return await run_in_threadpool(plot_inventory.season_inventory, year)
 
 
-@router.get('/api/admin/sessions/{year}/{gp}/{session}/drivers', tags=["Admin"])
+@router.get(
+    '/api/admin/sessions/{year}/{gp}/{session}/drivers',
+    tags=["Admin"],
+    summary="Driver list for the admin pickers",
+    operation_id="admin_session_drivers",
+    responses={
+        200: {"model": SessionDriversResponse},
+        502: _err("Could not resolve session drivers (upstream/livetiming failure)."),
+        **ADMIN_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def admin_session_drivers(
     request: Request,
@@ -545,7 +670,17 @@ def _selection_from_request(
     )
 
 
-@router.post('/api/admin/plots/estimate', tags=["Admin"])
+@router.post(
+    '/api/admin/plots/estimate',
+    tags=["Admin"],
+    summary="Cost a backfill selection (dry run)",
+    operation_id="admin_plots_estimate",
+    responses={
+        200: {"model": PlanEstimateResponse},
+        422: _err('A `pairs` entry was not exactly two comma-separated TLAs (e.g. "VER,NOR").'),
+        **ADMIN_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def admin_plots_estimate(
     request: Request,
@@ -583,7 +718,21 @@ async def admin_plots_estimate(
         raise HTTPException(status_code=500, detail="Failed to estimate plot generation")
 
 
-@router.post('/api/admin/plots/generate', tags=["Admin"])
+@router.post(
+    '/api/admin/plots/generate',
+    tags=["Admin"],
+    summary="Start a V2 plot backfill job",
+    operation_id="admin_plots_generate",
+    responses={
+        200: {"model": PlotGenJobResponse},
+        409: _err(
+            "A live job already covers an overlapping (year, gp, session) scope. The detail "
+            "payload carries the conflicting job_id/scope; pass force_concurrent=true to run anyway."
+        ),
+        422: _err('A `pairs` entry was not exactly two comma-separated TLAs (e.g. "VER,NOR").'),
+        **ADMIN_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def admin_plots_generate(
     request: Request,
@@ -648,7 +797,13 @@ async def admin_plots_generate(
         raise HTTPException(status_code=500, detail="Failed to start plot generation")
 
 
-@router.get('/api/admin/plots/jobs', tags=["Admin"])
+@router.get(
+    '/api/admin/plots/jobs',
+    tags=["Admin"],
+    summary="Backfill job history",
+    operation_id="admin_plots_jobs",
+    responses={200: {"model": JobsListResponse}, **ADMIN_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def admin_plots_jobs(
     request: Request,
@@ -656,12 +811,29 @@ async def admin_plots_jobs(
     status: Optional[str] = Query(None, description="queued|running|completed|failed|cancelled"),
     api_key: str = Depends(require_admin_key),
 ):
-    """Durable job history, newest first (survives restarts and spans workers)."""
+    """Durable job history, newest first (survives restarts and spans workers).
+
+    Part of the backfill workflow: cost a selection with ``POST
+    /api/admin/plots/estimate``, start it with ``POST /api/admin/plots/generate``
+    (returns a ``job_id``), then poll progress here or at
+    ``GET /api/admin/plots/jobs/{job_id}``, and optionally
+    ``POST /api/admin/plots/jobs/{job_id}/cancel`` to stop it early.
+    """
     jobs = await run_in_threadpool(plot_inventory.list_jobs, limit, status)
     return {"count": len(jobs), "jobs": jobs}
 
 
-@router.get('/api/admin/plots/jobs/{job_id}', tags=["Admin"])
+@router.get(
+    '/api/admin/plots/jobs/{job_id}',
+    tags=["Admin"],
+    summary="Single backfill job status",
+    operation_id="admin_plots_job_status",
+    responses={
+        200: {"model": JobRecord},
+        404: _err("No job with that id, in memory or in MongoDB."),
+        **ADMIN_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def admin_plots_job_status(
     request: Request,
@@ -675,14 +847,30 @@ async def admin_plots_job_status(
     return job
 
 
-@router.post('/api/admin/plots/jobs/{job_id}/cancel', tags=["Admin"])
+@router.post(
+    '/api/admin/plots/jobs/{job_id}/cancel',
+    tags=["Admin"],
+    summary="Cancel a running backfill job",
+    operation_id="admin_plots_job_cancel",
+    responses={
+        200: {"model": JobCancelResponse},
+        404: _err("No job with that id, in memory or in MongoDB."),
+        409: _err("Job is already in a terminal state (completed/failed/cancelled)."),
+        **ADMIN_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def admin_plots_job_cancel(
     request: Request,
     job_id: str,
     api_key: str = Depends(require_admin_key),
 ):
-    """Request cancellation; the worker stops at its next progress flush."""
+    """Request cancellation.
+
+    Sets a flag only — the worker notices and stops at its next progress
+    flush, which happens at most every ~2 seconds or every 25 completed units,
+    whichever comes first. Not synchronous with this call.
+    """
     job = await run_in_threadpool(plot_inventory.get_job_dict, job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -696,7 +884,13 @@ async def admin_plots_job_cancel(
 # USER / API-KEY MANAGEMENT
 # ============================================================================
 
-@router.get('/api/admin/users', tags=["Admin"])
+@router.get(
+    '/api/admin/users',
+    tags=["Admin"],
+    summary="List registered users",
+    operation_id="admin_list_users",
+    responses={200: {"model": UsersListResponse}, **ADMIN_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def admin_list_users(
     request: Request,
@@ -704,11 +898,18 @@ async def admin_list_users(
     skip: int = Query(0, ge=0),
     api_key: str = Depends(require_admin_key),
 ):
+    """Page through the ``users`` collection, newest first. ``password_hash`` is never returned."""
     users = await run_in_threadpool(_users.list_users, limit, skip)
     return {"count": len(users), "users": users}
 
 
-@router.get('/api/admin/keys', tags=["Admin"])
+@router.get(
+    '/api/admin/keys',
+    tags=["Admin"],
+    summary="List API keys",
+    operation_id="admin_list_keys",
+    responses={200: {"model": KeysListResponse}, **ADMIN_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def admin_list_keys(
     request: Request,
@@ -716,11 +917,18 @@ async def admin_list_keys(
     limit: int = Query(200, ge=1, le=1000),
     api_key: str = Depends(require_admin_key),
 ):
+    """List issued API keys, optionally scoped to one owner. ``key_hash`` and the raw key are never returned."""
     keys = await run_in_threadpool(_keys.list_all, owner_id, limit)
     return {"count": len(keys), "keys": keys}
 
 
-@router.get('/api/admin/keys/verify', tags=["Admin"])
+@router.get(
+    '/api/admin/keys/verify',
+    tags=["Admin"],
+    summary="Verify a raw API key against MongoDB",
+    operation_id="admin_verify_key",
+    responses={200: {"model": KeyVerifyResponse}, **ADMIN_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def admin_verify_key(
     request: Request,
@@ -773,13 +981,28 @@ async def admin_verify_key(
     }
 
 
-@router.post('/api/admin/keys/{key_id}/revoke', tags=["Admin"])
+@router.post(
+    '/api/admin/keys/{key_id}/revoke',
+    tags=["Admin"],
+    summary="Revoke an API key (destructive)",
+    operation_id="admin_revoke_key",
+    responses={
+        200: {"model": KeyRevokeResponse},
+        404: _err("No key with that id."),
+        **ADMIN_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def admin_revoke_key(
     request: Request,
     key_id: str,
     api_key: str = Depends(require_admin_key),
 ):
+    """Permanently revoke an API key. Not reversible — a new key must be issued to replace it.
+
+    Also evicts the key's entry from the Redis auth cache so the revocation
+    takes effect immediately rather than waiting out the cache TTL.
+    """
     existing = await run_in_threadpool(_keys.find_by_id, key_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Key not found")
@@ -789,7 +1012,13 @@ async def admin_revoke_key(
     return {"id": key_id, "revoked": bool(revoked)}
 
 
-@router.get('/api/admin/usage/top', tags=["Admin"])
+@router.get(
+    '/api/admin/usage/top',
+    tags=["Admin"],
+    summary="Top API keys by request volume",
+    operation_id="admin_usage_top",
+    responses={200: {"model": UsageTopResponse}, **ADMIN_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def admin_usage_top(
     request: Request,
@@ -797,6 +1026,7 @@ async def admin_usage_top(
     limit: int = Query(20, ge=1, le=200),
     api_key: str = Depends(require_admin_key),
 ):
+    """Busiest keys in the trailing window, joined with key metadata (prefix/owner/tier/label)."""
     rows = await run_in_threadpool(_key_usage.top_keys, hours, limit)
     # Attach key metadata (prefix, owner, tier, label) by joining on key_hash.
     enriched: List[Dict[str, Any]] = []
@@ -812,7 +1042,17 @@ async def admin_usage_top(
     return {"window_hours": hours, "count": len(enriched), "rows": enriched}
 
 
-@router.get('/api/admin/usage/keys/{key_id}', tags=["Admin"])
+@router.get(
+    '/api/admin/usage/keys/{key_id}',
+    tags=["Admin"],
+    summary="Usage summary for one key",
+    operation_id="admin_usage_for_key",
+    responses={
+        200: {"model": UsageForKeyResponse},
+        404: _err("No key with that id."),
+        **ADMIN_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def admin_usage_for_key(
     request: Request,
@@ -820,6 +1060,7 @@ async def admin_usage_for_key(
     hours: int = Query(24, ge=1, le=720),
     api_key: str = Depends(require_admin_key),
 ):
+    """Hourly-bucketed request/error summary for one key over the trailing window."""
     doc = await run_in_threadpool(_keys.find_by_id, key_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Key not found")
@@ -834,7 +1075,13 @@ async def admin_usage_for_key(
     }
 
 
-@router.get('/api/admin/dashboard', tags=["Admin"])
+@router.get(
+    '/api/admin/dashboard',
+    tags=["Admin"],
+    summary="Platform-wide usage dashboard",
+    operation_id="admin_dashboard",
+    responses={200: {"model": AdminDashboardResponse}, **ADMIN_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def admin_dashboard(
     request: Request,
@@ -866,7 +1113,13 @@ async def admin_dashboard(
     }
 
 
-@router.get('/api/admin/peak-hours', tags=["Admin"])
+@router.get(
+    '/api/admin/peak-hours',
+    tags=["Admin"],
+    summary="Platform-wide hour-of-day request distribution",
+    operation_id="admin_peak_hours",
+    responses={200: {"model": PeakHoursResponse}, **ADMIN_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def admin_peak_hours(
     request: Request,
@@ -879,7 +1132,13 @@ async def admin_peak_hours(
     return {"days": days, "peak_hour_utc": peak, "by_hour": series}
 
 
-@router.get('/api/admin/quota-usage', tags=["Admin"])
+@router.get(
+    '/api/admin/quota-usage',
+    tags=["Admin"],
+    summary="Per-key monthly quota usage",
+    operation_id="admin_quota_usage",
+    responses={200: {"model": QuotaUsageResponse}, **ADMIN_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def admin_quota_usage(
     request: Request,
@@ -917,7 +1176,17 @@ async def admin_quota_usage(
     return {"count": len(rows), "rows": rows}
 
 
-@router.get('/api/admin/users/{user_id}/usage', tags=["Admin"])
+@router.get(
+    '/api/admin/users/{user_id}/usage',
+    tags=["Admin"],
+    summary="Per-user usage across all their keys",
+    operation_id="admin_user_usage",
+    responses={
+        200: {"model": UserUsageResponse},
+        404: _err("No user with that id."),
+        **ADMIN_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def admin_user_usage(
     request: Request,
@@ -966,7 +1235,17 @@ async def admin_user_usage(
     }
 
 
-@router.get('/api/admin/keys/{key_id}/analytics', tags=["Admin"])
+@router.get(
+    '/api/admin/keys/{key_id}/analytics',
+    tags=["Admin"],
+    summary="Single-key analytics and quota",
+    operation_id="admin_key_analytics",
+    responses={
+        200: {"model": KeyAnalyticsResponse},
+        404: _err("No key with that id."),
+        **ADMIN_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def admin_key_analytics(
     request: Request,
@@ -1012,12 +1291,19 @@ async def admin_key_analytics(
     }
 
 
-@router.get('/api/admin/performance', tags=["Admin"])
+@router.get(
+    '/api/admin/performance',
+    tags=["Admin"],
+    summary="In-process request performance stats",
+    operation_id="admin_performance",
+    responses={200: {"model": PerformanceResponse}, **ADMIN_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def admin_performance(
     request: Request,
     api_key: str = Depends(require_admin_key),
 ):
+    """Summary + per-endpoint counters from the in-memory RequestTracker (resets on restart)."""
     tracker = get_request_tracker()
     return {
         "summary": tracker.get_summary(),

@@ -19,7 +19,8 @@ from src.api.admin_security import (
     enforce_ip_allowlist,
     enforce_ui_rate_limit,
 )
-from src.api.routers.admin import require_admin_key
+from src.api.routers.admin import ADMIN_ERROR_RESPONSES, _err, require_admin_key
+from src.api.schemas.admin import DataBrowseResponse, DataDeleteResponse
 from src.core.logging import get_logger
 from src.core.security.rate_limiting import apply_tiered_limit
 from src.repositories.mongo import MongoDBManager
@@ -39,7 +40,12 @@ router = APIRouter(prefix="/api/admin/data", tags=["Admin"],
                    dependencies=[Depends(_admin_api_gate)])
 
 
-@router.get("/browse")
+@router.get(
+    "/browse",
+    summary="Browse stored V2 data types for a scope",
+    operation_id="admin_data_browse",
+    responses={200: {"model": DataBrowseResponse}, **ADMIN_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def admin_data_browse(
     request: Request,
@@ -52,7 +58,16 @@ async def admin_data_browse(
     return await run_in_threadpool(browse_stored_data, year, gp, session)
 
 
-@router.delete("/{year}/{gp_id}/{session_type}/{data_type}")
+@router.delete(
+    "/{year}/{gp_id}/{session_type}/{data_type}",
+    summary="Delete stored analysis data (destructive)",
+    operation_id="admin_data_delete",
+    responses={
+        200: {"model": DataDeleteResponse},
+        404: _err("No such stored data_type for that year/gp/session."),
+        **ADMIN_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def admin_data_delete(
     request: Request,
@@ -62,7 +77,10 @@ async def admin_data_delete(
     data_type: str,
     api_key: str = Depends(require_admin_key),
 ):
-    """Delete one stored ``data_type`` so it can be regenerated from scratch."""
+    """Permanently delete one stored ``data_type`` entry so it can be
+    regenerated from scratch (e.g. via ``/api/admin/plots/generate?force=true``).
+    Not reversible — only this entry is removed, the rest of the session's
+    stored data is untouched."""
     manager = MongoDBManager(year=year, version="v2")
     removed = await run_in_threadpool(
         manager.delete_session_data, gp_id, session_type.upper(), data_type, year

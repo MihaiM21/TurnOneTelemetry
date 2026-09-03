@@ -50,7 +50,7 @@ def parse_f1_time(time_str) -> float:
         elif len(parts) == 2:
             return float(parts[0]) * 60 + float(parts[1])
         return float(parts[0])
-    except:
+    except (ValueError, TypeError):
         return 0.0
 
 
@@ -70,8 +70,8 @@ def get_all_driver_codes(base_url: str, client: F1StaticClient) -> Dict[str, str
         data = json.loads(r.content.decode('utf-8-sig'))
         for k, v in data.items():
             mapping[str(k)] = v.get('Tla', str(k))
-    except:
-        pass
+    except Exception as exc:
+        logger.warning("Error fetching driver codes from DriverList.json: %s", exc)
     return mapping
 
 
@@ -82,8 +82,8 @@ def get_driver_tla_from_num(base_url: str, client: F1StaticClient, num: str) -> 
         for k, v in data.items():
             if str(k) == str(num):
                 return v.get('Tla', str(num))
-    except:
-        pass
+    except Exception as exc:
+        logger.warning("Error fetching driver TLA for %s from DriverList.json: %s", num, exc)
     return str(num)
 
 
@@ -176,7 +176,7 @@ def extract_stints(base_url: str, client: F1StaticClient, driver_num: str) -> Li
     try:
         data = client.parse_jsonstream_simple(base_url + "TimingAppData.jsonStream")
     except Exception as exc:
-        print(f"Error fetching TimingAppData for {driver_num}: {exc}")
+        logger.error("Error fetching TimingAppData for %s: %s", driver_num, exc)
         return []
     return extract_stints_from_data(data, driver_num)
 
@@ -192,7 +192,7 @@ def get_finishing_order(base_url: str, client: F1StaticClient,
     try:
         data = store.timing_data() if store is not None else client.parse_jsonstream_simple(base_url + "TimingData.jsonStream")
     except Exception as exc:
-        print(f"Error fetching TimingData for finishing order: {exc}")
+        logger.error("Error fetching TimingData for finishing order: %s", exc)
         return order
 
     for entry in data:
@@ -216,8 +216,8 @@ def get_driver_team_from_list(base_url: str, client: F1StaticClient) -> Dict[str
                 'tla': v.get('Tla', str(k)),
                 'team': v.get('TeamName', 'Unknown')
             }
-    except:
-        pass
+    except Exception as exc:
+        logger.warning("Error fetching driver/team list from DriverList.json: %s", exc)
     return result
 
 
@@ -269,7 +269,7 @@ def get_fastest_lap_windows(base_url: str, client: F1StaticClient,
             df = df[df['DriverNum'] == str(target_driver_num)]
         return df
     except Exception as ex:
-        print(f"Error getting fastest lap windows: {ex}")
+        logger.error("Error getting fastest lap windows: %s", ex)
         return pd.DataFrame(columns=['DriverNum', 'StartTime', 'EndTime', 'LapTime'])
 
 
@@ -377,7 +377,7 @@ def extract_telemetry_for_lap(base_url: str, client: F1StaticClient,
             )
         return df
     except Exception as e:
-        print(f"Error extracting telemetry: {e}")
+        logger.error("Error extracting telemetry: %s", e)
         return pd.DataFrame()
 
 
@@ -399,7 +399,7 @@ def extract_position_for_lap(base_url: str, client: F1StaticClient,
     try:
         entries = (store.position_data() if store is not None
                    else client.parse_compressed_stream(base_url + "Position.z.jsonStream"))
-        print(f"Position.z: fetched {len(entries)} compressed entries for driver {driver_num}")
+        logger.debug("Position.z: fetched %s compressed entries for driver %s", len(entries), driver_num)
 
         # Position.z structure: entry['Position'] is a list of frames.
         # Each frame: {'Timestamp': ISO_UTC_str, 'Entries': {car_num: {'Status', 'X', 'Y', 'Z'}}}
@@ -445,8 +445,8 @@ def extract_position_for_lap(base_url: str, client: F1StaticClient,
                         'Z': float(z)
                     })
 
-        print(f"Position.z: scanned {total_entries_scanned} samples, found {len(records)} in window "
-              f"[{round(start_t,1)}-{round(end_t,1)}s] for driver {driver_num}")
+        logger.debug("Position.z: scanned %s samples, found %s in window [%s-%s s] for driver %s",
+                     total_entries_scanned, len(records), round(start_t, 1), round(end_t, 1), driver_num)
         df = pd.DataFrame(records)
         if not df.empty:
             df = df.sort_values('Time')
@@ -460,7 +460,7 @@ def extract_position_for_lap(base_url: str, client: F1StaticClient,
             )
         return df
     except Exception as e:
-        print(f"Error extracting position for driver {driver_num}: {e}")
+        logger.error("Error extracting position for driver %s: %s", driver_num, e)
         return pd.DataFrame()
 
 

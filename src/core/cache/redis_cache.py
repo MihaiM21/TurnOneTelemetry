@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-from typing import Any, Iterable, Optional
+from typing import Any, Optional
 
 from src.core.config import settings
 from src.core.logging import get_logger
@@ -28,7 +28,8 @@ _LOCK = asyncio.Lock()
 def _stable_hash(value: Any) -> str:
     """Deterministic, short hash for cache-key suffixes."""
     blob = json.dumps(value, sort_keys=True, default=str).encode("utf-8")
-    return hashlib.sha1(blob).hexdigest()[:16]
+    # Cache-key digest, not a security primitive.
+    return hashlib.sha1(blob, usedforsecurity=False).hexdigest()[:16]
 
 
 def make_event_key(year: int, identifier: Any) -> str:

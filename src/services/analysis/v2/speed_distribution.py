@@ -11,6 +11,9 @@ from src.repositories.plots import store_data_dict_to_mongo, get_plot_data_from_
 from src.ingestion.static_client import F1StaticClient
 from src.services.plotting.colors import get_driver_color
 from src.services.analysis.v2._helpers import build_session_store
+from src.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 # ============================================================================
 # UTILS & PARSERS
@@ -29,7 +32,8 @@ def parse_f1_time(time_str: Any) -> float:
         elif len(parts) == 2: # mm:ss.ms
             return float(parts[0]) * 60 + float(parts[1])
         return float(parts[0])
-    except: return 0.0
+    except (ValueError, TypeError):
+        return 0.0
 
 def _data_type(driver: Optional[str]) -> str:
     """Stored MongoDB key. The TLA is upper-cased so ``?driver=ver`` and
@@ -83,15 +87,15 @@ def get_fastest_lap_windows_pandas(base_url: str, client: F1StaticClient, target
                                 'LapTime': lap_time
                             }
         return pd.DataFrame(list(best_laps.values()))
-    except Exception as ex: 
-        print(f"Error in fast laps: {ex}")
+    except Exception as ex:
+        logger.error("Error in fast laps: %s", ex)
         return pd.DataFrame(columns=columns)
 
 
 def extract_telemetry_pandas(base_url: str, client: F1StaticClient, target_driver_num: str, start_t: float, end_t: float, store=None) -> pd.DataFrame:
     records = []
     try:
-        print(f"Extracting telemetry for Car {target_driver_num} from {round(start_t, 2)} to {round(end_t, 2)}")
+        logger.debug("Extracting telemetry for Car %s from %s to %s", target_driver_num, round(start_t, 2), round(end_t, 2))
         entries = store.car_data() if store is not None else client.parse_compressed_stream(base_url + "CarData.z.jsonStream")
         session_start_utc = None
         
@@ -133,7 +137,7 @@ def extract_telemetry_pandas(base_url: str, client: F1StaticClient, target_drive
             df = df[(df['Time (s)'] >= 0) & (df['Time (s)'] <= (end_t - start_t))]
         return df
     except Exception as e:
-        print(f"Error in telemetry extraction: {e}")
+        logger.error("Error in telemetry extraction: %s", e)
         return pd.DataFrame()
 
 
@@ -145,7 +149,8 @@ def get_all_driver_codes(base_url, client):
         for k, v in data.items(): 
             tla = v.get('Tla', k)
             mapping[tla] = str(k)
-    except: pass
+    except Exception as exc:
+        logger.warning("Error fetching driver codes from DriverList.json: %s", exc)
     return mapping
 
 def get_driver_tla_from_num(base_url, client, num):
@@ -155,7 +160,8 @@ def get_driver_tla_from_num(base_url, client, num):
         for k, v in data.items(): 
             if str(k) == str(num):
                 return v.get('Tla', str(num))
-    except: pass
+    except Exception as exc:
+        logger.warning("Error fetching driver TLA for %s from DriverList.json: %s", num, exc)
     return str(num)
 
 
@@ -182,7 +188,7 @@ def process_speed_distribution_data(y: int, identifier: Union[int, str], e: str,
             
         driver_window = df_windows[df_windows['DriverNum'] == drv_num]
         if driver_window.empty:
-            print(f"Could not find valid fast lap for {driver}")
+            logger.warning("Could not find valid fast lap for %s", driver)
             return None, None
             
         start_t = driver_window.iloc[0]['StartTime']
@@ -269,7 +275,8 @@ def SpeedDistributionPlot(y: int, identifier: Union[int, str], e: str, driver: O
     try:
         logo = mpimg.imread('assets/images/logo mic.png')
         fig.figimage(logo, 575, 350, zorder=3, alpha=.6)
-    except: pass
+    except (FileNotFoundError, OSError) as exc:
+        logger.debug("Watermark logo unavailable, skipping: %s", exc)
     
     setup_theme.add_glow(ax)
     plt.savefig(f"{location}/{name}")
@@ -301,18 +308,18 @@ def SpeedDistributionData(y: int, identifier: Union[int, str], e: str, driver: O
     return data
 
 if __name__ == "__main__":
-    print("Testing V2 Speed Distribution...")
+    logger.info("Testing V2 Speed Distribution...")
     try:
         plot_path = SpeedDistributionPlot(2023, 14, "Race", driver="VER")
-        print(f"Plot saved to: {plot_path}")
-        
+        logger.info("Plot saved to: %s", plot_path)
+
         data = SpeedDistributionData(2023, 14, "Race", driver="VER")
-        print(f"Data length: {len(data)}")
-        
-        print("\nTesting V2 Overall Fastest Lap...")
+        logger.info("Data length: %s", len(data))
+
+        logger.info("Testing V2 Overall Fastest Lap...")
         plot_path_overall = SpeedDistributionPlot(2023, 14, "Race")
-        print(f"Plot saved to: {plot_path_overall}")
+        logger.info("Plot saved to: %s", plot_path_overall)
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error("Error: %s", e)
         import traceback
         traceback.print_exc()

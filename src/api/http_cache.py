@@ -65,7 +65,11 @@ def compute_etag(
     if params:
         for key in sorted(params):
             parts.append(f"{key}={params[key]}")
-    digest = hashlib.sha1("|".join(parts).encode("utf-8")).hexdigest()
+    # Cache-key digest, not a security primitive -- collision resistance is
+    # irrelevant here and SHA-1 is the cheapest adequate option.
+    digest = hashlib.sha1(
+        "|".join(parts).encode("utf-8"), usedforsecurity=False
+    ).hexdigest()
     return f'W/"{digest}"'
 
 

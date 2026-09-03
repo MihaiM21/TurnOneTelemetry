@@ -391,14 +391,14 @@ class TrackMapPlot:
 
 
 if __name__ == "__main__":
-    print("Testing V2 Telemetry Track Map...")
+    logger.info("Testing V2 Telemetry Track Map...")
     try:
         client = F1StaticClient()
         data = TrackMapData()(2025, 1, "Q", "VER", "speed")
-        print(f"Points: {len(data.get('points', []))}")
+        logger.info("Points: %s", len(data.get('points', [])))
         plot_path = TrackMapPlot()(2025, 1, "Q", "VER", "speed")
-        print(f"Plot: {plot_path}")
+        logger.info("Plot: %s", plot_path)
     except Exception as ex:
-        print(f"Error: {ex}")
+        logger.error("Error: %s", ex)
         import traceback
         traceback.print_exc()

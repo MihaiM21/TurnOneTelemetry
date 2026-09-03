@@ -11,6 +11,9 @@ from src.repositories.plots import store_data_dict_to_mongo, get_plot_data_from_
 from src.ingestion.static_client import F1StaticClient
 from src.services.analysis.v2._helpers import get_driver_team_from_list
 from src.services.analysis.v2.driver_pace import _extract_all_lap_times, _quartiles, _format_laptime
+from src.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def _init(y, e, event_name):
@@ -110,7 +113,7 @@ def _build_data(y: int, identifier, e: str):
 def TeamsPacePlot(y: int, identifier: Union[int, str], e: str) -> str:
     cached_result = get_plot_data_from_mongo(y, identifier, e, 'teams_pace', version='v2')
     if cached_result:
-        print("Using cached Teams Pace data from MongoDB (v2)")
+        logger.info("Using cached Teams Pace data from MongoDB (v2)")
         data_list = cached_result['data']
         event_name = cached_result['metadata']['event_name']
         location, name = _init(y, e, event_name)
@@ -127,7 +130,7 @@ def TeamsPacePlot(y: int, identifier: Union[int, str], e: str) -> str:
                 data_type='teams_pace', data=data_list, version='v2',
             )
         except Exception as err:
-            print(f"Warning: Failed to store to MongoDB: {err}")
+            logger.warning("Failed to store to MongoDB: %s", err)
 
     _render_plot(data_list, y, event_name, e, location, name)
     return location + "/" + name
@@ -136,7 +139,7 @@ def TeamsPacePlot(y: int, identifier: Union[int, str], e: str) -> str:
 def TeamsPaceData(y: int, identifier: Union[int, str], e: str, store_to_mongo: bool = True) -> list:
     cached_result = get_plot_data_from_mongo(y, identifier, e, 'teams_pace', version='v2')
     if cached_result:
-        print("Using cached Teams Pace data from MongoDB (v2)")
+        logger.info("Using cached Teams Pace data from MongoDB (v2)")
         return cached_result['data']
 
     data_list, event_name, round_nr = _build_data(y, identifier, e)
@@ -148,7 +151,7 @@ def TeamsPaceData(y: int, identifier: Union[int, str], e: str, store_to_mongo: b
                 data_type='teams_pace', data=data_list, version='v2',
             )
         except Exception as err:
-            print(f"Warning: Failed to store to MongoDB: {err}")
+            logger.warning("Failed to store to MongoDB: %s", err)
 
     return data_list
 
@@ -156,9 +159,9 @@ def TeamsPaceData(y: int, identifier: Union[int, str], e: str, store_to_mongo: b
 if __name__ == "__main__":
     try:
         data = TeamsPaceData(2023, 14, "Race")
-        print(f"Teams returned: {len(data)}")
+        logger.info("Teams returned: %s", len(data))
         if data:
-            print(f"Fastest median: {data[0]['team']} {data[0]['median']}s")
+            logger.info("Fastest median: %s %s", data[0]['team'], data[0]['median'])
     except Exception:
         import traceback
         traceback.print_exc()

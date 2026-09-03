@@ -3,11 +3,14 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 
+from src.core.logging import get_logger
 from src.services.plotting import output as dirOrg
 from src.ingestion import fastf1_client as data_aqcuisition
 from src.services.plotting import theme as setup_theme
 from src.services.plotting.colors import get_driver_color
 from src.repositories.plots import store_data_dict_to_mongo, get_plot_data_from_mongo
+
+logger = get_logger(__name__)
 
 
 def _format_laptime(seconds):
@@ -80,7 +83,7 @@ def _render_plot(data_list, y, event_name, e, location, name):
 def DriverPacePlot(y, r, e):
     cached_result = get_plot_data_from_mongo(y, r, e, 'driver_pace')
     if cached_result:
-        print("Using cached Driver Pace data from MongoDB (v1)")
+        logger.info("Using cached Driver Pace data from MongoDB (v1)")
         data_list = cached_result['data']
         event_name = cached_result['metadata']['event_name']
         location, name = _init(y, e, event_name)
@@ -126,7 +129,7 @@ def DriverPacePlot(y, r, e):
             data_type='driver_pace', data=data_list, version='v1',
         )
     except Exception as err:
-        print(f"Warning: Failed to store to MongoDB: {err}")
+        logger.warning("Failed to store to MongoDB: %s", err)
 
     _render_plot(data_list, y, event_name, e, location, name)
     return location + "/" + name
@@ -135,7 +138,7 @@ def DriverPacePlot(y, r, e):
 def DriverPaceData(y, r, e, store_to_mongo=True):
     cached_result = get_plot_data_from_mongo(y, r, e, 'driver_pace')
     if cached_result:
-        print("Using cached Driver Pace data from MongoDB (v1)")
+        logger.info("Using cached Driver Pace data from MongoDB (v1)")
         return cached_result['data']
 
     sessionloader = data_aqcuisition.SessionLoader(y, r, e)
@@ -177,6 +180,6 @@ def DriverPaceData(y, r, e, store_to_mongo=True):
                 data_type='driver_pace', data=data_list, version='v1',
             )
         except Exception as err:
-            print(f"Warning: Failed to store to MongoDB: {err}")
+            logger.warning("Failed to store to MongoDB: %s", err)
 
     return data_list

@@ -506,16 +506,16 @@ class RaceStoryPlot:
 
 
 if __name__ == "__main__":
-    print("Testing V2 Race Story...")
+    logger.info("Testing V2 Race Story...")
     try:
         data = RaceStoryData()(2025, 1, "R")
-        print(f"Drivers: {len(data['drivers'])}")
-        print(f"Key moments: {len(data['key_moments'])}")
+        logger.info("Drivers: %s", len(data['drivers']))
+        logger.info("Key moments: %s", len(data['key_moments']))
         for m in data["key_moments"][:5]:
-            print(f"  ({m['n']}) {m['caption']}")
+            logger.info("  (%s) %s", m['n'], m['caption'])
         plot_path = RaceStoryPlot()(2025, 1, "R")
-        print(f"Plot: {plot_path}")
+        logger.info("Plot: %s", plot_path)
     except Exception as ex:
-        print(f"Error: {ex}")
+        logger.error("Error: %s", ex)
         import traceback
         traceback.print_exc()

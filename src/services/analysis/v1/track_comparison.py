@@ -5,23 +5,26 @@ import matplotlib.image as mpimg
 from matplotlib.colors import LinearSegmentedColormap, ListedColormap
 import matplotlib.patches as mpatches
 
+from src.core.logging import get_logger
 from src.services.plotting import output as dirOrg
 from src.ingestion import fastf1_client as data_aqcuisition
 from src.services.plotting import theme as setup_theme
 from src.services.plotting.colors import team_colors, teams, get_team_color, get_driver_color
 from src.repositories.plots import store_data_dict_to_mongo, get_plot_data_from_mongo
 
+logger = get_logger(__name__)
+
 
 def print_sector_times(lap, driver_code):
-    print(f"Sector times for {driver_code}:")
+    logger.debug("Sector times for %s:", driver_code)
     lap_number = lap['LapNumber']
     sector1 = lap['Sector1Time']
     sector2 = lap['Sector2Time']
     sector3 = lap['Sector3Time']
     telemetry = lap.get_car_data()
     speed = max(telemetry['Speed'])
-    print(f"Lap {lap_number}: Sector 1: {sector1}, Sector 2: {sector2}, Sector 3: {sector3}, Speed: {speed}")
-    print("\n")
+    logger.debug("Lap %s: Sector 1: %s, Sector 2: %s, Sector 3: %s, Speed: %s",
+                 lap_number, sector1, sector2, sector3, speed)
 
 def _pick_clean_fastest_lap(driver_laps):
     """Fastest lap after excluding pit in/out and data-quality-flagged laps.
@@ -316,6 +319,6 @@ def TrackComparisonData(y, r, e, d1, d2):
             version='v1'
         )
     except Exception as e:
-        print(f"Warning: Failed to store to MongoDB: {e}")
+        logger.warning("Failed to store to MongoDB: %s", e)
 
     return result  # Return data directly

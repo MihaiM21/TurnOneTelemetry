@@ -530,16 +530,16 @@ class PitStrategyPlot:
 
 
 if __name__ == "__main__":
-    print("Testing V2 Pit Strategy...")
+    logger.info("Testing V2 Pit Strategy...")
     try:
         data = PitStrategyData()(2025, 1, "R")
-        print(f"Stops: {len(data['stops'])}")
-        print(f"Undercuts: {len(data['undercuts'])}")
-        print(f"Fastest: {data['summary']['fastest_stop']}")
-        print(f"Free changes: {len(data['free_changes'])}")
+        logger.info("Stops: %s", len(data['stops']))
+        logger.info("Undercuts: %s", len(data['undercuts']))
+        logger.info("Fastest: %s", data['summary']['fastest_stop'])
+        logger.info("Free changes: %s", len(data['free_changes']))
         plot_path = PitStrategyPlot()(2025, 1, "R")
-        print(f"Plot: {plot_path}")
+        logger.info("Plot: %s", plot_path)
     except Exception as ex:
-        print(f"Error: {ex}")
+        logger.error("Error: %s", ex)
         import traceback
         traceback.print_exc()
