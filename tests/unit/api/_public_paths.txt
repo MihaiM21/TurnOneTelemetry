@@ -85,7 +85,9 @@
 /api/v2/speed-distribution-data
 /api/v2/speed-distribution-plot
 /api/v2/standings/constructors
+/api/v2/standings/constructors/live
 /api/v2/standings/drivers
+/api/v2/standings/drivers/live
 /api/v2/teams-pace-data
 /api/v2/teams-pace-plot
 /api/v2/theoretical-best-data

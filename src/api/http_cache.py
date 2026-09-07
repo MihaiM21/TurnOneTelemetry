@@ -97,7 +97,11 @@ def cache_headers(
 
 
 #: Path suffixes under ``/api/v2/`` whose content is not immutable.
-VOLATILE_PATH_MARKERS = ("/dashboard",)
+#: ``/standings/drivers`` and ``/standings/constructors`` cover both the cached
+#: current-season endpoints and their ``/live`` variants; the per-year and
+#: per-round standings paths (``/seasons/{year}/drivers-standings``) are not
+#: matched and stay immutable.
+VOLATILE_PATH_MARKERS = ("/dashboard", "/standings/drivers", "/standings/constructors")
 
 
 def is_volatile_path(path: str) -> bool:

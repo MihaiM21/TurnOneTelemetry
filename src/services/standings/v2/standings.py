@@ -13,6 +13,10 @@ NB: the primary path normalizes whatever livetiming returns into the same
 flat-dict shape Ergast uses. If a future livetiming feed surfaces extra
 fields, extend the normalizer here — the cache key namespacing will handle
 the rest.
+
+`get_*_standings(...)` are cached (Redis → Mongo → generate). `get_*_standings_live(...)`
+skip every cache layer and always hit the upstream, for the "current season, as it
+stands right now" endpoints where a stale snapshot is the wrong answer.
 """
 from __future__ import annotations
 
@@ -58,83 +62,95 @@ def _identifier(round_nr: Optional[int]) -> str:
     return str(round_nr) if round_nr is not None else "season"
 
 
+def _generate_drivers_standings(year: int, round_nr: Optional[int]) -> Dict[str, Any]:
+    def primary() -> Dict[str, Any]:
+        rows = F1StaticClient().fetch_drivers_standings(year, round_nr)
+        return {
+            "year": year,
+            "round": round_nr,
+            "source": "livetiming",
+            "standings": _normalize_livetiming_drivers(rows),
+        }
+
+    def secondary() -> Dict[str, Any]:
+        rows = ErgastStandingsClient().fetch_drivers_standings(year, round_nr)
+        return {
+            "year": year,
+            "round": round_nr,
+            "source": "ergast",
+            "standings": rows,
+        }
+
+    return with_fallback(
+        primary=primary,
+        secondary=secondary,
+        primary_source="livetiming",
+        secondary_source="ergast",
+        year=year,
+        gp=round_nr,
+        session="standings",
+        data_type="drivers_standings",
+    )
+
+
+def _generate_constructors_standings(year: int, round_nr: Optional[int]) -> Dict[str, Any]:
+    def primary() -> Dict[str, Any]:
+        rows = F1StaticClient().fetch_constructors_standings(year, round_nr)
+        return {
+            "year": year,
+            "round": round_nr,
+            "source": "livetiming",
+            "standings": _normalize_livetiming_constructors(rows),
+        }
+
+    def secondary() -> Dict[str, Any]:
+        rows = ErgastStandingsClient().fetch_constructors_standings(year, round_nr)
+        return {
+            "year": year,
+            "round": round_nr,
+            "source": "ergast",
+            "standings": rows,
+        }
+
+    return with_fallback(
+        primary=primary,
+        secondary=secondary,
+        primary_source="livetiming",
+        secondary_source="ergast",
+        year=year,
+        gp=round_nr,
+        session="standings",
+        data_type="constructors_standings",
+    )
+
+
 def get_drivers_standings(year: int, round_nr: Optional[int] = None) -> Dict[str, Any]:
-    def _generate() -> Dict[str, Any]:
-        def primary() -> Dict[str, Any]:
-            rows = F1StaticClient().fetch_drivers_standings(year, round_nr)
-            return {
-                "year": year,
-                "round": round_nr,
-                "source": "livetiming",
-                "standings": _normalize_livetiming_drivers(rows),
-            }
-
-        def secondary() -> Dict[str, Any]:
-            rows = ErgastStandingsClient().fetch_drivers_standings(year, round_nr)
-            return {
-                "year": year,
-                "round": round_nr,
-                "source": "ergast",
-                "standings": rows,
-            }
-
-        return with_fallback(
-            primary=primary,
-            secondary=secondary,
-            primary_source="livetiming",
-            secondary_source="ergast",
-            year=year,
-            gp=round_nr,
-            session="standings",
-            data_type="drivers_standings",
-        )
-
     return cached_or_generate(
         year=year,
         identifier=_identifier(round_nr),
         session="standings",
         data_type="drivers_standings",
-        generator=_generate,
+        generator=lambda: _generate_drivers_standings(year, round_nr),
         version="v2",
     )
 
 
 def get_constructors_standings(year: int, round_nr: Optional[int] = None) -> Dict[str, Any]:
-    def _generate() -> Dict[str, Any]:
-        def primary() -> Dict[str, Any]:
-            rows = F1StaticClient().fetch_constructors_standings(year, round_nr)
-            return {
-                "year": year,
-                "round": round_nr,
-                "source": "livetiming",
-                "standings": _normalize_livetiming_constructors(rows),
-            }
-
-        def secondary() -> Dict[str, Any]:
-            rows = ErgastStandingsClient().fetch_constructors_standings(year, round_nr)
-            return {
-                "year": year,
-                "round": round_nr,
-                "source": "ergast",
-                "standings": rows,
-            }
-
-        return with_fallback(
-            primary=primary,
-            secondary=secondary,
-            primary_source="livetiming",
-            secondary_source="ergast",
-            year=year,
-            gp=round_nr,
-            session="standings",
-            data_type="constructors_standings",
-        )
-
     return cached_or_generate(
         year=year,
         identifier=_identifier(round_nr),
         session="standings",
         data_type="constructors_standings",
-        generator=_generate,
+        generator=lambda: _generate_constructors_standings(year, round_nr),
         version="v2",
     )
+
+
+def get_drivers_standings_live(year: int, round_nr: Optional[int] = None) -> Dict[str, Any]:
+    """Current, uncached drivers' standings straight from the upstream feed."""
+    return _generate_drivers_standings(year, round_nr)
+
+
+def get_constructors_standings_live(year: int, round_nr: Optional[int] = None) -> Dict[str, Any]:
+    """Current, uncached constructors' standings straight from the upstream feed."""
+    return _generate_constructors_standings(year, round_nr)
