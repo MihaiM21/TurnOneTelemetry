@@ -304,6 +304,7 @@ def create_app() -> FastAPI:
     from src.api.routers.batch_v2 import router as batch_router
     from src.api.routers.discovery_v2 import router as discovery_router
     from src.api.routers.drivers_api import router as drivers_api_router
+    from src.api.routers.media_api import router as media_api_router
     from src.api.routers.keys import router as keys_router, me_router
     from src.api.routers.monitoring import router as monitoring_router
     from src.api.routers.seasonal_v1 import router as seasonal_router_v1
@@ -442,6 +443,15 @@ def create_app() -> FastAPI:
         app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
     else:  # pragma: no cover - only if the package is installed without assets
         logger.warning("Static assets directory missing at %s", _static_dir)
+
+    # Curated media assets (driver portraits, team logos, fonts, logos) served
+    # read-only at /assets. The media_api router 302-redirects here; a CDN in
+    # front of the app can cache these bytes indefinitely.
+    _assets_dir = Path(__file__).resolve().parents[2] / "assets"
+    if _assets_dir.is_dir():
+        app.mount("/assets", StaticFiles(directory=str(_assets_dir)), name="assets")
+    else:  # pragma: no cover - repo always ships assets/
+        logger.warning("Media assets directory missing at %s", _assets_dir)
 
     app.state.limiter = limiter
     app.state.session_tracker = session_tracker
@@ -692,6 +702,7 @@ def create_app() -> FastAPI:
     app.include_router(standings_router_v2)
     app.include_router(drivers_api_router)
     app.include_router(teams_api_router)
+    app.include_router(media_api_router)
     app.include_router(circuits_api_router)
     app.include_router(discovery_router)
     app.include_router(batch_router)

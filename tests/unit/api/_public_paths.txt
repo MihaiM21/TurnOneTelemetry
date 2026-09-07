@@ -3,6 +3,10 @@
 /api/static/circuits/{circuit_id}/info
 /api/static/drivers
 /api/static/drivers/{driver_name}
+/api/static/media/drivers
+/api/static/media/drivers/{code}
+/api/static/media/teams
+/api/static/media/teams/{short_name}
 /api/static/teams
 /api/static/teams/{team_name}
 /api/v1/analytics/daily
