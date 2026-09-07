@@ -68,7 +68,11 @@ jobs:
             src/services/backup/ \
             src/domain/mappings.py \
             src/api/schemas/admin.py \
+            src/api/schemas/batch.py \
+            src/api/schemas/discovery.py \
             src/api/routers/admin_storage.py \
+            src/api/routers/batch_v2.py \
+            src/api/routers/discovery_v2.py \
             src/services/storage_cleanup.py \
             tests/unit/api/
 

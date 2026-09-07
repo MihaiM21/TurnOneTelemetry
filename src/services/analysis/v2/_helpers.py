@@ -1,4 +1,7 @@
 import json
+from contextlib import contextmanager
+from contextvars import ContextVar
+
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -11,6 +14,42 @@ from src.ingestion.circuits_loader import get_circuit_data_file
 logger = get_logger(__name__)
 
 
+# ---------------------------------------------------------------------------
+# Request-scoped session-store sharing
+# ---------------------------------------------------------------------------
+#
+# A SessionDataStore caches parsed livetiming streams *per instance*, and every
+# analysis module builds its own via build_session_store(). That is correct for
+# a normal single-feature request, but it means asking for N features of one
+# session re-resolves and re-parses the same multi-megabyte streams N times.
+#
+# Rather than thread a store parameter through ~30 module signatures, callers
+# that genuinely want sharing (the batch endpoint) open a scope; inside it,
+# stores are memoized by (year, identifier, session). The ContextVar default is
+# None, so every existing code path behaves exactly as before -- no shared
+# state, no cross-request leakage, and it is coroutine- and thread-safe because
+# each context gets its own value.
+
+_store_scope: ContextVar[Optional[Dict[tuple, Any]]] = ContextVar(
+    "session_store_scope", default=None
+)
+
+
+@contextmanager
+def shared_session_stores():
+    """Memoize SessionDataStore instances for the duration of the block.
+
+    Use around work that touches several features of the *same* session.
+    Do not hold across sessions or requests: a store pins parsed streams in
+    memory, and a live session's data would go stale.
+    """
+    token = _store_scope.set({})
+    try:
+        yield
+    finally:
+        _store_scope.reset(token)
+
+
 def build_session_store(year: int, identifier: Any, session: str,
                         client: Optional[F1StaticClient] = None) -> Optional[Any]:
     """Best-effort :class:`SessionDataStore` for cache-routing the big streams.
@@ -18,14 +57,24 @@ def build_session_store(year: int, identifier: Any, session: str,
     Imported lazily to avoid a module-load cycle (``session_store`` imports from
     this module). Returns ``None`` on any resolution failure so callers can fall
     back to direct fetching without a hard dependency on the cache being usable.
+
+    Inside :func:`shared_session_stores`, repeated calls for the same session
+    return the same instance so its parsed-stream cache is reused.
     """
+    scope = _store_scope.get()
+    key = (year, str(identifier), session)
+    if scope is not None and key in scope:
+        return scope[key]
     try:
         from src.services.analysis.v2.session_store import SessionDataStore
-        return SessionDataStore(year, identifier, session, client=client)
+        store = SessionDataStore(year, identifier, session, client=client)
     except Exception as exc:
         logger.debug("SessionDataStore unavailable for %s %s %s: %s",
                      year, identifier, session, exc)
         return None
+    if scope is not None:
+        scope[key] = store
+    return store
 
 
 CHANNEL_NAMES = {

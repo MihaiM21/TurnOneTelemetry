@@ -36,6 +36,7 @@
 /api/v1/track-comparison-2drivers-plot
 /api/v1/tyre-stint-usage-data
 /api/v1/tyre-stint-usage-plot
+/api/v2/batch
 /api/v2/career/driver-radar-data
 /api/v2/career/driver-radar-plot
 /api/v2/corner-duel-data
@@ -45,6 +46,7 @@
 /api/v2/driver-pace-plot
 /api/v2/driver-radar-data
 /api/v2/driver-radar-plot
+/api/v2/features
 /api/v2/lap-all-data
 /api/v2/lap-time-analysis-data
 /api/v2/lap-time-analysis-plot
@@ -75,6 +77,7 @@
 /api/v2/seasons/{year}/teammate-battle-plot
 /api/v2/session-weather-data
 /api/v2/session-weather-plot
+/api/v2/sessions/{year}/{gp}/{session}/availability
 /api/v2/speed-distribution-data
 /api/v2/speed-distribution-plot
 /api/v2/standings/constructors

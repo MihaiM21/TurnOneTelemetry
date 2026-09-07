@@ -301,6 +301,8 @@ def create_app() -> FastAPI:
     from src.api.routers.analysis_v2 import router as analysis_router_v2
     from src.api.routers.auth import router as auth_router
     from src.api.routers.circuits_api import router as circuits_api_router
+    from src.api.routers.batch_v2 import router as batch_router
+    from src.api.routers.discovery_v2 import router as discovery_router
     from src.api.routers.drivers_api import router as drivers_api_router
     from src.api.routers.keys import router as keys_router, me_router
     from src.api.routers.monitoring import router as monitoring_router
@@ -691,5 +693,7 @@ def create_app() -> FastAPI:
     app.include_router(drivers_api_router)
     app.include_router(teams_api_router)
     app.include_router(circuits_api_router)
+    app.include_router(discovery_router)
+    app.include_router(batch_router)
 
     return app
