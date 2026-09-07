@@ -67,6 +67,9 @@ jobs:
             src/services/plotting/ \
             src/services/backup/ \
             src/domain/mappings.py \
+            src/api/schemas/admin.py \
+            src/api/routers/admin_storage.py \
+            src/services/storage_cleanup.py \
             tests/unit/api/
 
       # ADVISORY, for now. The repo still carries ~1200 whitespace-class

@@ -283,6 +283,7 @@ def create_app() -> FastAPI:
     from src.api.routers.admin import router as admin_router
     from src.api.routers.admin_cache import router as admin_cache_router
     from src.api.routers.admin_data import router as admin_data_router
+    from src.api.routers.admin_storage import router as admin_storage_router
     from src.api.routers.admin_ui import router as admin_ui_router
     from src.api.routers.backup_admin import router as backup_admin_router
     from src.api.routers.analysis_v1 import router as analysis_router_v1
@@ -658,6 +659,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_router)
     app.include_router(admin_cache_router)
     app.include_router(admin_data_router)
+    app.include_router(admin_storage_router)
     app.include_router(admin_ui_router)
     app.include_router(backup_admin_router)
     app.include_router(auth_router)

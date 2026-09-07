@@ -11,14 +11,10 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
 
-from src.api.admin_security import (
-    NO_INDEX_HEADERS,
-    enforce_ip_allowlist,
-    enforce_ui_rate_limit,
-)
+from src.api.admin_security import admin_api_gate
 from src.api.routers.admin import ADMIN_ERROR_RESPONSES, _err, require_admin_key
 from src.api.schemas.admin import DataBrowseResponse, DataDeleteResponse
 from src.core.logging import get_logger
@@ -29,15 +25,8 @@ from src.services.admin_views import browse_stored_data
 logger = get_logger(__name__)
 
 
-def _admin_api_gate(request: Request, response: Response) -> None:
-    enforce_ip_allowlist(request)
-    enforce_ui_rate_limit(request)
-    for k, v in NO_INDEX_HEADERS.items():
-        response.headers[k] = v
-
-
 router = APIRouter(prefix="/api/admin/data", tags=["Admin"],
-                   dependencies=[Depends(_admin_api_gate)])
+                   dependencies=[Depends(admin_api_gate)])
 
 
 @router.get(

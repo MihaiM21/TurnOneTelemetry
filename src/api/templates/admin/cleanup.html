@@ -1,0 +1,237 @@
+{% extends "admin/_base.html" %}
+{% set active_page = 'cleanup' %}
+{% block title %}T1API Admin · Cleanup{% endblock %}
+
+{#
+  Bytes are formatted server-side rather than via a data-bytes attribute: this
+  page must stay readable with scripting disabled, because it is the surface an
+  operator uses to decide what to delete.
+#}
+{%- macro hbytes(n) -%}
+{%- if not n -%}0 B
+{%- elif n >= 1073741824 -%}{{ '%.1f'|format(n / 1073741824) }} GB
+{%- elif n >= 1048576 -%}{{ '%.1f'|format(n / 1048576) }} MB
+{%- elif n >= 1024 -%}{{ '%.1f'|format(n / 1024) }} KB
+{%- else -%}{{ n }} B
+{%- endif -%}
+{%- endmacro -%}
+
+{% block content %}
+{% if error %}
+  <div class="errbox">{{ error }}</div>
+{% endif %}
+{% if purged is not none %}
+  <div class="warnbox">
+    Purged {{ purged }} item(s), reclaimed {{ hbytes(reclaimed) }}.
+  </div>
+{% endif %}
+
+<section>
+  <div class="spread">
+    <h2 style="margin:0">Storage cleanup</h2>
+  </div>
+  <p class="muted small">
+    A generated feature leaves traces in five places. Only three of them could be deleted
+    before, one item at a time, and the rendered plots under
+    <code>{{ totals['plots']['root'] }}</code> had no delete path at all. Scope a cleanup
+    below; nothing is removed until you confirm an exact preview.
+  </p>
+</section>
+
+<div class="grid">
+  <div class="stat">
+    <div class="l">Rendered files</div>
+    <div class="v">{{ totals['plots']['files'] }}</div>
+    <div class="sub">{{ hbytes(totals['plots']['bytes']) }}</div>
+  </div>
+  <div class="stat">
+    <div class="l">Raw stream blobs</div>
+    <div class="v">{{ totals['raw_streams']['files'] }}</div>
+    <div class="sub">{{ hbytes(totals['raw_streams']['bytes']) }}</div>
+  </div>
+  <div class="stat">
+    <div class="l">Session bundles</div>
+    <div class="v">{{ totals['bundles']['count'] }}</div>
+    <div class="sub">{{ totals['bundles']['schema_drift'] }} stale schema</div>
+  </div>
+  <div class="stat">
+    <div class="l">Duplicate GP dirs</div>
+    <div class="v {% if totals['orphan_plot_groups'] %}warn{% else %}ok{% endif %}">
+      {{ totals['orphan_plot_groups'] }}
+    </div>
+    <div class="sub">{{ hbytes(totals['orphan_reclaimable_bytes']) }} recoverable</div>
+  </div>
+</div>
+
+<section>
+  <h2>Scope a cleanup</h2>
+  <p class="muted small" style="margin-bottom:10px">
+    Every field narrows what is deleted; leaving all of them blank targets everything.
+    Scoping by <strong>data type</strong> deliberately skips the raw-stream and bundle
+    layers &mdash; those are per-session, so removing them for one feature would force
+    every other feature of that session to re-download.
+  </p>
+  <form class="filters" method="get" action="/admin/cleanup">
+    <input type="hidden" name="preview" value="true">
+    <div class="field">
+      <label for="year">Year</label>
+      <select id="year" name="year">
+        <option value="">All</option>
+        {% for y in years %}
+        <option value="{{ y }}" {% if year == y %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="gp">Grand Prix</label>
+      <input id="gp" type="text" name="gp" value="{{ gp }}" maxlength="80"
+             placeholder="gp_id, round or event name">
+    </div>
+    <div class="field">
+      <label for="session">Session</label>
+      <select id="session" name="session">
+        <option value="">All</option>
+        {% for s in session_choices %}
+        <option value="{{ s }}" {% if session == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="data_type">Data type</label>
+      <input id="data_type" type="text" name="data_type" value="{{ data_type }}"
+             maxlength="80" placeholder="e.g. speed_distribution">
+    </div>
+    <div class="field">
+      <label>Layers</label>
+      <div>
+        {% for layer in all_layers %}
+        <label class="inline chk">
+          <input type="checkbox" name="layers" value="{{ layer }}"
+                 {% if layer in selected_layers %}checked{% endif %}>
+          <span class="small">{{ layer }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="field">
+      <label>&nbsp;</label>
+      <button type="submit" class="primary">Preview</button>
+    </div>
+  </form>
+</section>
+
+{% if plan %}
+<section>
+  <h2>Preview &mdash; {{ plan['total_items'] }} item(s), {{ hbytes(plan['total_bytes']) }}</h2>
+
+  {% if plan['unscoped'] %}
+  <div class="errbox">
+    <strong>This scope is empty, so it matches everything.</strong>
+    Running it deletes every stored year, Grand Prix, session and data type.
+  </div>
+  {% endif %}
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Layer</th><th>Items</th><th>Size</th><th>Detail</th></tr></thead>
+      <tbody>
+        {% for layer, info in plan['layers'].items() %}
+        <tr>
+          <td><code>{{ layer }}</code></td>
+          <td>{{ info['count'] }}</td>
+          <td class="nowrap">{{ hbytes(info['bytes']) }}</td>
+          <td class="muted small">
+            {% if info['patterns'] is defined and info['patterns'] %}
+              {% for p in info['patterns'] %}<code>{{ p }}</code>{% if not loop.last %} {% endif %}{% endfor %}
+            {% elif info['count'] %}
+              {% for item in info['items'][:4] %}{{ item['label'] }}<br>{% endfor %}
+              {% if info['count'] > 4 %}&hellip; and {{ info['count'] - 4 }} more{% endif %}
+            {% else %}&mdash;{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% set redis_count = plan['layers']['redis']['count'] if 'redis' in plan['layers'] else 0 %}
+  {% if plan['total_items'] or redis_count %}
+  <form method="post" action="/admin/cleanup/purge"
+        onsubmit="return confirm('Permanently delete {{ plan['total_items'] }} item(s)? This cannot be undone.');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="confirm_token" value="{{ plan['confirm_token'] }}">
+    <input type="hidden" name="year" value="{{ year if year is not none else '' }}">
+    <input type="hidden" name="gp" value="{{ gp }}">
+    <input type="hidden" name="session" value="{{ session }}">
+    <input type="hidden" name="data_type" value="{{ data_type }}">
+    {% for layer in selected_layers %}
+    <input type="hidden" name="layers" value="{{ layer }}">
+    {% endfor %}
+
+    {% if plan['unscoped'] %}
+    <div class="field">
+      <label class="inline chk">
+        <input type="checkbox" name="allow_full_purge" value="true">
+        <span class="small">I understand this deletes everything</span>
+      </label>
+    </div>
+    <div class="field">
+      <label for="typed_confirmation">Type <code>DELETE EVERYTHING</code> to confirm</label>
+      <input id="typed_confirmation" type="text" name="typed_confirmation"
+             autocomplete="off" placeholder="DELETE EVERYTHING">
+    </div>
+    {% endif %}
+
+    <button type="submit" class="danger">
+      Delete these {{ plan['total_items'] }} item(s)
+    </button>
+    <p class="muted small">
+      Confirmed against token <code>{{ plan['confirm_token'] }}</code>. If anything is
+      written to storage before you submit, the purge is refused and you will need to
+      preview again.
+    </p>
+  </form>
+  {% else %}
+  <p class="muted small">Nothing matches this scope.</p>
+  {% endif %}
+</section>
+{% endif %}
+
+<section>
+  <h2>Duplicate Grand Prix directories</h2>
+  <p class="muted small" style="margin-bottom:10px">
+    The same Grand Prix stored under two spellings (<code>Abu Dhabi Grand Prix</code>
+    alongside <code>AbuDhabiGrandPrix</code>), left by a naming change that never got a
+    migration. Only one spelling is ever read, so the other is dead weight. Nothing here
+    is removed automatically &mdash; which spelling is canonical is your call. Scope a
+    cleanup at the directory name you want gone.
+  </p>
+  {% if orphans %}
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Year</th><th>Variants</th><th>Suggested keep</th><th>Recoverable</th></tr>
+      </thead>
+      <tbody>
+        {% for group in orphans %}
+        <tr>
+          <td>{{ group['year'] }}</td>
+          <td class="small">
+            {% for v in group['variants'] %}
+            <code>{{ v['name'] }}</code>
+            <span class="muted">({{ v['files'] }} files, {{ hbytes(v['bytes']) }})</span>
+            {% if not loop.last %}<br>{% endif %}
+            {% endfor %}
+          </td>
+          <td class="small"><code>{{ group['suggested_keep'] }}</code></td>
+          <td class="nowrap">{{ hbytes(group['reclaimable_bytes']) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted small">No duplicate directories found.</p>
+  {% endif %}
+</section>
+{% endblock %}

@@ -843,3 +843,187 @@ class BackupRestoreResponse(BaseModel):
     mongo_target_db: Optional[str] = Field(
         default=None, description="Set only for a drill restore into a throwaway database."
     )
+
+
+# ---------------------------------------------------------------------------
+# Storage cleanup (/api/admin/storage/*)
+# ---------------------------------------------------------------------------
+
+class StorageScope(BaseModel):
+    """The filter that selects what a cleanup touches.
+
+    Every field is optional and narrows the scope; omitting all of them means
+    "everything", which the purge endpoint refuses without an explicit
+    ``allow_full_purge``.
+    """
+
+    year: Optional[int] = Field(None, description="Season year, e.g. 2025.", examples=[2025])
+    gp: Optional[str] = Field(
+        None,
+        description=(
+            "Grand Prix, matched loosely against every identifier a layer knows it by: "
+            "the Mongo `gp_id` (`2025_ITA`), the round number, and the event directory "
+            "name (`Italian Grand Prix`). Case, spaces and punctuation are ignored."
+        ),
+        examples=["Italian Grand Prix", "2025_ITA", "16"],
+    )
+    session: Optional[str] = Field(
+        None,
+        description=(
+            "Session type. Long and short spellings are equivalent, so `R` also matches "
+            "the legacy `Race` directories."
+        ),
+        examples=["R", "Q", "FP1"],
+    )
+    data_type: Optional[str] = Field(
+        None,
+        description=(
+            "A single stored feature key, e.g. `speed_distribution`. Scoping by "
+            "data_type deliberately excludes the raw-stream and bundle layers: those "
+            "are per-session, so deleting them would pull data out from under every "
+            "other feature of that session."
+        ),
+        examples=["speed_distribution"],
+    )
+    layers: Optional[List[str]] = Field(
+        None,
+        description=(
+            "Which storage layers to act on. Defaults to all of: "
+            "`mongo`, `raw_streams`, `bundles`, `plots`, `redis`."
+        ),
+        examples=[["plots", "redis"]],
+    )
+
+
+class StorageCleanupItem(BaseModel):
+    """One concrete deletable thing, as it exists in storage right now."""
+
+    layer: str = Field(..., description="Which storage layer holds it.")
+    key: str = Field(..., description="Layer-native identifier used to delete it.")
+    label: str = Field(..., description="Human-readable description for the preview.")
+    bytes: int = Field(0, description="Size on disk where the layer reports one; 0 otherwise.")
+    detail: Dict[str, Any] = Field(default_factory=dict, description="Layer-specific fields.")
+
+
+class StorageLayerPlan(BaseModel):
+    """Per-layer slice of a cleanup preview."""
+
+    count: int
+    bytes: int
+    items: List[StorageCleanupItem] = Field(default_factory=list)
+    patterns: Optional[List[str]] = Field(
+        None,
+        description="Redis only: the glob patterns that would be purged. Always under `t1api:v2:`.",
+    )
+
+
+class StoragePreviewResponse(BaseModel):
+    """Dry run. Enumerates exactly what a purge would delete, and deletes nothing."""
+
+    scope: Dict[str, Any]
+    unscoped: bool = Field(
+        ..., description="True when no filter is set, i.e. this would delete everything."
+    )
+    layers: Dict[str, StorageLayerPlan]
+    total_items: int
+    total_bytes: int
+    confirm_token: str = Field(
+        ...,
+        description=(
+            "Fingerprint of this exact item set. Pass it back to `/purge`; the purge "
+            "recomputes it and refuses on a mismatch, so nothing can be deleted that "
+            "was not visible in this preview."
+        ),
+    )
+
+
+class StoragePurgeRequest(BaseModel):
+    """Body for a destructive purge."""
+
+    scope: StorageScope = Field(default_factory=StorageScope)
+    confirm_token: str = Field(
+        ..., description="The `confirm_token` from a matching `/preview` call."
+    )
+    allow_full_purge: bool = Field(
+        False,
+        description=(
+            "Required to run a purge whose scope is empty (every year, GP, session and "
+            "data type). Without it such a request is rejected with 400."
+        ),
+    )
+
+
+class StorageLayerResult(BaseModel):
+    """What actually happened to one layer."""
+
+    requested: int
+    deleted: int
+    bytes: int = 0
+    patterns: Optional[List[str]] = None
+    errors: List[str] = Field(default_factory=list)
+
+
+class StoragePurgeResponse(BaseModel):
+    """Outcome of a purge. Partial failure is reported, never raised."""
+
+    scope: Dict[str, Any]
+    layers: Dict[str, StorageLayerResult]
+    total_deleted: int
+    bytes_reclaimed: int
+    errors: List[str] = Field(default_factory=list)
+    ok: bool = Field(..., description="True when every layer completed without an error.")
+
+
+class StorageOrphanVariant(BaseModel):
+    path: str
+    name: str
+    files: int
+    bytes: int
+
+
+class StorageOrphanGroup(BaseModel):
+    """Two or more directories holding the same GP under different spellings."""
+
+    year: int
+    variants: List[StorageOrphanVariant]
+    suggested_keep: str = Field(
+        ...,
+        description=(
+            "The variant holding the most files (ties broken by size). A suggestion "
+            "only — this endpoint never deletes, because only an operator can say "
+            "which spelling is canonical."
+        ),
+    )
+    reclaimable_bytes: int
+
+
+class StorageTotalsPlots(BaseModel):
+    files: int
+    bytes: int
+    root: str
+
+
+class StorageTotalsRaw(BaseModel):
+    files: int
+    bytes: int
+
+
+class StorageTotalsBundles(BaseModel):
+    count: int
+    schema_drift: int
+
+
+class StorageTotalsResponse(BaseModel):
+    """Headline storage figures for the cleanup dashboard."""
+
+    plots: StorageTotalsPlots
+    raw_streams: StorageTotalsRaw
+    bundles: StorageTotalsBundles
+    orphan_plot_groups: int
+    orphan_reclaimable_bytes: int
+
+
+class StorageOrphansResponse(BaseModel):
+    groups: List[StorageOrphanGroup]
+    total_groups: int
+    total_reclaimable_bytes: int

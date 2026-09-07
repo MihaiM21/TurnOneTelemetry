@@ -289,6 +289,22 @@ class SyncRedisCache:
         except Exception:
             return 0
 
+    def count_pattern(self, pattern: str) -> int:
+        """Count keys matching a glob, without deleting them.
+
+        Backs the dry-run half of :mod:`src.services.storage_cleanup`: an
+        operator must be able to see how many cache keys a purge would take
+        before it takes them. Uses SCAN, so it never blocks the server the way
+        KEYS would on a large keyspace.
+        """
+        if not self.enabled:
+            return 0
+        try:
+            return sum(1 for _ in self._client.scan_iter(match=pattern, count=200))
+        except Exception as exc:
+            logger.debug("Redis SCAN count failed for pattern %s: %s", pattern, exc)
+            return 0
+
     def delete_pattern(self, pattern: str) -> int:
         if not self.enabled:
             return 0

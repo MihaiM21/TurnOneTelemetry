@@ -10,6 +10,7 @@ Hardened against scrapers and brute-force probes via ``src.api.admin_security``
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from urllib.parse import quote_plus
 from pathlib import Path
 from typing import List, Optional
 
@@ -41,6 +42,15 @@ from src.repositories import raw_stream_cache, session_cache
 from src.repositories import users as _users
 from src.repositories.mongo import MongoDBManager
 from src.services.admin_views import browse_stored_data, cache_inventory
+from src.services.storage_cleanup import (
+    ALL_LAYERS,
+    CleanupError,
+    CleanupScope,
+    execute_cleanup,
+    find_orphan_plot_dirs,
+    plan_cleanup,
+    storage_totals,
+)
 from src.services.analysis.v2 import registry
 from src.workers import plot_inventory
 
@@ -1021,3 +1031,136 @@ async def admin_ui_promote(request: Request, user_id: str, csrf_token: str = For
         logger.error("Could not promote user %s: %s", user_id, exc)
         raise HTTPException(status_code=500, detail="Could not promote user")
     return apply_no_index(RedirectResponse("/admin", status_code=302))
+
+
+# --------------------------------------------------------------------------- #
+# Storage cleanup
+# --------------------------------------------------------------------------- #
+@router.get("/admin/cleanup", include_in_schema=False)
+async def admin_cleanup_page(
+    request: Request,
+    year: int = Query(None, ge=2018, le=2030),
+    gp: str = Query("", max_length=80),
+    session: str = Query("", max_length=20),
+    data_type: str = Query("", max_length=80),
+    layers: List[str] = Query(None),
+    preview: bool = Query(False),
+    error: str = Query("", max_length=300),
+    purged: int = Query(None),
+    reclaimed: int = Query(None),
+):
+    """Storage overview, plus an optional dry-run preview of a scoped cleanup.
+
+    The preview is a GET so it is shareable and re-runnable; only the purge
+    (POST, CSRF-verified) mutates anything.
+    """
+    if not _is_admin_session(request):
+        return apply_no_index(RedirectResponse("/admin/login", status_code=302))
+
+    totals = await run_in_threadpool(storage_totals)
+    orphans = await run_in_threadpool(find_orphan_plot_dirs)
+
+    plan = None
+    selected_layers = tuple(layers) if layers else ALL_LAYERS
+    if preview:
+        try:
+            scope = CleanupScope(
+                year=year,
+                gp=gp.strip() or None,
+                session=(session or "").strip().upper() or None,
+                data_type=data_type.strip() or None,
+                layers=selected_layers,
+            )
+            plan = await run_in_threadpool(plan_cleanup, scope)
+        except ValueError as exc:
+            error = str(exc)
+
+    return _render(
+        request,
+        "admin/cleanup.html",
+        {
+            "version": settings.app_version,
+            "totals": totals,
+            "orphans": orphans,
+            "plan": plan,
+            "error": error or None,
+            "purged": purged,
+            "reclaimed": reclaimed,
+            "years": plot_inventory.available_years(),
+            "year": year,
+            "gp": gp,
+            "session": (session or "").strip().upper(),
+            "data_type": data_type,
+            "all_layers": ALL_LAYERS,
+            "selected_layers": list(selected_layers),
+            "session_choices": _SESSION_CHOICES,
+        },
+    )
+
+
+@router.post("/admin/cleanup/purge", include_in_schema=False)
+async def admin_cleanup_purge(
+    request: Request,
+    confirm_token: str = Form(...),
+    csrf_token: str = Form(...),
+    year: Optional[int] = Form(None),
+    gp: str = Form(""),
+    session: str = Form(""),
+    data_type: str = Form(""),
+    layers: List[str] = Form(None),
+    allow_full_purge: bool = Form(False),
+    typed_confirmation: str = Form(""),
+):
+    """Execute a previewed cleanup. Destructive, and gated three ways.
+
+    ``verify_csrf`` proves the request came from this admin session;
+    ``confirm_token`` proves the item set is still exactly what the preview
+    displayed; and an unscoped purge additionally requires the operator to type
+    DELETE EVERYTHING, mirroring the backup restore's typed confirmation. The
+    checkbox alone is too easy to leave set from a previous run.
+    """
+    if not _is_admin_session(request):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    verify_csrf(request, csrf_token)
+
+    try:
+        scope = CleanupScope(
+            year=year,
+            gp=gp.strip() or None,
+            session=(session or "").strip().upper() or None,
+            data_type=data_type.strip() or None,
+            layers=tuple(layers) if layers else ALL_LAYERS,
+        )
+    except ValueError as exc:
+        return apply_no_index(RedirectResponse(
+            f"/admin/cleanup?error={quote_plus(str(exc))}", status_code=302
+        ))
+
+    if scope.is_unscoped and typed_confirmation.strip() != "DELETE EVERYTHING":
+        logger.warning("Admin cleanup: unscoped purge rejected, confirmation not typed")
+        return apply_no_index(RedirectResponse(
+            "/admin/cleanup?error="
+            + quote_plus("Type DELETE EVERYTHING to confirm an unscoped purge."),
+            status_code=302,
+        ))
+
+    try:
+        result = await run_in_threadpool(
+            execute_cleanup, scope, confirm_token,
+            allow_full_purge=bool(allow_full_purge and scope.is_unscoped),
+        )
+    except CleanupError as exc:
+        logger.warning("Admin cleanup refused: %s", exc)
+        return apply_no_index(RedirectResponse(
+            f"/admin/cleanup?error={quote_plus(str(exc))}", status_code=302
+        ))
+
+    logger.warning(
+        "Admin cleanup purged %s item(s), %s byte(s); scope=%s",
+        result["total_deleted"], result["bytes_reclaimed"], scope.to_dict(),
+    )
+    return apply_no_index(RedirectResponse(
+        f"/admin/cleanup?purged={result['total_deleted']}"
+        f"&reclaimed={result['bytes_reclaimed']}",
+        status_code=302,
+    ))

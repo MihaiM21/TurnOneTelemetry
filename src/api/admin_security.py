@@ -78,6 +78,20 @@ def client_ip(request: Request) -> str:
     return fwd.split(",")[0].strip()
 
 
+def admin_api_gate(request: Request, response: Response) -> None:
+    """Apply IP allowlist + per-IP rate limit + noindex headers to an admin API call.
+
+    Wired as a router-level ``dependencies=[Depends(admin_api_gate)]`` on every
+    ``/api/admin`` router. Lives here rather than in a router because all three
+    of its collaborators do, and because three routers had drifted into keeping
+    verbatim private copies of it.
+    """
+    enforce_ip_allowlist(request)
+    enforce_ui_rate_limit(request)
+    for key, value in NO_INDEX_HEADERS.items():
+        response.headers[key] = value
+
+
 # ---------------------------------------------------------------------------
 # IP allowlist
 # ---------------------------------------------------------------------------
