@@ -311,6 +311,7 @@ def create_app() -> FastAPI:
     from src.api.routers.seasonal_v2 import router as seasonal_router_v2
     from src.api.routers.standings_v2 import router as standings_router_v2
     from src.api.routers.teams_api import router as teams_api_router
+    from src.api.routers.telemetry_v2 import router as telemetry_router_v2
 
     try:
         session_tracker = SessionTracker()
@@ -706,5 +707,6 @@ def create_app() -> FastAPI:
     app.include_router(circuits_api_router)
     app.include_router(discovery_router)
     app.include_router(batch_router)
+    app.include_router(telemetry_router_v2)
 
     return app

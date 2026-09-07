@@ -90,6 +90,8 @@
 /api/v2/standings/drivers/live
 /api/v2/teams-pace-data
 /api/v2/teams-pace-plot
+/api/v2/telemetry/laps-data
+/api/v2/telemetry/track-map
 /api/v2/theoretical-best-data
 /api/v2/theoretical-best-plot
 /api/v2/throttle-brake-comparison-data

@@ -78,12 +78,35 @@ def build_session_store(year: int, identifier: Any, session: str,
     return store
 
 
+# CarData channel key -> column name.
+#
+# WARNING: '3' and '45' are mislabelled here. Probing the 2025 livetiming feed
+# shows the actual channels are 0=RPM, 2=Speed, 3=Gear, 4=Throttle, 5=Brake,
+# 45=DRS -- channel '3' carries 2..8 (gears) while '0', unmapped here, carries
+# 6400..12300 (engine RPM), and '47' is not published at all. Consumers of
+# Speed/Brake/Throttle are unaffected; anything reading RPM, Gear or DRS through
+# this table gets the wrong quantity.
+#
+# The table is left as-is because several endpoints publish these column names
+# straight into live response payloads, so correcting it is a breaking API
+# change that needs its own migration. New code should pass raw_names=True to
+# extract_channels_window and map the keys itself -- see lap_frames.py.
 CHANNEL_NAMES = {
     '2': 'Speed',
     '3': 'RPM',
     '4': 'Throttle',
     '5': 'Brake',
     '45': 'Gear',
+}
+
+# The channel map the feed actually uses, for callers that want it right.
+CAR_DATA_CHANNELS = {
+    '0': 'rpm',
+    '2': 'speed',
+    '3': 'gear',
+    '4': 'throttle',
+    '5': 'brake',
+    '45': 'drs',
 }
 
 
@@ -149,6 +172,25 @@ def get_all_driver_codes(base_url: str, client: F1StaticClient) -> Dict[str, str
     except Exception as exc:
         logger.warning("Error fetching driver codes from DriverList.json: %s", exc)
     return mapping
+
+
+def resolve_driver(store: Any, tla: str) -> tuple:
+    """Return ``(car_number, driver_info)`` for a TLA against a session's driver list.
+
+    Raises :class:`DataNotAvailableError` naming the valid TLAs when the code is
+    not in the session -- a far more useful 404 than an empty payload.
+    """
+    wanted = tla.strip().upper()
+    driver_list = store.driver_list()
+    for num, info in driver_list.items():
+        if str(info.get("tla", "")).upper() == wanted:
+            return str(num), info
+    valid = sorted({str(i.get("tla")) for i in driver_list.values() if i.get("tla")})
+    raise DataNotAvailableError(
+        year=store.year, gp=store.identifier, session=store.session_name,
+        source="livetiming",
+        reason=f"Unknown driver {tla!r}. Valid drivers: {', '.join(valid)}",
+    )
 
 
 def get_driver_tla_from_num(base_url: str, client: F1StaticClient, num: str) -> str:
@@ -382,6 +424,216 @@ def _get_session_start_utc(entries_list: list, packet_time: float) -> Optional[f
     return None
 
 
+# ---------------------------------------------------------------------------
+# Single-pass, multi-driver window scanners
+# ---------------------------------------------------------------------------
+#
+# CarData.z and Position.z are multi-megabyte streams. Scanning one of them
+# yields samples for *every* car on track, so pulling N drivers by calling a
+# single-driver extractor N times re-walks the same stream N times for no gain.
+#
+# These two functions do the walk once for a set of drivers and one global time
+# window, returning per-driver frames on the **absolute session-time axis**.
+# The single-driver ``extract_*_for_lap`` helpers below are thin wrappers over
+# them that rebase to a 0-based lap clock, so every existing caller is
+# unaffected.
+
+WINDOW_MARGIN_S = 2.0
+
+
+def _iter_car_data_samples(entries):
+    """Yield ``(sample_time, cars)`` for each CarData.z sample batch.
+
+    ``sample_time`` is session-relative seconds, reconciled from the batch's
+    absolute ``Utc`` against the session start implied by the first packet.
+    """
+    session_start_utc = None
+    for entry in entries:
+        t_str = entry.get('_timestamp', entry.get('T'))
+        packet_time = parse_f1_time(t_str)
+
+        entries_list = entry.get('Entries', [])
+        if not isinstance(entries_list, list):
+            entries_list = [entries_list]
+
+        if session_start_utc is None and packet_time > 0 and entries_list:
+            session_start_utc = _get_session_start_utc(entries_list, packet_time)
+
+        for item in entries_list:
+            utc_str = item.get('Utc')
+            sample_time = packet_time
+            if utc_str and session_start_utc:
+                dt = datetime.fromisoformat(utc_str.replace('Z', '+00:00'))
+                sample_time = dt.timestamp() - session_start_utc
+            yield sample_time, item.get('Cars', {})
+
+
+def _iter_position_samples(entries):
+    """Yield ``(sample_time, cars)`` for each Position.z frame.
+
+    Frame shape: ``{'Timestamp': ISO_UTC, 'Entries': {car_num: {Status,X,Y,Z}}}``.
+    """
+    session_start_utc = None
+    for entry in entries:
+        t_str = entry.get('_timestamp', entry.get('T'))
+        packet_time = parse_f1_time(t_str)
+
+        frames = entry.get('Position', [])
+        if not frames:
+            continue
+
+        # Calibrate session_start_utc from the first frame's absolute UTC timestamp
+        if session_start_utc is None and packet_time > 0:
+            first_ts = frames[0].get('Timestamp') or frames[0].get('Utc')
+            if first_ts:
+                first_dt = datetime.fromisoformat(first_ts.replace('Z', '+00:00'))
+                session_start_utc = first_dt.timestamp() - packet_time
+
+        for frame in frames:
+            ts_str = frame.get('Timestamp') or frame.get('Utc')
+            sample_time = packet_time
+            if ts_str and session_start_utc:
+                dt = datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
+                sample_time = dt.timestamp() - session_start_utc
+            yield sample_time, frame.get('Entries', frame.get('Cars', {}))
+
+
+def extract_channels_window(base_url: str, client: F1StaticClient,
+                            driver_nums: Collection[str],
+                            start_t: float, end_t: float,
+                            channels: Optional[List[str]] = None,
+                            store: Optional[Any] = None,
+                            margin_s: float = WINDOW_MARGIN_S,
+                            raw_names: bool = False) -> Dict[str, pd.DataFrame]:
+    """CarData channels for several drivers over one window, in a single pass.
+
+    Returns ``{driver_num: DataFrame}`` with a ``Time`` column holding
+    **absolute session seconds** (not rebased) plus one column per requested
+    channel. Every requested driver gets a key; drivers with no samples in the
+    window map to an empty DataFrame.
+
+    Columns are named via :data:`CHANNEL_NAMES` by default. Pass
+    ``raw_names=True`` to keep the feed's own numeric keys instead -- see the
+    accuracy warning on :data:`CHANNEL_NAMES` for why a caller might want to do
+    its own mapping.
+
+    ``margin_s`` widens the scan on both sides so callers that interpolate have
+    bracketing samples just outside the window.
+
+    Fails open: any stream error yields empty frames rather than raising.
+    """
+    if channels is None:
+        channels = ['2']
+    wanted = {str(d) for d in driver_nums}
+    records: Dict[str, List[dict]] = {d: [] for d in wanted}
+
+    try:
+        entries = (store.car_data() if store is not None
+                   else client.parse_compressed_stream(base_url + "CarData.z.jsonStream"))
+
+        lo, hi = start_t - margin_s, end_t + margin_s
+        for sample_time, cars in _iter_car_data_samples(entries):
+            if not (lo <= sample_time <= hi):
+                continue
+            for driver_num in wanted:
+                car = cars.get(driver_num)
+                if car is None:
+                    continue
+                ch = car.get('Channels', {})
+                row = {'Time': sample_time}
+                for c in channels:
+                    val = ch.get(c)
+                    if val is not None:
+                        row[c if raw_names else CHANNEL_NAMES.get(c, c)] = float(val)
+                if len(row) > 1:
+                    records[driver_num].append(row)
+    except Exception as e:
+        logger.error("Error extracting telemetry window: %s", e)
+        return {d: pd.DataFrame() for d in wanted}
+
+    out: Dict[str, pd.DataFrame] = {}
+    for driver_num, rows in records.items():
+        df = pd.DataFrame(rows)
+        out[driver_num] = df.sort_values('Time') if not df.empty else df
+    return out
+
+
+def extract_positions_window(base_url: str, client: F1StaticClient,
+                             driver_nums: Collection[str],
+                             start_t: float, end_t: float,
+                             store: Optional[Any] = None,
+                             margin_s: float = WINDOW_MARGIN_S) -> Dict[str, pd.DataFrame]:
+    """X/Y/Z position for several drivers over one window, in a single pass.
+
+    Returns ``{driver_num: DataFrame}`` with columns ``Time`` (absolute session
+    seconds), ``X``, ``Y``, ``Z``, ``Status``. Samples where both X and Y are 0
+    are dropped -- that is the feed's "no fix" encoding, not the pit entry.
+
+    Fails open: any stream error yields empty frames rather than raising.
+    """
+    wanted = {str(d) for d in driver_nums}
+    records: Dict[str, List[dict]] = {d: [] for d in wanted}
+    scanned = 0
+
+    try:
+        entries = (store.position_data() if store is not None
+                   else client.parse_compressed_stream(base_url + "Position.z.jsonStream"))
+        logger.debug("Position.z: fetched %s compressed entries for %s driver(s)",
+                     len(entries), len(wanted))
+
+        lo, hi = start_t - margin_s, end_t + margin_s
+        for sample_time, cars in _iter_position_samples(entries):
+            scanned += 1
+            if not (lo <= sample_time <= hi):
+                continue
+            for driver_num in wanted:
+                pos = cars.get(driver_num)
+                if pos is None:
+                    continue
+                x = pos.get('X', 0)
+                y = pos.get('Y', 0)
+                z = pos.get('Z', 0)
+                if x != 0 or y != 0:
+                    records[driver_num].append({
+                        'Time': sample_time,
+                        'X': float(x),
+                        'Y': float(y),
+                        'Z': float(z),
+                        'Status': pos.get('Status'),
+                    })
+    except Exception as e:
+        logger.error("Error extracting position window: %s", e)
+        return {d: pd.DataFrame() for d in wanted}
+
+    logger.debug("Position.z: scanned %s samples over [%s-%s s] for %s driver(s)",
+                 scanned, round(start_t, 1), round(end_t, 1), len(wanted))
+
+    out: Dict[str, pd.DataFrame] = {}
+    for driver_num, rows in records.items():
+        df = pd.DataFrame(rows)
+        out[driver_num] = df.sort_values('Time') if not df.empty else df
+    return out
+
+
+def _rebase_and_clip(df: pd.DataFrame, start_t: float, end_t: float) -> pd.DataFrame:
+    """Shift an absolute-time frame onto a 0-based lap clock and clip to the lap."""
+    if df.empty:
+        return df
+    df = df.copy()
+    df['Time'] = df['Time'] - start_t
+    return df[(df['Time'] >= 0) & (df['Time'] <= end_t - start_t)]
+
+
+def _warn_if_sparse(kind: str, driver_num: str, n: int, start_t: float, end_t: float) -> None:
+    lap_duration = end_t - start_t
+    if lap_duration > 0 and n < lap_duration:
+        logger.warning(
+            "Sparse %s match for driver %s: %d samples over a %.1fs lap window "
+            "(expected several per second) -- window may not be a genuine green-flag lap",
+            kind, driver_num, n, lap_duration,
+        )
+
+
 def extract_telemetry_for_lap(base_url: str, client: F1StaticClient,
                                driver_num: str, start_t: float, end_t: float,
                                channels: Optional[List[str]] = None,
@@ -391,70 +643,20 @@ def extract_telemetry_for_lap(base_url: str, client: F1StaticClient,
     channels: channel keys ('2'=Speed, '4'=Throttle, '5'=Brake, ...)
     Returns DataFrame with Time and one column per channel using CHANNEL_NAMES.
 
+    Single-driver wrapper over :func:`extract_channels_window`; ``Time`` is
+    rebased to 0 at ``start_t`` and clipped to the lap. When several drivers are
+    needed, call the window scanner directly -- it walks the stream once.
+
     When a ``SessionDataStore`` is passed as ``store``, the (multi-MB) CarData.z
     stream is served from its durable cache instead of being re-downloaded and
     re-decompressed for every driver.
     """
-    if channels is None:
-        channels = ['2']
-
-    records = []
-    session_start_utc = None
-
-    try:
-        entries = (store.car_data() if store is not None
-                   else client.parse_compressed_stream(base_url + "CarData.z.jsonStream"))
-
-        for entry in entries:
-            t_str = entry.get('_timestamp', entry.get('T'))
-            packet_time = parse_f1_time(t_str)
-
-            entries_list = entry.get('Entries', [])
-            if not isinstance(entries_list, list):
-                entries_list = [entries_list]
-
-            if session_start_utc is None and packet_time > 0 and entries_list:
-                session_start_utc = _get_session_start_utc(entries_list, packet_time)
-
-            for item in entries_list:
-                utc_str = item.get('Utc')
-                sample_time = packet_time
-                if utc_str and session_start_utc:
-                    dt = datetime.fromisoformat(utc_str.replace('Z', '+00:00'))
-                    sample_time = dt.timestamp() - session_start_utc
-
-                if not (start_t - 2.0 <= sample_time <= end_t + 2.0):
-                    continue
-
-                cars = item.get('Cars', {})
-                if driver_num not in cars:
-                    continue
-
-                ch = cars[driver_num].get('Channels', {})
-                row = {'Time': sample_time - start_t}
-                for c in channels:
-                    val = ch.get(c)
-                    if val is not None:
-                        row[CHANNEL_NAMES.get(c, c)] = float(val)
-
-                if len(row) > 1:
-                    records.append(row)
-
-        df = pd.DataFrame(records)
-        if not df.empty:
-            df = df.sort_values('Time')
-            df = df[(df['Time'] >= 0) & (df['Time'] <= end_t - start_t)]
-        lap_duration = end_t - start_t
-        if lap_duration > 0 and len(df) < lap_duration:
-            logger.warning(
-                "Sparse CarData match for driver %s: %d samples over a %.1fs lap window "
-                "(expected several per second) -- window may not be a genuine green-flag lap",
-                driver_num, len(df), lap_duration,
-            )
-        return df
-    except Exception as e:
-        logger.error("Error extracting telemetry: %s", e)
-        return pd.DataFrame()
+    frames = extract_channels_window(
+        base_url, client, [driver_num], start_t, end_t, channels=channels, store=store,
+    )
+    df = _rebase_and_clip(frames.get(str(driver_num), pd.DataFrame()), start_t, end_t)
+    _warn_if_sparse("CarData", driver_num, len(df), start_t, end_t)
+    return df
 
 
 def extract_position_for_lap(base_url: str, client: F1StaticClient,
@@ -464,80 +666,22 @@ def extract_position_for_lap(base_url: str, client: F1StaticClient,
     Extract X/Y/Z position for a specific driver during a lap window from Position.z.jsonStream.
     Returns DataFrame with Time, X, Y, Z.
 
+    Single-driver wrapper over :func:`extract_positions_window`; ``Time`` is
+    rebased to 0 at ``start_t`` and clipped to the lap, and the scanner's
+    ``Status`` column is dropped to keep the historical column set.
+
     When a ``SessionDataStore`` is passed as ``store``, the (multi-MB) Position.z
     stream is served from its durable cache instead of being re-downloaded for
     every driver.
     """
-    records = []
-    session_start_utc = None
-    total_entries_scanned = 0
-
-    try:
-        entries = (store.position_data() if store is not None
-                   else client.parse_compressed_stream(base_url + "Position.z.jsonStream"))
-        logger.debug("Position.z: fetched %s compressed entries for driver %s", len(entries), driver_num)
-
-        # Position.z structure: entry['Position'] is a list of frames.
-        # Each frame: {'Timestamp': ISO_UTC_str, 'Entries': {car_num: {'Status', 'X', 'Y', 'Z'}}}
-        for entry in entries:
-            t_str = entry.get('_timestamp', entry.get('T'))
-            packet_time = parse_f1_time(t_str)
-
-            frames = entry.get('Position', [])
-            if not frames:
-                continue
-
-            # Calibrate session_start_utc from the first frame's absolute UTC timestamp
-            if session_start_utc is None and packet_time > 0:
-                first_ts = frames[0].get('Timestamp') or frames[0].get('Utc')
-                if first_ts:
-                    first_dt = datetime.fromisoformat(first_ts.replace('Z', '+00:00'))
-                    session_start_utc = first_dt.timestamp() - packet_time
-
-            for frame in frames:
-                total_entries_scanned += 1
-                ts_str = frame.get('Timestamp') or frame.get('Utc')
-                sample_time = packet_time
-                if ts_str and session_start_utc:
-                    dt = datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
-                    sample_time = dt.timestamp() - session_start_utc
-
-                if not (start_t - 2.0 <= sample_time <= end_t + 2.0):
-                    continue
-
-                cars = frame.get('Entries', frame.get('Cars', {}))
-                if driver_num not in cars:
-                    continue
-
-                pos = cars[driver_num]
-                x = pos.get('X', 0)
-                y = pos.get('Y', 0)
-                z = pos.get('Z', 0)
-                if x != 0 or y != 0:
-                    records.append({
-                        'Time': sample_time - start_t,
-                        'X': float(x),
-                        'Y': float(y),
-                        'Z': float(z)
-                    })
-
-        logger.debug("Position.z: scanned %s samples, found %s in window [%s-%s s] for driver %s",
-                     total_entries_scanned, len(records), round(start_t, 1), round(end_t, 1), driver_num)
-        df = pd.DataFrame(records)
-        if not df.empty:
-            df = df.sort_values('Time')
-            df = df[(df['Time'] >= 0) & (df['Time'] <= end_t - start_t)]
-        lap_duration = end_t - start_t
-        if lap_duration > 0 and len(df) < lap_duration:
-            logger.warning(
-                "Sparse Position match for driver %s: %d samples over a %.1fs lap window "
-                "(expected several per second) -- window may not be a genuine green-flag lap",
-                driver_num, len(df), lap_duration,
-            )
-        return df
-    except Exception as e:
-        logger.error("Error extracting position for driver %s: %s", driver_num, e)
-        return pd.DataFrame()
+    frames = extract_positions_window(
+        base_url, client, [driver_num], start_t, end_t, store=store,
+    )
+    df = _rebase_and_clip(frames.get(str(driver_num), pd.DataFrame()), start_t, end_t)
+    if not df.empty:
+        df = df[['Time', 'X', 'Y', 'Z']]
+    _warn_if_sparse("Position", driver_num, len(df), start_t, end_t)
+    return df
 
 
 def compute_distance(df_pos: pd.DataFrame) -> pd.DataFrame:

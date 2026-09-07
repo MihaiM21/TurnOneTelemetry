@@ -33,6 +33,7 @@ from src.services.analysis.v2._helpers import (
     extract_telemetry_for_lap,
     merge_distance_onto_telemetry,
     parse_f1_time,
+    resolve_driver,
 )
 from src.services.analysis.v2.session_store import SessionDataStore
 
@@ -48,21 +49,6 @@ _CHANNELS = ["2", "3", "4", "5", "45", "47"]
 
 def _data_type(tla: str, lap: int) -> str:
     return f"{DATA_TYPE}_{tla.upper()}_{lap}"
-
-
-def _resolve_driver(store: SessionDataStore, tla: str) -> tuple[str, Dict[str, Any]]:
-    """Return ``(car_number, driver_info)`` for a TLA, or raise DataNotAvailable."""
-    wanted = tla.strip().upper()
-    driver_list = store.driver_list()
-    for num, info in driver_list.items():
-        if str(info.get("tla", "")).upper() == wanted:
-            return str(num), info
-    valid = sorted({str(i.get("tla")) for i in driver_list.values() if i.get("tla")})
-    raise DataNotAvailableError(
-        year=store.year, gp=store.identifier, session=store.session_name,
-        source="livetiming",
-        reason=f"Unknown driver {tla!r}. Valid drivers: {', '.join(valid)}",
-    )
 
 
 def _find_lap(lap_records: List[Dict[str, Any]], lap: int) -> Dict[str, Any]:
@@ -169,7 +155,7 @@ def _opt_int(v) -> Optional[int]:
 
 
 def _build_payload(store: SessionDataStore, tla: str, lap: int) -> Dict[str, Any]:
-    car_num, driver_info = _resolve_driver(store, tla)
+    car_num, driver_info = resolve_driver(store, tla)
 
     lap_records = store.lap_times().get(car_num, [])
     lap_rec = _find_lap(lap_records, lap)

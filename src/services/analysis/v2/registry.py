@@ -232,6 +232,11 @@ def _key_lap_all_data(drv: str, lap: int) -> str:
     return _data_type(drv, lap)
 
 
+def _key_lap_frames(drv: str, lap: int) -> str:
+    from src.services.analysis.v2.lap_frames import _data_type
+    return _data_type(drv, lap)
+
+
 # --------------------------------------------------------------------------- #
 # The catalog. Order is the generation order used by the backfill worker.
 # --------------------------------------------------------------------------- #
@@ -446,6 +451,11 @@ def _gen_lap_all_data(y: int, ident: Identifier, e: str, drv: str, lap: int) -> 
     return LapAllData()(y, ident, e, drv, lap)
 
 
+def _gen_lap_frames(y: int, ident: Identifier, e: str, drv: str, lap: int) -> Any:
+    from src.services.analysis.v2.lap_frames import LapFrames
+    return LapFrames()(y, ident, e, drv, lap)
+
+
 V2_PER_DRIVER_PLOTS: List[DriverPlotSpec] = [
     DriverPlotSpec(
         "speed_distribution", _gen_speed_distribution_driver,
@@ -509,6 +519,10 @@ V2_PER_DRIVER_LAP_PLOTS: List[DriverLapPlotSpec] = [
     DriverLapPlotSpec(
         "lap_all_data", _gen_lap_all_data,
         label="Full Lap Telemetry", stored_key=_key_lap_all_data,
+    ),
+    DriverLapPlotSpec(
+        "lap_frames", _gen_lap_frames,
+        label="Lap Telemetry Frames", stored_key=_key_lap_frames,
     ),
 ]
 

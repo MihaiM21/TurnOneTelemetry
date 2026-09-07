@@ -73,6 +73,9 @@ jobs:
             src/api/routers/admin_storage.py \
             src/api/routers/batch_v2.py \
             src/api/routers/discovery_v2.py \
+            src/api/routers/telemetry_v2.py \
+            src/api/schemas/telemetry.py \
+            src/services/analysis/v2/lap_frames.py \
             src/services/storage_cleanup.py \
             tests/unit/api/
 

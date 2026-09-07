@@ -84,7 +84,7 @@ def _fake_telemetry(monkeypatch):
 # ---------------------------------------------------------------------------
 def test_resolve_driver_unknown_raises():
     with pytest.raises(DataNotAvailableError):
-        m._resolve_driver(_FakeStore(), "VER")
+        m.resolve_driver(_FakeStore(), "VER")
 
 
 def test_find_lap_missing_raises():
