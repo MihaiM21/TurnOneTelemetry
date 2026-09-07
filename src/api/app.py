@@ -124,6 +124,17 @@ Historical session data never changes once processed, so those responses are
 to get a **304** and skip the transfer. `/api/v2/dashboard` is the exception: it
 tracks the latest session and is revalidated frequently.
 
+## CSV export
+
+Append `?format=csv` to any JSON endpoint under `/api/v1` or `/api/v2` to receive the
+same payload as CSV, with a `Content-Disposition` filename for direct download.
+
+Without the parameter responses are unchanged. Per-driver series (for example
+race gaps, which nest a `laps` array under each driver) are expanded to long
+format, one row per element with the driver columns repeated. Endpoints whose
+payload has no tabular shape — `/api/v2/dashboard`, for instance — return **400**
+rather than a misleading partially-flattened file.
+
 ## Errors
 
 Errors share a common envelope carrying `detail`, a `request_id` for correlating
@@ -446,7 +457,14 @@ def create_app() -> FastAPI:
     # Weak-ETag short-circuiting + immutable Cache-Control for cacheable V2 GET
     # endpoints (historical F1 session data never changes once processed).
     from src.api.http_cache import DEFAULT_MAX_AGE_SECONDS
+    from src.api.middleware.csv_export import CSVExportMiddleware
     from src.api.middleware.etag import ETagMiddleware
+
+    # Order matters. Starlette applies the LAST-added middleware outermost, so
+    # adding CSV first and ETag second means ETag wraps CSV -- the ETag is
+    # therefore computed over the CSV bytes actually served, not over the JSON
+    # they were rendered from.
+    app.add_middleware(CSVExportMiddleware, path_prefixes=("/api/v1/", "/api/v2/"))
     app.add_middleware(
         ETagMiddleware,
         path_prefixes=("/api/v2/",),
