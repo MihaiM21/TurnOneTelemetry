@@ -43,7 +43,7 @@ from matplotlib.lines import Line2D
 from src.core.exceptions import DataNotAvailableError
 from src.core.logging import get_logger
 from src.services.analysis.base import cached_or_generate
-from src.services.analysis.v2._helpers import extract_stints_from_data
+from src.services.analysis.v2._helpers import RACE_SESSIONS, assert_session_type, extract_stints_from_data
 from src.services.analysis.v2._race_helpers import (
     cumtime_by_lap,
     extract_lap_times,
@@ -60,9 +60,6 @@ from src.services.plotting.colors import get_compound_color, get_team_color
 logger = get_logger(__name__)
 
 DATA_TYPE = "race_story"
-
-# Sessions where a race-long narrative timeline is meaningful.
-_VALID_SESSIONS = {"R", "RACE", "S", "SPRINT"}
 
 # How many of the top finishers get a full, labeled trace.
 _TOP_N_FINISHERS = 10
@@ -82,18 +79,6 @@ def _init(y: int, event_name: str, session_name: str):
     location = f"outputs/plots/{y}/{event_folder}/{session_name}"
     name = f"Race story {y} {event_name} {session_name}.png"
     return location, name
-
-
-def _assert_valid_session(session_name: str, year: int, identifier: Any) -> None:
-    if session_name.strip().upper() not in _VALID_SESSIONS:
-        raise DataNotAvailableError(
-            year=year, gp=identifier, session=session_name,
-            source="livetiming",
-            reason=(
-                "Race story is only available for Race/Sprint sessions "
-                f"(got {session_name!r})"
-            ),
-        )
 
 
 # ----------------------------------------------------------------------
@@ -345,7 +330,9 @@ class RaceStoryData:
     """Callable: ``RaceStoryData()(year, identifier, session) -> dict``."""
 
     def __call__(self, y: int, identifier: Union[int, str], e: str) -> Dict[str, Any]:
-        _assert_valid_session(e, y, identifier)
+        assert_session_type(
+            e, y, identifier, allowed=RACE_SESSIONS, feature="Race story", sessions_label="Race/Sprint",
+        )
 
         def _generate() -> Dict[str, Any]:
             store = SessionDataStore(y, identifier, e)
@@ -361,7 +348,9 @@ class RaceStoryPlot:
     """Callable: ``RaceStoryPlot()(year, identifier, session) -> png path``."""
 
     def __call__(self, y: int, identifier: Union[int, str], e: str) -> str:
-        _assert_valid_session(e, y, identifier)
+        assert_session_type(
+            e, y, identifier, allowed=RACE_SESSIONS, feature="Race story", sessions_label="Race/Sprint",
+        )
 
         payload = RaceStoryData()(y, identifier, e)
         if not payload.get("drivers"):

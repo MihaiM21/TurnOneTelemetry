@@ -5,8 +5,9 @@ from contextvars import ContextVar
 import pandas as pd
 import numpy as np
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Collection, Dict, List, Optional
 
+from src.core.exceptions import DataNotAvailableError
 from src.core.logging import get_logger
 from src.ingestion.static_client import F1StaticClient
 from src.ingestion.circuits_loader import get_circuit_data_file
@@ -101,6 +102,32 @@ def parse_f1_time(time_str) -> float:
         return float(parts[0])
     except (ValueError, TypeError):
         return 0.0
+
+
+RACE_SESSIONS = frozenset({"R", "RACE", "S", "SPRINT"})
+
+
+def assert_session_type(
+    session_name: str,
+    year: int,
+    identifier: Any,
+    *,
+    allowed: Collection[str],
+    feature: str,
+    sessions_label: str,
+) -> None:
+    """Raise DataNotAvailableError when a feature is asked for a session type it
+    does not apply to. Consolidates eight verbatim copies; the message wording is
+    preserved exactly because clients surface it."""
+    if session_name.strip().upper() not in allowed:
+        raise DataNotAvailableError(
+            year=year, gp=identifier, session=session_name,
+            source="livetiming",
+            reason=(
+                f"{feature} is only available for {sessions_label} sessions "
+                f"(got {session_name!r})"
+            ),
+        )
 
 
 def format_lap_time(seconds: float) -> str:

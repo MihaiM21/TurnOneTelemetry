@@ -1,7 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
-from typing import Dict, List, Tuple, Any, Optional, Union
+from typing import Dict, List, Tuple, Optional, Union
 from datetime import datetime
 import json
 
@@ -10,7 +10,7 @@ from src.services.plotting import theme as setup_theme
 from src.repositories.plots import store_data_dict_to_mongo, get_plot_data_from_mongo
 from src.ingestion.static_client import F1StaticClient
 from src.services.plotting.colors import get_driver_color
-from src.services.analysis.v2._helpers import build_session_store
+from src.services.analysis.v2._helpers import build_session_store, parse_f1_time
 from src.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -18,22 +18,6 @@ logger = get_logger(__name__)
 # ============================================================================
 # UTILS & PARSERS
 # ============================================================================
-
-def parse_f1_time(time_str: Any) -> float:
-    if pd.isna(time_str) or time_str == '':
-        return 0.0
-    if isinstance(time_str, (int, float)):
-        return float(time_str)
-    try:
-        time_str = str(time_str).strip()
-        parts = time_str.split(':')
-        if len(parts) == 3: # h:mm:ss.ms
-            return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
-        elif len(parts) == 2: # mm:ss.ms
-            return float(parts[0]) * 60 + float(parts[1])
-        return float(parts[0])
-    except (ValueError, TypeError):
-        return 0.0
 
 def _data_type(driver: Optional[str]) -> str:
     """Stored MongoDB key. The TLA is upper-cased so ``?driver=ver`` and

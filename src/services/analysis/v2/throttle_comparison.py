@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
-from typing import Dict, List, Tuple, Any, Optional, Union
+from typing import Dict, List, Tuple, Optional, Union
 
 from src.services.plotting import output as dirOrg
 from src.services.plotting import theme as setup_theme
@@ -11,7 +11,7 @@ from src.repositories.plots import store_data_dict_to_mongo, get_plot_data_from_
 from src.ingestion.static_client import F1StaticClient
 from src.domain.mappings import get_driver_team_mapping
 from src.services.plotting.colors import get_driver_color
-from src.services.analysis.v2._helpers import build_session_store
+from src.services.analysis.v2._helpers import build_session_store, parse_f1_time
 from src.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -19,22 +19,6 @@ logger = get_logger(__name__)
 # ============================================================================
 # UTILS & PARSERS
 # ============================================================================
-
-def parse_f1_time(time_str: Any) -> float:
-    if pd.isna(time_str) or time_str == '':
-        return 0.0
-    if isinstance(time_str, (int, float)):
-        return float(time_str)
-    try:
-        time_str = str(time_str).strip()
-        parts = time_str.split(':')
-        if len(parts) == 3: # h:mm:ss.ms
-            return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
-        elif len(parts) == 2: # mm:ss.ms
-            return float(parts[0]) * 60 + float(parts[1])
-        return float(parts[0])
-    except (ValueError, TypeError):
-        return 0.0
 
 def _init(y: int, event_name: str, session_name: str) -> Tuple[str, str, str]:
     event_folder = event_name.replace(' ', '')

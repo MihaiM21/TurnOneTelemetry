@@ -16,15 +16,22 @@ from src.services.analysis.v2 import theoretical_best as tb
 # ----------------------------------------------------------------------
 # Session validation
 # ----------------------------------------------------------------------
+def _assert_valid_session(session_name, year, identifier):
+    tb.assert_session_type(
+        session_name, year, identifier,
+        allowed=tb._VALID_SESSIONS, feature="Theoretical best lap", sessions_label="Qualifying",
+    )
+
+
 def test_assert_valid_session_rejects_race():
     with pytest.raises(DataNotAvailableError):
-        tb._assert_valid_session("R", 2025, 1)
+        _assert_valid_session("R", 2025, 1)
 
 
 def test_assert_valid_session_accepts_quali_variants():
-    tb._assert_valid_session("Q", 2025, 1)
-    tb._assert_valid_session("Qualifying", 2025, 1)
-    tb._assert_valid_session("SQ", 2025, 1)
+    _assert_valid_session("Q", 2025, 1)
+    _assert_valid_session("Qualifying", 2025, 1)
+    _assert_valid_session("SQ", 2025, 1)
 
 
 def test_data_call_rejects_race():

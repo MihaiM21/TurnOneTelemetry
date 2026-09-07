@@ -39,7 +39,7 @@ import numpy as np
 from src.core.exceptions import DataNotAvailableError
 from src.core.logging import get_logger
 from src.services.analysis.base import cached_or_generate
-from src.services.analysis.v2._helpers import extract_stints_from_data
+from src.services.analysis.v2._helpers import RACE_SESSIONS, assert_session_type, extract_stints_from_data
 from src.services.analysis.v2._race_helpers import (
     extract_lap_times,
     get_track_status_periods,
@@ -52,9 +52,6 @@ from src.services.plotting.colors import compound_colors, get_compound_color
 logger = get_logger(__name__)
 
 DATA_TYPE = "tyre_degradation"
-
-# Sessions where lap-by-lap degradation is meaningful.
-_VALID_SESSIONS = {"R", "RACE", "S", "SPRINT"}
 
 # Fuel-burn effect: a car is ~0.055 s/lap slower per lap of fuel it still
 # carries. Subtracting fuel_effect * laps_remaining isolates tyre pace.
@@ -89,18 +86,6 @@ def _data_type(driver: Optional[str], fuel_corrected: bool) -> str:
     if fuel_corrected:
         dt += "_fuel_corrected"
     return dt
-
-
-def _assert_valid_session(session_name: str, year: int, identifier: Any) -> None:
-    if session_name.strip().upper() not in _VALID_SESSIONS:
-        raise DataNotAvailableError(
-            year=year, gp=identifier, session=session_name,
-            source="livetiming",
-            reason=(
-                "Tyre degradation is only available for Race/Sprint sessions "
-                f"(got {session_name!r})"
-            ),
-        )
 
 
 def _resolve_driver_num(
@@ -315,7 +300,9 @@ class TyreDegradationData:
         driver: Optional[str] = None,
         fuel_corrected: bool = False,
     ) -> List[Dict[str, Any]]:
-        _assert_valid_session(e, y, identifier)
+        assert_session_type(
+            e, y, identifier, allowed=RACE_SESSIONS, feature="Tyre degradation", sessions_label="Race/Sprint",
+        )
 
         def _generate() -> List[Dict[str, Any]]:
             store = SessionDataStore(y, identifier, e)
@@ -339,7 +326,9 @@ class TyreDegradationPlot:
         driver: Optional[str] = None,
         fuel_corrected: bool = False,
     ) -> str:
-        _assert_valid_session(e, y, identifier)
+        assert_session_type(
+            e, y, identifier, allowed=RACE_SESSIONS, feature="Tyre degradation", sessions_label="Race/Sprint",
+        )
 
         payload = TyreDegradationData()(y, identifier, e, driver, fuel_corrected)
         if not payload or all(not c["points"] for c in payload):

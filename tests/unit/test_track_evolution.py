@@ -35,15 +35,22 @@ def _weather_entry(t_str, track_temp):
 # ----------------------------------------------------------------------
 # Session validation
 # ----------------------------------------------------------------------
+def _assert_valid_session(session_name, year, identifier):
+    te.assert_session_type(
+        session_name, year, identifier,
+        allowed=te._VALID_SESSIONS, feature="Track evolution", sessions_label="Practice/Qualifying",
+    )
+
+
 def test_assert_valid_session_rejects_race():
     with pytest.raises(DataNotAvailableError):
-        te._assert_valid_session("R", 2025, 1)
+        _assert_valid_session("R", 2025, 1)
 
 
 def test_assert_valid_session_accepts_practice_and_quali():
-    te._assert_valid_session("FP1", 2025, 1)
-    te._assert_valid_session("Q", 2025, 1)
-    te._assert_valid_session("SQ", 2025, 1)
+    _assert_valid_session("FP1", 2025, 1)
+    _assert_valid_session("Q", 2025, 1)
+    _assert_valid_session("SQ", 2025, 1)
 
 
 def test_data_call_rejects_race():
