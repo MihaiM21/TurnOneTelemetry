@@ -123,3 +123,28 @@ def auth_headers():
             return {"X-API-Key": "definitely-not-a-real-key"}
         return {"X-API-Key": "test-standard-key"}
     return _make
+
+
+@pytest.fixture(autouse=True)
+def _clear_season_event_caches():
+    """Reset the process-wide season-events caches between tests.
+
+    ``src/ingestion/reference.py`` memoizes season event lists in two
+    module-level TTL caches. They are correct in production (one process, real
+    data, short TTL) but leak across tests: a test that resolves, say, 2024
+    populates the cache, and a later test that mocks the 2024 Index.json with
+    ``responses`` never issues the HTTP call, so it silently sees the earlier
+    test's data and fails only when run as part of the full suite.
+
+    Clearing around every test makes ordering irrelevant, which is what let
+    this surface as a confusing "passes alone, fails in the suite" bug.
+    """
+    from src.ingestion import reference
+
+    for cache in (reference._LIVETIMING_SEASON_CACHE, reference._ENRICHED_SEASON_CACHE):
+        with cache._lock:
+            cache._store.clear()
+    yield
+    for cache in (reference._LIVETIMING_SEASON_CACHE, reference._ENRICHED_SEASON_CACHE):
+        with cache._lock:
+            cache._store.clear()
