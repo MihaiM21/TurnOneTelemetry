@@ -26,11 +26,15 @@ PUBLIC_PREFIXES = ("/api/v1/", "/api/v2/", "/api/static/")
 
 @pytest.fixture(scope="module")
 def live_paths() -> set[str]:
+    # Read the surface from the generated OpenAPI document rather than walking
+    # ``app.routes``. Starlette 1.x stopped flattening ``include_router`` routes
+    # into ``app.routes`` (they now sit inside opaque ``_IncludedRouter``
+    # containers), so the old walk silently saw zero ``/api`` paths. The OpenAPI
+    # ``paths`` map is exactly the published contract this test exists to freeze
+    # and is stable across Starlette/FastAPI versions.
     app = create_app()
     return {
-        p
-        for p in (getattr(r, "path", "") for r in app.routes)
-        if p.startswith(PUBLIC_PREFIXES)
+        p for p in app.openapi()["paths"] if p.startswith(PUBLIC_PREFIXES)
     }
 
 
