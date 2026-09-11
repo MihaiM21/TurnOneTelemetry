@@ -2,6 +2,67 @@
 
 <!-- version list -->
 
+## v1.7.0 (2026-09-11)
+
+### Bug Fixes
+
+- Qualifying session results (when the GP has a sprint shootout the quali for the race returns the
+  results from sprint shootout, now fixed)
+  ([`6718a98`](https://github.com/MihaiM21/TurnOneTelemetry/commit/6718a98c088b4606b20ab130aef1dfeeb5aec65a))
+
+- Security issues for keys
+  ([`b149760`](https://github.com/MihaiM21/TurnOneTelemetry/commit/b14976030c9d0345aa2989b00e69ea40a5337c8f))
+
+- **analysis-v2**: Correct corner-duel numbering, add clean-lap selection, new lap-all-data endpoint
+  ([`3befa17`](https://github.com/MihaiM21/TurnOneTelemetry/commit/3befa17c5c1af1f7b728a3bc1b6452b55b15f46d))
+
+- **repositories**: Add season-scope storage, admin flag setter, and batched key-usage stats
+  ([`c4ffe71`](https://github.com/MihaiM21/TurnOneTelemetry/commit/c4ffe7135e4b2e7b517fdf989dc36d8d7db7bbc6))
+
+### Features
+
+- Admin storage cleanup across all cache layers
+  ([`4f9674a`](https://github.com/MihaiM21/TurnOneTelemetry/commit/4f9674a1b7852cf691bae172d5b986caf2c385e3))
+
+- Better circuit integration and processing and added madring also
+  ([`a3b9929`](https://github.com/MihaiM21/TurnOneTelemetry/commit/a3b99292d4fb630bd0754929c2664630d66d36e6))
+
+- CSV export for v1 and v2 JSON endpoints
+  ([`fa124cc`](https://github.com/MihaiM21/TurnOneTelemetry/commit/fa124cc031927a08a41f5f54c7f54b90e244c96a))
+
+- Driver image and team logo media endpoints
+  ([`10299eb`](https://github.com/MihaiM21/TurnOneTelemetry/commit/10299ebfc52ac6ad8f9c5cc914d17e1607a7a4b7))
+
+- Enhance telemetry data handling with SessionDataStore integration
+  ([`0fa2576`](https://github.com/MihaiM21/TurnOneTelemetry/commit/0fa257603668bfe92dff8dfea937c7cd078bc735))
+
+- Feature discovery and batch endpoints
+  ([`3205a42`](https://github.com/MihaiM21/TurnOneTelemetry/commit/3205a4267784ca3412a84fccfe1936c071024e5b))
+
+- Improved swagger (phase 2) and improved logging + removing old printlines
+  ([`8a69271`](https://github.com/MihaiM21/TurnOneTelemetry/commit/8a692716706c20e5cade4581af4fe4d19cc0e103))
+
+- Live drivers and constructors standings
+  ([`6755c76`](https://github.com/MihaiM21/TurnOneTelemetry/commit/6755c762785113b59e3e824ee2b68415e7747f4a))
+
+- Refactor circuit data handling and introduce new schemas
+  ([`4892a3a`](https://github.com/MihaiM21/TurnOneTelemetry/commit/4892a3ab5b31fc3263d4667bbfc9e0b4448aa33f))
+
+- Telemetry laps-data and track-map endpoints
+  ([`63cbc5c`](https://github.com/MihaiM21/TurnOneTelemetry/commit/63cbc5c025e75bc75a36c57a5604a3f6c20f1e33))
+
+- **admin**: Add V2 plot backfill engine and cache/data admin API
+  ([`74259f3`](https://github.com/MihaiM21/TurnOneTelemetry/commit/74259f36da5bd5870566a36160924409db848e66))
+
+- **admin-ui**: Rebuild admin console with shared layout and new pages
+  ([`1f36d05`](https://github.com/MihaiM21/TurnOneTelemetry/commit/1f36d05dc69713f62c42002b5ed6a9e55ff7f9ab))
+
+### Refactoring
+
+- Share session-type validation across v2 features
+  ([`5a3e8ea`](https://github.com/MihaiM21/TurnOneTelemetry/commit/5a3e8ea142cd8fea0ff38ff92b561863619ba6eb))
+
+
 ## v1.6.0 (2026-07-18)
 
 ### Bug Fixes
