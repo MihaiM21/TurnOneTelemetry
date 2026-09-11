@@ -238,10 +238,13 @@ def _enrich_curated_with_livetiming(year: int, curated: list[dict]) -> list[dict
 
     live = _fetch_livetiming_meetings_safe(year)
     if not live:
-        # No livetiming available — return curated as-is (still works for
-        # round-number and exact-name lookups).
-        _ENRICHED_SEASON_CACHE.set(year, curated)
-        return curated
+        # No livetiming available. Curated records carry no ``round``, and the
+        # resolver matches round numbers by that key (not list position), so
+        # the offline shape must be the same as the enriched one or every
+        # ``gp=<round>`` lookup fails with the network down (as CI is).
+        offline = [{**race, "round": race.get("round", idx + 1)} for idx, race in enumerate(curated)]
+        _ENRICHED_SEASON_CACHE.set(year, offline)
+        return offline
 
     matches = _match_curated_to_livetiming(curated, live)
 

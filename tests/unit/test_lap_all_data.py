@@ -61,7 +61,16 @@ class _FakeStore:
 @pytest.fixture
 def _fake_telemetry(monkeypatch):
     """Stub the two stream-extract functions with small deterministic frames."""
-    def _tel(base_url, client, num, start_t, end_t, channels=None, store=None):
+    def _tel(base_url, client, num, start_t, end_t, channels=None, store=None, raw_names=False):
+        # lap_all_data asks for raw_names=True and maps the feed's numeric keys
+        # through CAR_DATA_CHANNELS itself (0=RPM, 2=Speed, 3=Gear, 4=Throttle,
+        # 5=Brake, 45=DRS), so the fake must answer in the same shape the real
+        # extractor does for that flag.
+        if raw_names:
+            return pd.DataFrame([
+                {"Time": 0.0, "2": 250.0, "0": 11000.0, "4": 100.0, "5": 0.0, "3": 7.0, "45": 1.0},
+                {"Time": 1.0, "2": 120.0, "0": 9000.0, "4": 0.0, "5": 80.0, "3": 3.0, "45": 0.0},
+            ])
         return pd.DataFrame([
             {"Time": 0.0, "Speed": 250.0, "RPM": 11000.0, "Throttle": 100.0,
              "Brake": 0.0, "Gear": 7.0, "47": 1.0},

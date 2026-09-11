@@ -111,3 +111,20 @@ def test_adapt_livetiming_index_carries_circuit_key_and_location():
     assert event["location"] == "Testville"
     assert event["round"] == 5
     assert event["grandPrix"] == "Test GP"
+
+
+def test_enrich_offline_still_assigns_round_numbers(monkeypatch):
+    """With livetiming unreachable (CI), curated records must still carry
+    ``round`` -- the resolver matches ``gp=<int>`` on that key, not on list
+    position, so the offline shape has to equal the enriched one."""
+    monkeypatch.setattr(ref, "_fetch_livetiming_meetings_safe", lambda year: None)
+    curated = [
+        {"grandPrix": "Australian Grand Prix", "circuit": "Albert Park", "country": "Australia"},
+        {"grandPrix": "Chinese Grand Prix", "circuit": "Shanghai", "country": "China"},
+    ]
+
+    events = ref._enrich_curated_with_livetiming(1999, curated)
+
+    assert [e["round"] for e in events] == [1, 2]
+    assert events[0]["grandPrix"] == "Australian Grand Prix"
+    assert "round" not in curated[0], "the curated source list must not be mutated"
