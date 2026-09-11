@@ -217,9 +217,16 @@ def test_normalize_drivers():
 # ---------------------------------------------------------------------------
 # Session validation
 # ---------------------------------------------------------------------------
+def _assert_valid_session(session_name, year, identifier):
+    rg.assert_session_type(
+        session_name, year, identifier,
+        allowed=rg.RACE_SESSIONS, feature="Race gaps", sessions_label="Race/Sprint",
+    )
+
+
 def test_session_qualifying_rejected():
     with pytest.raises(DataNotAvailableError):
-        rg._assert_valid_session("Q", 2025, 1)
+        _assert_valid_session("Q", 2025, 1)
 
 
 def test_session_data_call_rejects_qualifying():
@@ -228,10 +235,10 @@ def test_session_data_call_rejects_qualifying():
 
 
 def test_session_accepts_race_and_sprint():
-    rg._assert_valid_session("R", 2025, 1)
-    rg._assert_valid_session("Race", 2025, 1)
-    rg._assert_valid_session("S", 2025, 1)
-    rg._assert_valid_session("Sprint", 2025, 1)
+    _assert_valid_session("R", 2025, 1)
+    _assert_valid_session("Race", 2025, 1)
+    _assert_valid_session("S", 2025, 1)
+    _assert_valid_session("Sprint", 2025, 1)
 
 
 # ---------------------------------------------------------------------------

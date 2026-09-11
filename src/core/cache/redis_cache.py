@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-from typing import Any, Iterable, Optional
+from typing import Any, Optional
 
 from src.core.config import settings
 from src.core.logging import get_logger
@@ -28,7 +28,8 @@ _LOCK = asyncio.Lock()
 def _stable_hash(value: Any) -> str:
     """Deterministic, short hash for cache-key suffixes."""
     blob = json.dumps(value, sort_keys=True, default=str).encode("utf-8")
-    return hashlib.sha1(blob).hexdigest()[:16]
+    # Cache-key digest, not a security primitive.
+    return hashlib.sha1(blob, usedforsecurity=False).hexdigest()[:16]
 
 
 def make_event_key(year: int, identifier: Any) -> str:
@@ -286,6 +287,22 @@ class SyncRedisCache:
         try:
             return int(self._client.delete(*keys))
         except Exception:
+            return 0
+
+    def count_pattern(self, pattern: str) -> int:
+        """Count keys matching a glob, without deleting them.
+
+        Backs the dry-run half of :mod:`src.services.storage_cleanup`: an
+        operator must be able to see how many cache keys a purge would take
+        before it takes them. Uses SCAN, so it never blocks the server the way
+        KEYS would on a large keyspace.
+        """
+        if not self.enabled:
+            return 0
+        try:
+            return sum(1 for _ in self._client.scan_iter(match=pattern, count=200))
+        except Exception as exc:
+            logger.debug("Redis SCAN count failed for pattern %s: %s", pattern, exc)
             return 0
 
     def delete_pattern(self, pattern: str) -> int:

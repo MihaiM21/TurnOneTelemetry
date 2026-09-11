@@ -1,68 +1,8 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
-<meta name="referrer" content="no-referrer">
-<title>T1API Admin</title>
-<style>
-  :root { --red:#E8002D; --bg:#0C0C0E; --bg2:#131316; --bg3:#1A1A1E; --border:rgba(255,255,255,0.08); --text:#F0F0F2; --muted:rgba(240,240,242,0.55); --good:#00C853; --warn:#FFB300; }
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Inter','Helvetica Neue',Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:24px}
-  header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--border)}
-  h1{font-size:18px;letter-spacing:.12em;text-transform:uppercase}
-  h2{font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin:0 0 12px}
-  a.logout{color:var(--muted);font-size:12px;text-decoration:none;text-transform:uppercase;letter-spacing:.1em}
-  a.logout:hover{color:var(--red)}
-  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
-  .stat{background:var(--bg2);border:1px solid var(--border);padding:16px}
-  .stat .v{font-size:24px;font-weight:600;margin-top:6px}
-  .stat .l{font-size:10px;text-transform:uppercase;letter-spacing:.15em;color:var(--muted)}
-  section{background:var(--bg2);border:1px solid var(--border);margin-bottom:20px;padding:18px}
-  table{width:100%;border-collapse:collapse;font-size:13px}
-  th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--border)}
-  th{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);font-weight:500}
-  tr:hover td{background:var(--bg3)}
-  .tag{display:inline-block;padding:2px 6px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;border:1px solid var(--border);border-radius:2px;color:var(--muted)}
-  .tag.premium{color:var(--red);border-color:rgba(232,0,45,.4)}
-  .tag.standard{color:var(--good);border-color:rgba(0,200,83,.4)}
-  .tag.revoked{color:var(--muted);text-decoration:line-through}
-  form.inline{display:inline}
-  button.danger{background:transparent;color:var(--red);border:1px solid rgba(232,0,45,.5);padding:3px 8px;font-size:11px;cursor:pointer}
-  button.danger:hover{background:rgba(232,0,45,.1)}
-  button.promote{background:transparent;color:var(--warn);border:1px solid rgba(255,179,0,.5);padding:3px 8px;font-size:11px;cursor:pointer}
-  code{font-family:'JetBrains Mono',Menlo,monospace;font-size:12px;color:var(--muted)}
-  .muted{color:var(--muted)}
-  .totals{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
-  .totals .card{background:var(--bg2);border:1px solid var(--border);padding:14px}
-  .totals .card .l{font-size:10px;text-transform:uppercase;letter-spacing:.15em;color:var(--muted)}
-  .totals .card .v{font-size:22px;font-weight:600;margin-top:4px}
-  .totals .card .sub{font-size:11px;color:var(--muted);margin-top:6px}
-  .peakbars{display:flex;align-items:flex-end;gap:2px;height:120px;padding:8px 0;border-bottom:1px solid var(--border)}
-  .peakbars .bar{flex:1;background:var(--red);opacity:.7;min-height:1px;position:relative}
-  .peakbars .bar.peak{opacity:1}
-  .peakbars .bar:hover::after{content:attr(data-tip);position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:var(--bg3);border:1px solid var(--border);padding:3px 6px;font-size:10px;white-space:nowrap;color:var(--text)}
-  .peakaxis{display:flex;justify-content:space-between;font-size:9px;color:var(--muted);margin-top:4px;letter-spacing:.05em}
-  .bar-cell{position:relative;background:var(--bg3);height:14px;border-radius:2px;overflow:hidden;min-width:60px}
-  .bar-cell .fill{position:absolute;left:0;top:0;bottom:0;background:var(--good)}
-  .bar-cell .fill.warn{background:var(--warn)}
-  .bar-cell .fill.danger{background:var(--red)}
-  .searchbar{display:flex;gap:8px;margin-bottom:16px;align-items:center}
-  .searchbar input[type=text]{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 10px;font-size:13px;min-width:280px;font-family:inherit;border-radius:2px}
-  .searchbar input[type=text]:focus{outline:none;border-color:var(--red)}
-  .searchbar button{background:var(--red);color:#fff;border:none;padding:7px 14px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;border-radius:2px}
-  .searchbar a.clear{color:var(--muted);font-size:12px;text-decoration:none}
-  .searchbar a.clear:hover{color:var(--text)}
-  a.cellink{color:var(--text);text-decoration:none;border-bottom:1px dotted var(--border)}
-  a.cellink:hover{color:var(--red);border-color:var(--red)}
-</style>
-</head>
-<body>
-<header>
-  <h1>T1API Admin · v{{ version }}</h1>
-  <a class="logout" href="/admin/logout">Logout</a>
-</header>
+{% extends "admin/_base.html" %}
+{% set active_page = 'dashboard' %}
+{% block title %}T1API Admin · Dashboard{% endblock %}
 
+{% block content %}
 <div class="grid">
   <div class="stat"><div class="l">Total requests</div><div class="v">{{ summary.total_requests }}</div></div>
   <div class="stat"><div class="l">Errors</div><div class="v">{{ summary.total_errors }}</div></div>
@@ -94,8 +34,8 @@
 <section>
   <h2>Peak hours (UTC, last 30 days)</h2>
   {% if peak_max > 0 %}
-  <p class="muted" style="margin-bottom:10px;font-size:12px">Peak at <strong style="color:var(--text)">{{ '%02d:00'|format(peak_hour.hour) }} UTC</strong> · {{ peak_hour.count }} requests</p>
-  <div class="peakbars">
+  <p class="muted small" style="margin-bottom:10px">Peak at <strong style="color:var(--text)">{{ '%02d:00'|format(peak_hour.hour) }} UTC</strong> · {{ peak_hour.count }} requests</p>
+  <div class="peakbars" role="img" aria-label="Requests per hour of day over the last 30 days">
     {% for h in peak_series %}
       <div class="bar {% if h.hour == peak_hour.hour %}peak{% endif %}"
            style="height: {{ ((h.count / peak_max) * 100) if peak_max else 0 }}%"
@@ -109,7 +49,8 @@
 <section>
   <h2>Monthly quota usage</h2>
   {% if quota_rows %}
-  <table>
+  <div class="tablewrap">
+  <table data-sortable>
     <thead><tr><th>Prefix</th><th>Label</th><th>Tier</th><th>Used / Limit</th><th>Remaining</th><th>% used</th></tr></thead>
     <tbody>
     {% for q in quota_rows %}
@@ -117,26 +58,28 @@
         <td><code>{{ q.key_prefix or '—' }}</code></td>
         <td>{{ q.label or '—' }}</td>
         <td><span class="tag {{ q.tier }}">{{ q.tier }}</span></td>
-        <td>{{ q.used_this_month }} / {{ q.monthly_limit }}</td>
+        <td data-sort="{{ q.used_this_month }}">{{ q.used_this_month }} / {{ q.monthly_limit }}</td>
         <td>{{ q.remaining }}</td>
-        <td>
+        <td data-sort="{{ q.percent_used }}">
           <div class="bar-cell">
             <div class="fill {% if q.percent_used >= 90 %}danger{% elif q.percent_used >= 70 %}warn{% endif %}"
                  style="width: {{ q.percent_used }}%"></div>
           </div>
-          <span class="muted" style="font-size:11px">{{ q.percent_used }}%</span>
+          <span class="muted small">{{ q.percent_used }}%</span>
         </td>
       </tr>
     {% endfor %}
     </tbody>
   </table>
+  </div>
   {% else %}<p class="muted">No active keys with usage.</p>{% endif %}
 </section>
 
 <section>
   <h2>Top API keys (last 24h)</h2>
   {% if top_usage %}
-  <table>
+  <div class="tablewrap">
+  <table data-sortable>
     <thead><tr><th>Prefix</th><th>Label</th><th>Tier</th><th>Requests</th><th>Errors</th><th>Avg ms</th></tr></thead>
     <tbody>
     {% for r in top_usage %}
@@ -151,6 +94,7 @@
     {% endfor %}
     </tbody>
   </table>
+  </div>
   {% else %}<p class="muted">No usage recorded yet.</p>{% endif %}
 </section>
 
@@ -159,14 +103,15 @@
   <form class="searchbar" method="get" action="/admin">
     <input type="text" name="q" value="{{ q }}" placeholder="email, key prefix, or label" autocomplete="off">
     <button type="submit">Search</button>
-    {% if q %}<a class="clear" href="/admin">Clear</a><span class="muted" style="font-size:11px">filtering by "{{ q }}"</span>{% endif %}
+    {% if q %}<a class="clear" href="/admin">Clear</a><span class="muted small">filtering by "{{ q }}"</span>{% endif %}
   </form>
 </section>
 
 <section>
   <h2>All API keys</h2>
-  <table>
-    <thead><tr><th>Prefix</th><th>Label</th><th>Tier</th><th>Owner</th><th>Created</th><th>Last used</th><th>Status</th><th></th></tr></thead>
+  <div class="tablewrap">
+  <table data-sortable>
+    <thead><tr><th>Prefix</th><th>Label</th><th>Tier</th><th>Owner</th><th>Created</th><th>Last used</th><th>Status</th><th data-nosort></th></tr></thead>
     <tbody>
     {% for k in keys %}
       <tr>
@@ -174,11 +119,12 @@
         <td>{{ k.label }}</td>
         <td><span class="tag {{ k.tier }}">{{ k.tier }}</span></td>
         <td><a class="cellink" href="/admin/users/{{ k.owner_id }}"><code>{{ k.owner_id[:8] }}…</code></a></td>
-        <td class="muted">{{ k.created_at }}</td>
-        <td class="muted">{{ k.last_used_at or '—' }}</td>
+        <td class="muted nowrap">{{ k.created_at }}</td>
+        <td class="muted nowrap">{{ k.last_used_at or '—' }}</td>
         <td>{% if k.revoked_at %}<span class="tag revoked">revoked</span>{% else %}<span class="tag standard">active</span>{% endif %}</td>
         <td>{% if not k.revoked_at %}
-          <form class="inline" method="post" action="/admin/keys/{{ k.id }}/revoke">
+          <form class="inline" method="post" action="/admin/keys/{{ k.id }}/revoke"
+                data-confirm="Revoke key {{ k.key_prefix }}? Requests using it will start failing immediately.">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="danger" type="submit">Revoke</button>
           </form>{% endif %}
@@ -187,21 +133,24 @@
     {% endfor %}
     </tbody>
   </table>
+  </div>
 </section>
 
 <section>
   <h2>Users</h2>
-  <table>
-    <thead><tr><th>Email</th><th>Created</th><th>Admin</th><th>Disabled</th><th></th></tr></thead>
+  <div class="tablewrap">
+  <table data-sortable>
+    <thead><tr><th>Email</th><th>Created</th><th>Admin</th><th>Disabled</th><th data-nosort></th></tr></thead>
     <tbody>
     {% for u in users %}
       <tr>
         <td><a class="cellink" href="/admin/users/{{ u.id }}">{{ u.email }}</a></td>
-        <td class="muted">{{ u.created_at }}</td>
+        <td class="muted nowrap">{{ u.created_at }}</td>
         <td>{{ 'yes' if u.is_admin else 'no' }}</td>
         <td>{{ 'yes' if u.disabled else 'no' }}</td>
         <td>{% if not u.is_admin %}
-          <form class="inline" method="post" action="/admin/users/{{ u.id }}/promote">
+          <form class="inline" method="post" action="/admin/users/{{ u.id }}/promote"
+                data-confirm="Grant admin privileges to {{ u.email }}?">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="promote" type="submit">Promote</button>
           </form>{% endif %}
@@ -210,11 +159,13 @@
     {% endfor %}
     </tbody>
   </table>
+  </div>
 </section>
 
 <section>
   <h2>Endpoint performance (in-memory, since boot)</h2>
-  <table>
+  <div class="tablewrap">
+  <table data-sortable>
     <thead><tr><th>Endpoint</th><th>Requests</th><th>Errors</th><th>Error %</th><th>Avg ms</th><th>Min ms</th><th>Max ms</th></tr></thead>
     <tbody>
     {% for p in performance %}
@@ -230,7 +181,6 @@
     {% endfor %}
     </tbody>
   </table>
+  </div>
 </section>
-
-</body>
-</html>
+{% endblock %}

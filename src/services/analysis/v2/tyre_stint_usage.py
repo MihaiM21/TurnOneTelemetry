@@ -19,7 +19,9 @@ from src.services.analysis.v2._helpers import (
 from src.services.plotting import output as dirOrg
 from src.services.plotting import theme as setup_theme
 from src.services.plotting.colors import compound_colors, get_compound_color
+from src.core.logging import get_logger
 
+logger = get_logger(__name__)
 
 DATA_TYPE = "tyre_stint_usage"
 
@@ -125,7 +127,7 @@ def TyreStintUsageData(y: int, identifier: Union[int, str], e: str,
                        store_to_mongo: bool = True) -> List[Dict]:
     cached = get_plot_data_from_mongo(y, identifier, e, DATA_TYPE, version='v2')
     if cached:
-        print("Using cached Tyre Stint Usage data from MongoDB (v2)")
+        logger.info("Using cached Tyre Stint Usage data from MongoDB (v2)")
         return cached['data']
 
     client = F1StaticClient()
@@ -147,9 +149,9 @@ def TyreStintUsageData(y: int, identifier: Union[int, str], e: str,
                 year=y, round_nr=round_nr, session_name=e, event_name=event_name,
                 data_type=DATA_TYPE, data=records, version='v2',
             )
-            print("✓ Tyre stint usage cached to MongoDB (v2)")
+            logger.info("Tyre stint usage cached to MongoDB (v2)")
         except Exception as err:
-            print(f"Warning: Failed to store to MongoDB: {err}")
+            logger.warning("Failed to store to MongoDB: %s", err)
 
     return records
 

@@ -2,11 +2,14 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 
+from src.core.logging import get_logger
 from src.services.plotting import output as dirOrg
 from src.ingestion import fastf1_client as data_aqcuisition
 from src.services.plotting import theme as setup_theme
 from src.services.plotting.colors import team_colors, teams
 from src.repositories.plots import store_data_dict_to_mongo, get_plot_data_from_mongo
+
+logger = get_logger(__name__)
 
 
 def _init(y, r, e, session):
@@ -25,22 +28,22 @@ def TopSpeedPlot(y, r, e):
         # Use cached data without loading session
         cached_data = cached_result['data']
         metadata = cached_result['metadata']
-        
+
         # Generate plot from cached data
         setup_theme.setup_turnone_theme()
-        
+
         # Build paths using metadata (no session needed)
         event_name = metadata['event_name'].replace(' ', '')
         dirOrg.checkForFolder(str(y) + "/" + event_name + "/" + e)
         location = "outputs/plots/" + str(y) + "/" + event_name + "/" + e
         name = 'Top speed comparison ' + str(y) + " " + event_name + ' ' + e + " .png"
-        
+
         # Convert cached data to DataFrame
         df = pd.DataFrame(cached_data)
         teams_list = df['Team'].tolist()
         list_top_speed = df['Top Speed (km/h)'].tolist()
         list_colors = df['Color'].tolist()
-        
+
         # Plotting
         fig, ax = plt.subplots(figsize=(13, 13), layout='constrained')
         ax.bar(teams_list, list_top_speed, color=list_colors)
@@ -49,8 +52,8 @@ def TopSpeedPlot(y, r, e):
 
         x = 0
         for tms in teams_list:
-            ax.text(tms, int(list_top_speed[x]) + 1, f"{int(list_top_speed[x])}km/h", 
-                   verticalalignment='bottom', horizontalalignment='center', 
+            ax.text(tms, int(list_top_speed[x]) + 1, f"{int(list_top_speed[x])}km/h",
+                   verticalalignment='bottom', horizontalalignment='center',
                    color='white', fontsize=16, fontweight="bold")
             x += 1
 
@@ -67,7 +70,7 @@ def TopSpeedPlot(y, r, e):
     # If not in cache, load session and continue with normal generation
     sessionloader = data_aqcuisition.SessionLoader(y, r, e)
     session = sessionloader.get_session()
-    
+
     #Theme setup
     setup_theme.setup_turnone_theme()
 
@@ -89,7 +92,7 @@ def TopSpeedPlot(y, r, e):
             list_top_speed.append(speed)
             string_top_speed.append(str(speed))
         except Exception as ex:
-            print(f"An error occurred for team {tms}: {ex}")
+            logger.error("An error occurred for team %s: %s", tms, ex)
 
 
     # Get team colors from teamColorPicker module
@@ -139,10 +142,10 @@ def TopSpeedData(y, r, e, store_to_mongo=True):
     cached_result = get_plot_data_from_mongo(y, r, e, 'top_speed')
     if cached_result:
         # Return cached data directly, no need to save to file
-        print("Using cached Top Speed data from MongoDB")
+        logger.info("Using cached Top Speed data from MongoDB")
         return cached_result['data']
-    
-    print("No cached Top Speed data found in MongoDB, generating new data.")
+
+    logger.info("No cached Top Speed data found in MongoDB, generating new data.")
 
     # If not in cache, load session and continue with normal data generation
     sessionloader = data_aqcuisition.SessionLoader(y, r, e)
@@ -168,7 +171,7 @@ def TopSpeedData(y, r, e, store_to_mongo=True):
             list_top_speed.append(speed)
             string_top_speed.append(str(speed))
         except Exception as ex:
-            print(f"An error occurred for team {tms}: {ex}")
+            logger.error("An error occurred for team %s: %s", tms, ex)
 
 
     # Get team colors from teamColorPicker module
@@ -182,8 +185,8 @@ def TopSpeedData(y, r, e, store_to_mongo=True):
     teams.reverse()
     list_colors.reverse()
     string_top_speed.reverse()
-    print(list_top_speed)
-    print(teams)
+    logger.debug("Top speed list: %s", list_top_speed)
+    logger.debug("Teams list: %s", teams)
 
 
     # Return data in JSON format
@@ -209,6 +212,6 @@ def TopSpeedData(y, r, e, store_to_mongo=True):
                 version='v1'
             )
         except Exception as e:
-            print(f"Warning: Failed to store to MongoDB: {e}")
+            logger.warning("Failed to store to MongoDB: %s", e)
 
     return data_list  # Return data directly

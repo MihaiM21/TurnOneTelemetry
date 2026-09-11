@@ -309,15 +309,15 @@ class SessionWeatherPlot:
 
 
 if __name__ == "__main__":
-    print("Testing V2 Session Weather...")
+    logger.info("Testing V2 Session Weather...")
     try:
         data = SessionWeatherData()(2025, 1, "R")
-        print(f"Weather samples: {len(data.get('weather', []))}")
-        print(f"Track status periods: {len(data.get('track_status_periods', []))}")
-        print(f"Race control messages: {len(data.get('race_control', []))}")
+        logger.info("Weather samples: %s", len(data.get('weather', [])))
+        logger.info("Track status periods: %s", len(data.get('track_status_periods', [])))
+        logger.info("Race control messages: %s", len(data.get('race_control', [])))
         plot_path = SessionWeatherPlot()(2025, 1, "R")
-        print(f"Plot: {plot_path}")
+        logger.info("Plot: %s", plot_path)
     except Exception as ex:
-        print(f"Error: {ex}")
+        logger.error("Error: %s", ex)
         import traceback
         traceback.print_exc()

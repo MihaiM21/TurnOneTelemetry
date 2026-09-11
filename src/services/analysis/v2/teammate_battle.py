@@ -323,15 +323,15 @@ class TeammateBattlePlot:
 
 
 if __name__ == "__main__":
-    print("Testing V2 Teammate Battle...")
+    logger.info("Testing V2 Teammate Battle...")
     try:
         data = TeammateBattleData()(2025)
-        print(f"Teams: {len(data['teams'])}")
+        logger.info("Teams: %s", len(data['teams']))
         for t in data["teams"]:
-            print(t)
+            logger.info("%s", t)
         plot_path = TeammateBattlePlot()(2025)
-        print(f"Plot: {plot_path}")
+        logger.info("Plot: %s", plot_path)
     except Exception as ex:
-        print(f"Error: {ex}")
+        logger.error("Error: %s", ex)
         import traceback
         traceback.print_exc()

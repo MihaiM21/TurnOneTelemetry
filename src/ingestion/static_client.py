@@ -110,6 +110,24 @@ class F1StaticClient:
 
         return {token for token in tokens if token}
 
+    def _session_family(self, value: str) -> Optional[str]:
+        """Return the ``_SESSION_ALIASES`` key ``value`` unambiguously matches, or ``None``."""
+        normalized = self._normalize_text(value)
+        compact = normalized.replace(' ', '')
+        words = [w for w in normalized.split() if w]
+        acronym = ''.join(word[0] for word in words) if words else ''
+
+        for family, aliases in self._SESSION_ALIASES.items():
+            normalized_aliases = {self._normalize_text(alias) for alias in aliases}
+            alias_compact = {alias.replace(' ', '') for alias in normalized_aliases}
+            if (
+                normalized in normalized_aliases
+                or compact in alias_compact
+                or acronym in alias_compact
+            ):
+                return family
+        return None
+
     def _session_matches(self, requested_session: str, candidate_session: str) -> bool:
         """Return True when two session labels refer to the same F1 session."""
         requested_tokens = self._build_session_tokens(requested_session)
@@ -117,6 +135,17 @@ class F1StaticClient:
 
         if requested_tokens.intersection(candidate_tokens):
             return True
+
+        # Both labels unambiguously identify a *known* session family (checked
+        # above and found different, since matching families would have
+        # returned True already) -- e.g. "Qualifying" vs "Sprint Qualifying" on
+        # a sprint weekend. "qualifying" is a literal substring of "sprint
+        # qualifying", so without this guard the fuzzy fallback below would
+        # wrongly treat them as the same session and silently serve the wrong
+        # one's data. Only fall through to substring matching when at least
+        # one side is an unrecognized/custom label the alias table can't judge.
+        if self._session_family(requested_session) is not None and self._session_family(candidate_session) is not None:
+            return False
 
         requested_normalized = self._normalize_text(requested_session)
         candidate_normalized = self._normalize_text(candidate_session)
@@ -189,11 +218,29 @@ class F1StaticClient:
         season_index = self.fetch_season_index(year)
         meetings = season_index.get('Meetings', [])
 
-        # Primary: direct positional lookup by round number (most reliable).
+        # Primary: positional lookup by round number, but only trust it when the
+        # meeting at that index actually matches the requested event. The
+        # livetiming Meetings array can include pre-season testing, which shifts
+        # positional indices out of sync with curated round numbers (e.g. 2026:
+        # curated round 1 == livetiming index 3). Blindly trusting the index
+        # would silently return the wrong meeting (Pre-Season Testing).
         event_data = None
         if round_nr is not None and 1 <= round_nr <= len(meetings):
-            event_data = meetings[round_nr - 1]
-            logger.info(f"Found event by round {round_nr}: {event_data.get('Name')}")
+            candidate = meetings[round_nr - 1]
+            normalized_target = self._normalize_text(event_name) if event_name else ""
+            normalized_candidate = self._normalize_text(candidate.get('Name', ''))
+            if (
+                not normalized_target
+                or normalized_target in normalized_candidate
+                or normalized_candidate in normalized_target
+            ):
+                event_data = candidate
+                logger.info(f"Found event by round {round_nr}: {candidate.get('Name')}")
+            else:
+                logger.warning(
+                    f"Round {round_nr} positional meeting '{candidate.get('Name')}' does not "
+                    f"match requested '{event_name}'; falling back to name match"
+                )
 
         # Fallback: normalized name matching (strips diacritics / hyphens).
         if event_data is None:
@@ -306,6 +353,7 @@ class F1StaticClient:
             "code": info.code,
             "circuit": info.circuit,
             "country": info.country,
+            "circuit_key": info.circuit_key,
         }
     
     # ========================================================================
@@ -633,33 +681,30 @@ def save_to_json(data: Any, filename: str):
     try:
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=4, default=str)
-        print(f"\n[SAVED] Data successfully saved to: {os.path.abspath(filename)}")
+        logger.info("Data successfully saved to: %s", os.path.abspath(filename))
     except IOError as e:
-        print(f"\n[ERROR] Could not save file: {e}")
+        logger.error("Could not save file: %s", e)
 
 def demo_task_1_scraper():
     """
     Task 1 Demo: Scrape the 2023 Italian Grand Prix Race session
     """
-    print("=" * 80)
-    print("TASK 1: THE SCRAPER")
-    print("=" * 80)
-    
+    logger.info("TASK 1: THE SCRAPER")
+
     client = F1StaticClient()
-    
+
     # Find the TimingData.jsonStream URL
     url = client.get_timing_data_url(
         year=2023,
         event_name="Italian Grand Prix",
         session_name="Race"
     )
-    
+
     if url:
-        print(f"\n[SUCCESS] TimingData URL:")
-        print(f"   {url}")
+        logger.info("TimingData URL: %s", url)
     else:
-        print("\n[FAILED] Could not find the session")
-    
+        logger.error("Could not find the session")
+
     return url
 
 
@@ -667,30 +712,26 @@ def demo_task_2_parser(url: Optional[str] = None):
     """
     Task 2 Demo: Parse the TimingData.jsonStream
     """
-    print("\n" + "=" * 80)
-    print("TASK 2: THE PARSER")
-    print("=" * 80)
-    
+    logger.info("TASK 2: THE PARSER")
+
     client = F1StaticClient()
-    
+
     if not url:
         url = client.get_timing_data_url(2023, "Italian Grand Prix", "Race")
-    
+
     if not url:
-        print("[FAILED] No URL available to parse")
+        logger.error("No URL available to parse")
         return []
-    
+
     # Parse the first 5 entries
-    print(f"\nParsing first 5 entries from: {url}")
+    logger.info("Parsing first 5 entries from: %s", url)
     entries = client.parse_jsonstream_simple(url, limit=5)
-    
-    print(f"\n[SUCCESS] Parsed {len(entries)} entries\n")
-    
+
+    logger.info("Parsed %s entries", len(entries))
+
     for i, entry in enumerate(entries, 1):
-        print(f"Entry {i}:")
-        print(json.dumps(entry, indent=2))
-        print("-" * 40)
-    
+        logger.info("Entry %s: %s", i, json.dumps(entry, indent=2))
+
     return entries
 
 
@@ -698,39 +739,34 @@ def demo_task_3_decompressor():
     """
     Task 3 Demo: Decompress a .z.jsonStream file
     """
-    print("\n" + "=" * 80)
-    print("TASK 3: THE DECOMPRESSOR")
-    print("=" * 80)
-    
+    logger.info("TASK 3: THE DECOMPRESSOR")
+
     client = F1StaticClient()
-    
+
     # Get the session base URL
     base_url = client.get_event_session_url(2023, "Italian Grand Prix", "Race")
-    
+
     if not base_url:
-        print("[FAILED] Could not find session")
+        logger.error("Could not find session")
         return []
-    
+
     # Try CarData.z.jsonStream
     car_data_url = urljoin(base_url, "CarData.z.jsonStream")
-    
-    print(f"\nParsing compressed stream: {car_data_url}")
-    
+
+    logger.info("Parsing compressed stream: %s", car_data_url)
+
     try:
         entries = client.parse_compressed_stream(car_data_url, limit=3)
-        
-        print(f"\n[SUCCESS] Decompressed {len(entries)} entries\n")
-        
+
+        logger.info("Decompressed %s entries", len(entries))
+
         for i, entry in enumerate(entries, 1):
-            print(f"Entry {i}:")
-            print(json.dumps(entry, indent=2, default=str))
-            print("-" * 40)
-        
+            logger.info("Entry %s: %s", i, json.dumps(entry, indent=2, default=str))
+
         return entries
-        
+
     except Exception as e:
-        logger.error(f"Failed to parse compressed stream: {e}")
-        print(f"\n[ERROR] {e}")
+        logger.error("Failed to parse compressed stream: %s", e)
         return []
 
 
@@ -739,32 +775,25 @@ def run_all_demos():
     """
     Run all three task demonstrations in sequence and save result
     """
-    print("\n")
-    print("=" * 80)
-    print("         F1 STATIC CONTENT INGESTION PIPELINE")
-    print("                  Complete Demonstration")
-    print("=" * 80)
-    
+    logger.info("F1 STATIC CONTENT INGESTION PIPELINE - Complete Demonstration")
+
     # Task 1
     url = demo_task_1_scraper()
-    
+
     # Task 2
     if url:
         demo_task_2_parser(url)
-    
+
     # Task 3 - This returns the most complex data, let's capture and save this
     car_telemetry_data = demo_task_3_decompressor()
-    
-    print("\n" + "=" * 80)
-    
+
     if car_telemetry_data:
         # SAVE THE FILE
         output_filename = "f1_telemetry_output.json"
-        print(f"Saving {len(car_telemetry_data)} telemetry entries to disk...")
+        logger.info("Saving %s telemetry entries to disk...", len(car_telemetry_data))
         save_to_json(car_telemetry_data, output_filename)
-        
-    print("ALL TASKS COMPLETED SUCCESSFULLY")
-    print("=" * 80)
+
+    logger.info("ALL TASKS COMPLETED SUCCESSFULLY")
 
 
 if __name__ == "__main__":

@@ -43,7 +43,7 @@ import matplotlib.pyplot as plt
 from src.core.exceptions import DataNotAvailableError
 from src.core.logging import get_logger
 from src.services.analysis.base import cached_or_generate
-from src.services.analysis.v2._helpers import extract_stints_from_data
+from src.services.analysis.v2._helpers import RACE_SESSIONS, assert_session_type, extract_stints_from_data
 from src.services.analysis.v2._race_helpers import (
     extract_lap_times,
     extract_pit_stops,
@@ -57,9 +57,6 @@ from src.services.plotting import theme as setup_theme
 logger = get_logger(__name__)
 
 DATA_TYPE = "pit_strategy"
-
-# Sessions where pit strategy is meaningful (racing, not single-lap).
-_VALID_SESSIONS = {"R", "RACE", "S", "SPRINT"}
 
 # Track statuses that make a pit stop "cheap" and distort undercut math.
 _SLOW_STATUSES = {"SC", "VSC"}
@@ -93,18 +90,6 @@ def _init(y: int, event_name: str, session_name: str):
     location = f"outputs/plots/{y}/{event_folder}/{session_name}"
     name = f"Pit strategy {y} {event_name} {session_name}.png"
     return location, name
-
-
-def _assert_valid_session(session_name: str, year: int, identifier: Any) -> None:
-    if session_name.strip().upper() not in _VALID_SESSIONS:
-        raise DataNotAvailableError(
-            year=year, gp=identifier, session=session_name,
-            source="livetiming",
-            reason=(
-                "Pit strategy is only available for Race/Sprint sessions "
-                f"(got {session_name!r})"
-            ),
-        )
 
 
 # ----------------------------------------------------------------------
@@ -384,7 +369,9 @@ class PitStrategyData:
     """Callable: ``PitStrategyData()(year, identifier, session) -> dict``."""
 
     def __call__(self, y: int, identifier: Union[int, str], e: str) -> Dict[str, Any]:
-        _assert_valid_session(e, y, identifier)
+        assert_session_type(
+            e, y, identifier, allowed=RACE_SESSIONS, feature="Pit strategy", sessions_label="Race/Sprint",
+        )
 
         def _generate() -> Dict[str, Any]:
             store = SessionDataStore(y, identifier, e)
@@ -400,7 +387,9 @@ class PitStrategyPlot:
     """Callable: ``PitStrategyPlot()(year, identifier, session) -> png path``."""
 
     def __call__(self, y: int, identifier: Union[int, str], e: str) -> str:
-        _assert_valid_session(e, y, identifier)
+        assert_session_type(
+            e, y, identifier, allowed=RACE_SESSIONS, feature="Pit strategy", sessions_label="Race/Sprint",
+        )
 
         payload = PitStrategyData()(y, identifier, e)
         if not payload.get("stops"):
@@ -530,16 +519,16 @@ class PitStrategyPlot:
 
 
 if __name__ == "__main__":
-    print("Testing V2 Pit Strategy...")
+    logger.info("Testing V2 Pit Strategy...")
     try:
         data = PitStrategyData()(2025, 1, "R")
-        print(f"Stops: {len(data['stops'])}")
-        print(f"Undercuts: {len(data['undercuts'])}")
-        print(f"Fastest: {data['summary']['fastest_stop']}")
-        print(f"Free changes: {len(data['free_changes'])}")
+        logger.info("Stops: %s", len(data['stops']))
+        logger.info("Undercuts: %s", len(data['undercuts']))
+        logger.info("Fastest: %s", data['summary']['fastest_stop'])
+        logger.info("Free changes: %s", len(data['free_changes']))
         plot_path = PitStrategyPlot()(2025, 1, "R")
-        print(f"Plot: {plot_path}")
+        logger.info("Plot: %s", plot_path)
     except Exception as ex:
-        print(f"Error: {ex}")
+        logger.error("Error: %s", ex)
         import traceback
         traceback.print_exc()

@@ -37,6 +37,7 @@ import matplotlib.pyplot as plt
 from src.core.exceptions import DataNotAvailableError
 from src.core.logging import get_logger
 from src.services.analysis.base import cached_or_generate
+from src.services.analysis.v2._helpers import RACE_SESSIONS, assert_session_type
 from src.services.analysis.v2._race_helpers import (
     extract_lap_times,
     get_track_status_periods,
@@ -50,9 +51,6 @@ logger = get_logger(__name__)
 DATA_TYPE_LEADER = "race_gaps_leader"
 DATA_TYPE_AVERAGE = "race_gaps_average"
 
-# Sessions where a lap-by-lap race trace is meaningful.
-_VALID_SESSIONS = {"R", "RACE", "S", "SPRINT"}
-
 
 def _init(y: int, event_name: str, session_name: str, reference: str):
     event_folder = event_name.replace(' ', '')
@@ -60,18 +58,6 @@ def _init(y: int, event_name: str, session_name: str, reference: str):
     location = f"outputs/plots/{y}/{event_folder}/{session_name}"
     name = f"Race gaps {reference} {y} {event_name} {session_name}.png"
     return location, name
-
-
-def _assert_valid_session(session_name: str, year: int, identifier: Any) -> None:
-    if session_name.strip().upper() not in _VALID_SESSIONS:
-        raise DataNotAvailableError(
-            year=year, gp=identifier, session=session_name,
-            source="livetiming",
-            reason=(
-                "Race gaps are only available for Race/Sprint sessions "
-                f"(got {session_name!r})"
-            ),
-        )
 
 
 def _normalize_drivers(drivers: Union[str, Sequence[str], None]) -> Optional[List[str]]:
@@ -259,7 +245,9 @@ class RaceGapsData:
         reference: str = "leader",
         drivers: Union[str, Sequence[str], None] = None,
     ) -> List[Dict[str, Any]]:
-        _assert_valid_session(e, y, identifier)
+        assert_session_type(
+            e, y, identifier, allowed=RACE_SESSIONS, feature="Race gaps", sessions_label="Race/Sprint",
+        )
         reference = reference if reference in ("leader", "average") else "leader"
         drivers_filter = _normalize_drivers(drivers)
         data_type = DATA_TYPE_LEADER if reference == "leader" else DATA_TYPE_AVERAGE
@@ -301,7 +289,9 @@ class RaceGapsPlot:
         reference: str = "leader",
         drivers: Union[str, Sequence[str], None] = None,
     ) -> str:
-        _assert_valid_session(e, y, identifier)
+        assert_session_type(
+            e, y, identifier, allowed=RACE_SESSIONS, feature="Race gaps", sessions_label="Race/Sprint",
+        )
         reference = reference if reference in ("leader", "average") else "leader"
 
         payload = RaceGapsData()(y, identifier, e, reference, drivers)
@@ -389,18 +379,18 @@ class RaceGapsPlot:
 
 
 if __name__ == "__main__":
-    print("Testing V2 Race Gaps...")
+    logger.info("Testing V2 Race Gaps...")
     for ref in ("leader", "average"):
         try:
             data = RaceGapsData()(2025, 1, "R", ref)
-            print(f"[{ref}] Drivers: {len(data)}")
+            logger.info("[%s] Drivers: %s", ref, len(data))
             if data:
                 leader = data[0]
                 last = leader["laps"][-1] if leader["laps"] else None
-                print(f"[{ref}] Leader: {leader['driver']} last lap: {last}")
+                logger.info("[%s] Leader: %s last lap: %s", ref, leader['driver'], last)
             plot_path = RaceGapsPlot()(2025, 1, "R", ref)
-            print(f"[{ref}] Plot: {plot_path}")
+            logger.info("[%s] Plot: %s", ref, plot_path)
         except Exception as ex:
-            print(f"[{ref}] Error: {ex}")
+            logger.error("[%s] Error: %s", ref, ex)
             import traceback
             traceback.print_exc()

@@ -46,6 +46,7 @@ class EventInfo:
     key: Optional[int] = None
     circuit: str = ""
     country: str = ""
+    circuit_key: Optional[int] = None   # livetiming Circuit.Key == stored layout id
 
     def as_dict(self) -> dict:
         return {
@@ -57,6 +58,7 @@ class EventInfo:
             "key": self.key,
             "circuit": self.circuit,
             "country": self.country,
+            "circuit_key": self.circuit_key,
         }
 
 
@@ -88,6 +90,7 @@ def _event_to_info(year: int, idx: int, event: dict) -> EventInfo:
         key=event.get("key"),
         circuit=event.get("circuit") or "",
         country=event.get("country") or "",
+        circuit_key=event.get("circuitKey") if isinstance(event.get("circuitKey"), int) else None,
     )
 
 
@@ -108,7 +111,8 @@ class EventResolver:
 
     @property
     def valid_rounds(self) -> list[int]:
-        return list(range(1, len(self._events) + 1))
+        rounds = sorted({e["round"] for e in self._events if isinstance(e.get("round"), int)})
+        return rounds or list(range(1, len(self._events) + 1))
 
     @property
     def candidate_names(self) -> list[str]:
@@ -127,9 +131,7 @@ class EventResolver:
         as_int = self._coerce_int(identifier)
         if as_int is not None:
             info = self._resolve_int(as_int, original=identifier)
-            self._record_outcome(
-                "round" if 1 <= as_int <= min(_MAX_ROUND_NUMBER, len(self._events)) else "key"
-            )
+            self._record_outcome("round" if 1 <= as_int <= _MAX_ROUND_NUMBER else "key")
             return info
 
         # Strict string handling.
@@ -174,8 +176,14 @@ class EventResolver:
         return None
 
     def _resolve_int(self, num: int, *, original: Any) -> EventInfo:
-        if 1 <= num <= min(_MAX_ROUND_NUMBER, len(self._events)):
-            return _event_to_info(self.year, num - 1, self._events[num - 1])
+        # Match by the event's own calendar round, not its position in
+        # self._events — that list can be a truncated/rolling window (see
+        # _adapt_livetiming_index_to_season_events) that doesn't start at
+        # round 1, so position and round number are not interchangeable.
+        if 1 <= num <= _MAX_ROUND_NUMBER:
+            for idx, event in enumerate(self._events):
+                if event.get("round") == num:
+                    return _event_to_info(self.year, idx, event)
 
         # Treat larger integers as livetiming Keys.
         for idx, event in enumerate(self._events):
@@ -186,13 +194,16 @@ class EventResolver:
             year=self.year, gp=original,
             reason=(
                 f"Round/Key {num} not found in {self.year}. "
-                f"Valid rounds: 1..{len(self._events)}."
+                f"Valid rounds: {', '.join(str(r) for r in self.valid_rounds) or '(none)'}."
             ),
             valid_rounds=self.valid_rounds,
         )
 
     def _resolve_exact(self, text: str) -> Optional[EventInfo]:
         folded = _fold(text)
+        if not folded:
+            return None
+        matches: list[int] = []
         for idx, event in enumerate(self._events):
             haystacks = (
                 event.get("code"),
@@ -200,11 +211,18 @@ class EventResolver:
                 event.get("name"),
                 event.get("officialName"),
                 event.get("circuit"),
+                event.get("location"),
                 event.get("country"),
             )
-            if any(_fold(h) == folded and folded for h in haystacks):
-                return _event_to_info(self.year, idx, event)
-        return None
+            if any(_fold(h) == folded for h in haystacks):
+                matches.append(idx)
+        if not matches:
+            return None
+        if len(matches) == 1:
+            return _event_to_info(self.year, matches[0], self._events[matches[0]])
+        # Two rounds in one country (2026: Barcelona and Madrid are both
+        # "Spain") must not silently resolve to whichever is listed first.
+        self._raise_ambiguous(text, matches)
 
     def _resolve_fuzzy(self, text: str) -> Optional[EventInfo]:
         matches = self._fuzzy_matches(text)
@@ -213,8 +231,10 @@ class EventResolver:
         if len(matches) == 1:
             idx = matches[0]
             return _event_to_info(self.year, idx, self._events[idx])
+        self._raise_ambiguous(text, matches)
 
-        # Ambiguous — let the caller see the candidates.
+    def _raise_ambiguous(self, text: str, matches: list[int]) -> None:
+        """Ambiguous — let the caller see the candidates."""
         candidates = [
             self._events[i].get("grandPrix") or self._events[i].get("name") or f"round {i + 1}"
             for i in matches
@@ -236,7 +256,7 @@ class EventResolver:
         for idx, event in enumerate(self._events):
             blob = " ".join(
                 _fold(event.get(k, "")) for k in
-                ("grandPrix", "name", "officialName", "code", "circuit", "country")
+                ("grandPrix", "name", "officialName", "code", "circuit", "location", "country")
             )
             if folded in blob.split() or folded in blob:
                 out.append(idx)

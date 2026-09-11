@@ -1,0 +1,107 @@
+{% extends "admin/_base.html" %}
+{% set active_page = 'jobs' %}
+{% block title %}T1API Admin · Job {{ job.job_id }}{% endblock %}
+
+{% block content %}
+<section>
+  <div class="spread">
+    <h2 style="margin:0">Job <code>{{ job.job_id }}</code></h2>
+    <a class="cellink small" href="/admin/jobs">&larr; All jobs</a>
+  </div>
+
+  <div class="grid" style="margin-top:12px">
+    <div class="stat">
+      <div class="l">Status</div>
+      <div class="v"><span class="pstatus {{ job.status }}">{{ job.status }}</span></div>
+    </div>
+    <div class="stat"><div class="l">Progress</div><div class="v">{{ job.done }} / {{ job.total }}</div></div>
+    <div class="stat"><div class="l">Generated</div><div class="v ok">{{ job.success }}</div></div>
+    <div class="stat"><div class="l">Failed</div><div class="v {% if job.failed %}bad{% endif %}">{{ job.failed }}</div></div>
+    <div class="stat"><div class="l">Skipped</div><div class="v">{{ job.skipped }}</div></div>
+    <div class="stat"><div class="l">Duration</div><div class="v" style="font-size:16px">{{ duration }}</div></div>
+  </div>
+
+  {% if job.status in ('queued', 'running') %}
+  <form class="inline" method="post" action="/admin/jobs/{{ job.job_id }}/cancel"
+        data-confirm="Cancel this job? Work already generated is kept.">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button class="danger" type="submit">Cancel job</button>
+  </form>
+  <span class="muted small" style="margin-left:10px">This page auto-refreshes while the job runs.</span>
+  {% endif %}
+</section>
+
+<section>
+  <h2>Scope &amp; selection</h2>
+  <div class="tablewrap">
+  <table>
+    <tbody>
+      <tr><th style="width:180px">Year</th><td>{{ job.scope.year or 'all' }}</td></tr>
+      <tr><th>Grand Prix</th><td>{{ job.scope.gp or 'all rounds' }}</td></tr>
+      <tr><th>Session</th><td>{{ job.scope.session or 'all sessions' }}</td></tr>
+      <tr><th>Force</th><td>{{ 'yes' if job.scope.force else 'no' }}</td></tr>
+      <tr><th>Parallel sessions</th><td>{{ job.scope.concurrency or 1 }}</td></tr>
+      <tr><th>Features</th><td>
+        {% if job.selection and job.selection.features %}
+          {% for f in job.selection.features %}<span class="tag">{{ f }}</span>{% endfor %}
+        {% elif job.selection and job.selection.include_kinds %}
+          {% for k in job.selection.include_kinds %}<span class="tag info">all {{ k }}</span>{% endfor %}
+        {% else %}<span class="muted">field-wide defaults</span>{% endif %}
+      </td></tr>
+      {% if job.selection and job.selection.drivers %}
+      <tr><th>Drivers</th><td>{% for d in job.selection.drivers %}<span class="tag">{{ d }}</span>{% endfor %}</td></tr>
+      {% endif %}
+      {% if job.selection and job.selection.lap_from %}
+      <tr><th>Lap range</th><td>{{ job.selection.lap_from }} – {{ job.selection.lap_to }}</td></tr>
+      {% endif %}
+      <tr><th>Worker</th><td><code>{{ job.worker or '—' }}</code></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+{% if job.per_feature %}
+<section>
+  <h2>Outcome per feature</h2>
+  <div class="tablewrap">
+  <table data-sortable>
+    <thead><tr><th>Feature</th><th>Generated</th><th>Failed</th><th>Skipped</th></tr></thead>
+    <tbody>
+      {% for key, counts in job.per_feature.items() %}
+      <tr>
+        <td><code>{{ key }}</code></td>
+        <td>{{ counts.success }}</td>
+        <td>{{ counts.failed }}</td>
+        <td>{{ counts.skipped }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
+{% if job.warnings %}
+<section>
+  <h2>Warnings</h2>
+  {% for w in job.warnings %}<div class="warnbox">{{ w }}</div>{% endfor %}
+</section>
+{% endif %}
+
+<section>
+  <h2>Errors ({{ job.errors | length }}{% if job.errors | length >= 200 %}, most recent{% endif %})</h2>
+  {% if job.errors %}
+    <div class="perrors" style="max-height:420px">{{ job.errors | join('\n') }}</div>
+  {% else %}<p class="empty">No errors recorded.</p>{% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+{% if job.status in ('queued', 'running') %}
+<script>
+  // Cheap live view: a running job's counters change constantly, and this page
+  // has no interactive state worth preserving across the refresh.
+  setTimeout(() => location.reload(), 4000);
+</script>
+{% endif %}
+{% endblock %}

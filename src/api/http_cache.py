@@ -20,10 +20,31 @@ from typing import Any, Mapping, Optional
 
 DEFAULT_MAX_AGE_SECONDS = 86400
 
+#: How long a *mutable* response (live/current-season data) may be reused.
+#: Short, and always revalidated -- the latest-session dashboard changes while
+#: a session is running.
+VOLATILE_MAX_AGE_SECONDS = 30
+
 
 def immutable_cache_control(max_age: int = DEFAULT_MAX_AGE_SECONDS) -> str:
-    """Return a ``Cache-Control`` header value for immutable historical data."""
-    return f"public, max-age={max_age}, immutable"
+    """``Cache-Control`` for genuinely immutable historical data.
+
+    ``private`` rather than ``public``: these responses are gated by an API key,
+    so a shared proxy or CDN must not hand one caller's payload to another.
+    ``immutable`` tells clients never to revalidate, which is only safe for a
+    completed session whose data can no longer change.
+    """
+    return f"private, max-age={max_age}, immutable"
+
+
+def volatile_cache_control(max_age: int = VOLATILE_MAX_AGE_SECONDS) -> str:
+    """``Cache-Control`` for responses whose content can still change.
+
+    Used for the latest-session dashboard and current-season data. Without this
+    the ETag middleware stamped ``immutable, max-age=86400`` on the live
+    dashboard, freezing it for 24h in every browser and CDN.
+    """
+    return f"private, max-age={max_age}, must-revalidate"
 
 
 def compute_etag(
@@ -44,7 +65,11 @@ def compute_etag(
     if params:
         for key in sorted(params):
             parts.append(f"{key}={params[key]}")
-    digest = hashlib.sha1("|".join(parts).encode("utf-8")).hexdigest()
+    # Cache-key digest, not a security primitive -- collision resistance is
+    # irrelevant here and SHA-1 is the cheapest adequate option.
+    digest = hashlib.sha1(
+        "|".join(parts).encode("utf-8"), usedforsecurity=False
+    ).hexdigest()
     return f'W/"{digest}"'
 
 
@@ -69,3 +94,20 @@ def cache_headers(
         "Cache-Control": immutable_cache_control(max_age),
         "ETag": compute_etag(year, gp, session, data_type, params),
     }
+
+
+#: Path suffixes under ``/api/v2/`` whose content is not immutable.
+#: ``/standings/drivers`` and ``/standings/constructors`` cover both the cached
+#: current-season endpoints and their ``/live`` variants; the per-year and
+#: per-round standings paths (``/seasons/{year}/drivers-standings``) are not
+#: matched and stay immutable.
+VOLATILE_PATH_MARKERS = ("/dashboard", "/standings/drivers", "/standings/constructors")
+
+
+def is_volatile_path(path: str) -> bool:
+    """True when a response body for ``path`` can still change.
+
+    The latest-session dashboard resolves whichever session is most recent, so
+    its payload changes as a race unfolds.
+    """
+    return any(marker in path for marker in VOLATILE_PATH_MARKERS)

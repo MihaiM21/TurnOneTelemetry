@@ -11,6 +11,8 @@ Two key sources coexist:
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
 from typing import Optional, Tuple
 
 from fastapi import HTTPException, Request, Security, status
@@ -47,10 +49,39 @@ def invalidate_key_cache(key_hash: str) -> None:
     get_sync_cache().delete(f"{_CACHE_PREFIX}{key_hash}")
 
 
+def _match_constant_time(candidate: str, allowed: list) -> bool:
+    """Check membership without short-circuiting on the first differing byte.
+
+    Plain ``in`` list membership uses per-string equality, which returns as
+    soon as a mismatch is found -- letting response timing leak how many
+    leading characters of a guess were correct. This keeps iterating over the
+    whole list regardless of an early match so the timing is independent of
+    where (or whether) the candidate matches.
+    """
+    found = False
+    for k in allowed:
+        if hmac.compare_digest(candidate, k):
+            found = True  # keep iterating
+    return found
+
+
+def _key_fingerprint(api_key: str, length: int = 8) -> str:
+    """Non-reversible, stable-per-key identifier for logs and metric labels.
+
+    Never expose raw key bytes outside this module -- a log line or a
+    Prometheus label is a much wider blast radius than the auth check itself.
+    A SHA-256 digest is stable for a given key (so per-key metrics still
+    aggregate correctly across requests) but reveals nothing usable about the
+    actual secret, unlike a raw prefix/suffix slice.
+    """
+    return hashlib.sha256(api_key.encode()).hexdigest()[:length]
+
+
 def _resolve_env_tier(api_key: str) -> Optional[str]:
-    if api_key in settings.premium_api_keys_list:
+    # Precedence: premium wins over standard, same as before.
+    if _match_constant_time(api_key, settings.premium_api_keys_list):
         return "premium"
-    if settings.allowed_api_keys_list and api_key in settings.allowed_api_keys_list:
+    if settings.allowed_api_keys_list and _match_constant_time(api_key, settings.allowed_api_keys_list):
         return "standard"
     return None
 
@@ -72,11 +103,11 @@ def _resolve_db_sync(api_key: str) -> dict:
     try:
         doc = find_active_by_hash(key_hash)
     except Exception as exc:
-        logger.warning("api_keys DB lookup failed for prefix %s...: %s", api_key[:11], exc)
+        logger.warning("api_keys DB lookup failed for key %s: %s", _key_fingerprint(api_key), exc)
         return {"valid": False}
 
     if not doc:
-        logger.warning("api_keys lookup miss: key prefix %s... not found in DB", api_key[:11])
+        logger.warning("api_keys lookup miss: key %s not found in DB", _key_fingerprint(api_key))
         result = {"valid": False}
         _cache_set(key_hash, result, ttl=_NEG_TTL)
         return result
@@ -86,7 +117,7 @@ def _resolve_db_sync(api_key: str) -> dict:
         "key_hash": key_hash,
         "tier": doc.get("tier", "standard"),
         "owner_id": str(doc.get("owner_id")),
-        "key_prefix": doc.get("key_prefix", api_key[:11]),
+        "key_prefix": doc.get("key_prefix") or f"db:{_key_fingerprint(api_key)}",
     }
     _cache_set(key_hash, result, ttl=settings.api_key_cache_ttl_seconds)
     return result
@@ -121,8 +152,15 @@ async def verify_api_key(
 
     Resolution order: dev bypass → env keys → DB keys (via Redis).
     """
-    if settings.environment == "development" and not settings.allowed_api_keys_list:
-        logger.debug("Development mode: API key check bypassed")
+    if (
+        settings.environment == "development"
+        and not settings.allowed_api_keys_list
+        and settings.allow_insecure_dev_auth
+    ):
+        logger.warning(
+            "Development mode: API key check bypassed (ALLOW_INSECURE_DEV_AUTH=true). "
+            "Authentication is disabled for this request."
+        )
         _stash_resolution(request, tier="standard", key_hash=None, key_prefix="dev")
         return "dev-key"
 
@@ -137,7 +175,7 @@ async def verify_api_key(
     env_tier = _resolve_env_tier(api_key)
     if env_tier:
         _stash_resolution(
-            request, tier=env_tier, key_hash=None, key_prefix=f"env:{api_key[:6]}"
+            request, tier=env_tier, key_hash=None, key_prefix=f"env:{_key_fingerprint(api_key)}"
         )
         return api_key
 
@@ -151,7 +189,7 @@ async def verify_api_key(
         )
         return api_key
 
-    logger.warning("Invalid API key attempted: %s...", api_key[:8])
+    logger.warning("Invalid API key attempted: %s", _key_fingerprint(api_key))
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail="Invalid API key",
@@ -184,14 +222,22 @@ async def get_api_key_tier(
     if not api_key:
         return None, "public"
 
-    if settings.environment == "development" and not settings.allowed_api_keys_list:
+    if (
+        settings.environment == "development"
+        and not settings.allowed_api_keys_list
+        and settings.allow_insecure_dev_auth
+    ):
+        logger.warning(
+            "Development mode: API key tier check bypassed (ALLOW_INSECURE_DEV_AUTH=true). "
+            "Authentication is disabled for this request."
+        )
         _stash_resolution(request, tier="standard", key_hash=None, key_prefix="dev")
         return "dev-key", "standard"
 
     env_tier = _resolve_env_tier(api_key)
     if env_tier:
         _stash_resolution(
-            request, tier=env_tier, key_hash=None, key_prefix=f"env:{api_key[:6]}"
+            request, tier=env_tier, key_hash=None, key_prefix=f"env:{_key_fingerprint(api_key)}"
         )
         return api_key, env_tier
 
@@ -222,7 +268,7 @@ def resolve_tier_sync(api_key: Optional[str]) -> Tuple[str, Optional[str], Optio
         return "public", None, None
     env_tier = _resolve_env_tier(api_key)
     if env_tier:
-        return env_tier, None, f"env:{api_key[:6]}"
+        return env_tier, None, f"env:{_key_fingerprint(api_key)}"
     from src.repositories.api_keys import hash_key
 
     cached = _cache_get(hash_key(api_key))

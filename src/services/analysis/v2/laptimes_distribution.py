@@ -9,6 +9,16 @@ from src.services.analysis.v2._helpers import (
     format_lap_time,
     extract_stints,
 )
+from src.core.logging import get_logger
+
+logger = get_logger(__name__)
+
+DATA_TYPE = "lap_times_distribution"
+
+
+def _data_type(driver: str) -> str:
+    """Stored MongoDB key for one driver's lap-time distribution."""
+    return f"{DATA_TYPE}_{driver.strip().upper()}"
 
 
 def _init(y: int, event_name: str, session_name: str, driver: str):
@@ -61,7 +71,7 @@ def _extract_all_lap_times(base_url: str, client: F1StaticClient, driver_num: st
 
         return records
     except Exception as e:
-        print(f"Error extracting lap times: {e}")
+        logger.error("Error extracting lap times: %s", e)
         return []
 
 
@@ -82,12 +92,12 @@ def LaptimesDistribution(y: int, identifier: Union[int, str], e: str, driver: st
     Returns [{driver, lap_number, lap_times_formatted, lap_times_seconds, compound}]
     for a specific driver across a session.
     """
-    driver_tla = driver.upper()
-    cache_key = f'lap_times_distribution_{driver_tla}'
+    driver_tla = driver.strip().upper()
+    cache_key = _data_type(driver_tla)
 
     cached = get_plot_data_from_mongo(y, identifier, e, cache_key, version='v2')
     if cached:
-        print(f"Using cached Lap Times Distribution from MongoDB (v2) for {driver_tla}")
+        logger.info("Using cached Lap Times Distribution from MongoDB (v2) for %s", driver_tla)
         return cached['data']
 
     client = F1StaticClient()
@@ -129,22 +139,22 @@ def LaptimesDistribution(y: int, identifier: Union[int, str], e: str, driver: st
                 year=y, round_nr=round_nr, session_name=e, event_name=event_name,
                 data_type=cache_key, data=data_list, version='v2'
             )
-            print(f"✓ Lap times data cached to MongoDB (v2) for {driver_tla}")
+            logger.info("Lap times data cached to MongoDB (v2) for %s", driver_tla)
         except Exception as err:
-            print(f"Warning: Failed to store to MongoDB: {err}")
+            logger.warning("Failed to store to MongoDB: %s", err)
 
     return data_list
 
 
 if __name__ == "__main__":
-    print("Testing V2 Laptimes Distribution...")
+    logger.info("Testing V2 Laptimes Distribution...")
     try:
         data = LaptimesDistribution(2023, 14, "Race", "VER")
-        print(f"Laps returned: {len(data)}")
+        logger.info("Laps returned: %s", len(data))
         if data:
-            print(f"First lap: {data[0]}")
-            print(f"Last lap: {data[-1]}")
+            logger.info("First lap: %s", data[0])
+            logger.info("Last lap: %s", data[-1])
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error("Error: %s", e)
         import traceback
         traceback.print_exc()

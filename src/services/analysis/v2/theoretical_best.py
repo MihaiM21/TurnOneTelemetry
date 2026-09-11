@@ -38,6 +38,7 @@ import matplotlib.pyplot as plt
 from src.core.exceptions import DataNotAvailableError
 from src.core.logging import get_logger
 from src.services.analysis.base import cached_or_generate
+from src.services.analysis.v2._helpers import assert_session_type
 from src.services.analysis.v2._race_helpers import extract_best_sectors, extract_lap_times
 from src.services.analysis.v2.session_store import SessionDataStore
 from src.services.plotting import output as dirOrg
@@ -60,18 +61,6 @@ def _init(y: int, event_name: str, session_name: str):
     location = f"outputs/plots/{y}/{event_folder}/{session_name}"
     name = f"Theoretical best {y} {event_name} {session_name}.png"
     return location, name
-
-
-def _assert_valid_session(session_name: str, year: int, identifier: Any) -> None:
-    if session_name.strip().upper() not in _VALID_SESSIONS:
-        raise DataNotAvailableError(
-            year=year, gp=identifier, session=session_name,
-            source="livetiming",
-            reason=(
-                "Theoretical best lap is only available for Qualifying sessions "
-                f"(got {session_name!r})"
-            ),
-        )
 
 
 # ----------------------------------------------------------------------
@@ -141,7 +130,9 @@ class TheoreticalBestData:
     """Callable: ``TheoreticalBestData()(year, identifier, session) -> list``."""
 
     def __call__(self, y: int, identifier: Union[int, str], e: str) -> List[Dict[str, Any]]:
-        _assert_valid_session(e, y, identifier)
+        assert_session_type(
+            e, y, identifier, allowed=_VALID_SESSIONS, feature="Theoretical best lap", sessions_label="Qualifying",
+        )
 
         def _generate() -> List[Dict[str, Any]]:
             store = SessionDataStore(y, identifier, e)
@@ -157,7 +148,9 @@ class TheoreticalBestPlot:
     """Callable: ``TheoreticalBestPlot()(year, identifier, session) -> png path``."""
 
     def __call__(self, y: int, identifier: Union[int, str], e: str) -> str:
-        _assert_valid_session(e, y, identifier)
+        assert_session_type(
+            e, y, identifier, allowed=_VALID_SESSIONS, feature="Theoretical best lap", sessions_label="Qualifying",
+        )
 
         payload = TheoreticalBestData()(y, identifier, e)
         if not payload:
@@ -250,18 +243,17 @@ class TheoreticalBestPlot:
 
 
 if __name__ == "__main__":
-    print("Testing V2 Theoretical Best...")
+    logger.info("Testing V2 Theoretical Best...")
     try:
         data = TheoreticalBestData()(2024, 1, "Q")
-        print(f"Drivers: {len(data)}")
+        logger.info("Drivers: %s", len(data))
         if data:
             fastest = data[0]
-            print(f"Fastest theoretical: {fastest['driver']} "
-                  f"theo={fastest['theoretical_s']} actual={fastest['actual_s']} "
-                  f"delta={fastest['delta_s']}")
+            logger.info("Fastest theoretical: %s theo=%s actual=%s delta=%s",
+                       fastest['driver'], fastest['theoretical_s'], fastest['actual_s'], fastest['delta_s'])
         plot_path = TheoreticalBestPlot()(2024, 1, "Q")
-        print(f"Plot: {plot_path}")
+        logger.info("Plot: %s", plot_path)
     except Exception as ex:
-        print(f"Error: {ex}")
+        logger.error("Error: %s", ex)
         import traceback
         traceback.print_exc()

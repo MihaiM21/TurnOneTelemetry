@@ -16,6 +16,10 @@ import fastf1
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+from src.core.logging import get_logger
+
+logger = get_logger(__name__)
+
 # Import plot data functions - V1 (FastF1-based)
 from src.services.analysis.v1.top_speed import TopSpeedData
 from src.services.analysis.v1.throttle_comparison import ThrottleCompData
@@ -75,14 +79,14 @@ class PlotDataGenerator:
             True if successful, False otherwise
         """
         try:
-            print(f"  → Generating top speed data...")
+            logger.info("Generating top speed data...")
             data = TopSpeedData(year, round_num, session_name, store_to_mongo=self.use_mongo)
             if data:
                 self.results['success'].append(f"Top Speed - Y{year} R{round_num} {session_name}")
                 return True
             return False
         except Exception as e:
-            print(f"    ✗ Error: {e}")
+            logger.error("Error generating top speed data: %s", e)
             self.results['failed'].append(f"Top Speed - Y{year} R{round_num} {session_name}: {str(e)}")
             return False
 
@@ -99,14 +103,14 @@ class PlotDataGenerator:
             True if successful, False otherwise
         """
         try:
-            print(f"  → Generating throttle comparison data...")
+            logger.info("Generating throttle comparison data...")
             data = ThrottleCompData(year, round_num, session_name, store_to_mongo=self.use_mongo)
             if data:
                 self.results['success'].append(f"Throttle Comparison - Y{year} R{round_num} {session_name}")
                 return True
             return False
         except Exception as e:
-            print(f"    ✗ Error: {e}")
+            logger.error("Error generating throttle comparison data: %s", e)
             self.results['failed'].append(f"Throttle Comparison - Y{year} R{round_num} {session_name}: {str(e)}")
             return False
 
@@ -123,14 +127,14 @@ class PlotDataGenerator:
             True if successful, False otherwise
         """
         try:
-            print(f"  → Generating qualifying results data...")
+            logger.info("Generating qualifying results data...")
             data = QualiResultsData(year, round_num, session_name, store_to_mongo=self.use_mongo)
             if data:
                 self.results['success'].append(f"Qualifying Results - Y{year} R{round_num} {session_name}")
                 return True
             return False
         except Exception as e:
-            print(f"    ✗ Error: {e}")
+            logger.error("Error generating qualifying results data: %s", e)
             self.results['failed'].append(f"Qualifying Results - Y{year} R{round_num} {session_name}: {str(e)}")
             return False
 
@@ -148,14 +152,14 @@ class PlotDataGenerator:
             True if successful, False otherwise
         """
         try:
-            print(f"  → Generating lap times distribution for {driver}...")
+            logger.info("Generating lap times distribution for %s...", driver)
             data = LatimesDistribution(year, round_num, session_name, driver)
             if data:
                 self.results['success'].append(f"Lap Times Distribution - {driver} - Y{year} R{round_num} {session_name}")
                 return True
             return False
         except Exception as e:
-            print(f"    ✗ Error: {e}")
+            logger.error("Error generating lap times distribution for %s: %s", driver, e)
             self.results['failed'].append(f"Lap Times Distribution - {driver} - Y{year} R{round_num} {session_name}: {str(e)}")
             return False
 
@@ -174,14 +178,14 @@ class PlotDataGenerator:
             True if successful, False otherwise
         """
         try:
-            print(f"  → Generating track comparison for {driver1} vs {driver2}...")
+            logger.info("Generating track comparison for %s vs %s...", driver1, driver2)
             data = TrackComparisonData(year, round_num, session_name, driver1, driver2)
             if data:
                 self.results['success'].append(f"Track Comparison - {driver1} vs {driver2} - Y{year} R{round_num} {session_name}")
                 return True
             return False
         except Exception as e:
-            print(f"    ✗ Error: {e}")
+            logger.error("Error generating track comparison for %s vs %s: %s", driver1, driver2, e)
             self.results['failed'].append(f"Track Comparison - {driver1} vs {driver2} - Y{year} R{round_num} {session_name}: {str(e)}")
             return False
 
@@ -200,14 +204,14 @@ class PlotDataGenerator:
             True if successful, False otherwise
         """
         try:
-            print(f"  → Generating throttle/brake comparison for {driver1} vs {driver2}...")
+            logger.info("Generating throttle/brake comparison for %s vs %s...", driver1, driver2)
             data = throttle_graph_data(year, round_num, session_name, driver1, driver2)
             if data:
                 self.results['success'].append(f"Throttle/Brake Comparison - {driver1} vs {driver2} - Y{year} R{round_num} {session_name}")
                 return True
             return False
         except Exception as e:
-            print(f"    ✗ Error: {e}")
+            logger.error("Error generating throttle/brake comparison for %s vs %s: %s", driver1, driver2, e)
             self.results['failed'].append(f"Throttle/Brake Comparison - {driver1} vs {driver2} - Y{year} R{round_num} {session_name}: {str(e)}")
             return False
 
@@ -215,14 +219,14 @@ class PlotDataGenerator:
     def generate_speed_distribution_v1(self, year: int, round_num: int, session_name: str) -> bool:
         """Generate V1 overall fastest-lap speed distribution"""
         try:
-            print(f"  → [V1] Generating speed distribution (overall)...")
+            logger.info("[V1] Generating speed distribution (overall)...")
             data = SpeedDistributionData_V1(year, round_num, session_name, driver=None, store_to_mongo=self.use_mongo)
             if data:
                 self.results['success'].append(f"V1 Speed Distribution - Y{year} R{round_num} {session_name}")
                 return True
             return False
         except Exception as e:
-            print(f"    ✗ Error: {e}")
+            logger.error("[V1] Error generating speed distribution: %s", e)
             self.results['failed'].append(f"V1 Speed Distribution - Y{year} R{round_num} {session_name}: {str(e)}")
             return False
 
@@ -230,77 +234,77 @@ class PlotDataGenerator:
     def generate_top_speed_telemetry_v2(self, year: int, round_num: int, session_name: str) -> bool:
         """Generate V2 top speed from telemetry (CarData)"""
         try:
-            print(f"  → [V2] Generating top speed (telemetry)...")
+            logger.info("[V2] Generating top speed (telemetry)...")
             data = TopSpeedData_Telemetry(year, round_num, session_name, store_to_mongo=self.use_mongo)
             if data:
                 self.results['success'].append(f"V2 Top Speed Telemetry - Y{year} R{round_num} {session_name}")
                 return True
             return False
         except Exception as e:
-            print(f"    ✗ Error: {e}")
+            logger.error("[V2] Error generating top speed (telemetry): %s", e)
             self.results['failed'].append(f"V2 Top Speed Telemetry - Y{year} R{round_num} {session_name}: {str(e)}")
             return False
 
     def generate_top_speed_speedtrap_v2(self, year: int, round_num: int, session_name: str) -> bool:
         """Generate V2 top speed from speed trap (TimingData)"""
         try:
-            print(f"  → [V2] Generating top speed (speed trap)...")
+            logger.info("[V2] Generating top speed (speed trap)...")
             data = TopSpeedData_SpeedTrap(year, round_num, session_name, store_to_mongo=self.use_mongo)
             if data:
                 self.results['success'].append(f"V2 Top Speed SpeedTrap - Y{year} R{round_num} {session_name}")
                 return True
             return False
         except Exception as e:
-            print(f"    ✗ Error: {e}")
+            logger.error("[V2] Error generating top speed (speed trap): %s", e)
             self.results['failed'].append(f"V2 Top Speed SpeedTrap - Y{year} R{round_num} {session_name}: {str(e)}")
             return False
 
     def generate_throttle_comparison_v2(self, year: int, round_num: int, session_name: str) -> bool:
         """Generate V2 throttle comparison"""
         try:
-            print(f"  → [V2] Generating throttle comparison...")
+            logger.info("[V2] Generating throttle comparison...")
             data = ThrottleCompData_V2(year, round_num, session_name, store_to_mongo=self.use_mongo)
             if data:
                 self.results['success'].append(f"V2 Throttle Comparison - Y{year} R{round_num} {session_name}")
                 return True
             return False
         except Exception as e:
-            print(f"    ✗ Error: {e}")
+            logger.error("[V2] Error generating throttle comparison: %s", e)
             self.results['failed'].append(f"V2 Throttle Comparison - Y{year} R{round_num} {session_name}: {str(e)}")
             return False
 
     def generate_speed_distribution_v2(self, year: int, round_num: int, session_name: str) -> bool:
         """Generate V2 overall fastest-lap speed distribution"""
         try:
-            print(f"  → [V2] Generating speed distribution (overall)...")
+            logger.info("[V2] Generating speed distribution (overall)...")
             data = SpeedDistributionData_V2(year, round_num, session_name, driver=None, store_to_mongo=self.use_mongo)
             if data:
                 self.results['success'].append(f"V2 Speed Distribution - Y{year} R{round_num} {session_name}")
                 return True
             return False
         except Exception as e:
-            print(f"    ✗ Error: {e}")
+            logger.error("[V2] Error generating speed distribution: %s", e)
             self.results['failed'].append(f"V2 Speed Distribution - Y{year} R{round_num} {session_name}: {str(e)}")
             return False
 
     def generate_position_changes_v2(self, year: int, round_num, session_name: str) -> bool:
         """Generate V2 position changes (Race/Sprint only)"""
         try:
-            print(f"  → [V2] Generating position changes...")
+            logger.info("[V2] Generating position changes...")
             data = PositionChangesData()(year, round_num, session_name)
             if data:
                 self.results['success'].append(f"V2 Position Changes - Y{year} R{round_num} {session_name}")
                 return True
             return False
         except Exception as e:
-            print(f"    ✗ Error: {e}")
+            logger.error("[V2] Error generating position changes: %s", e)
             self.results['failed'].append(f"V2 Position Changes - Y{year} R{round_num} {session_name}: {str(e)}")
             return False
 
     def generate_race_gaps_v2(self, year: int, round_num, session_name: str, reference: str = 'leader') -> bool:
         """Generate V2 race gaps for a given reference mode (Race/Sprint only)"""
         try:
-            print(f"  → [V2] Generating race gaps (reference={reference})...")
+            logger.info("[V2] Generating race gaps (reference=%s)...", reference)
             data = RaceGapsData()(year, round_num, session_name, reference, None)
             if data:
                 self.results['success'].append(
@@ -309,7 +313,7 @@ class PlotDataGenerator:
                 return True
             return False
         except Exception as e:
-            print(f"    ✗ Error: {e}")
+            logger.error("[V2] Error generating race gaps (reference=%s): %s", reference, e)
             self.results['failed'].append(
                 f"V2 Race Gaps ({reference}) - Y{year} R{round_num} {session_name}: {str(e)}"
             )
@@ -318,42 +322,42 @@ class PlotDataGenerator:
     def generate_tyre_degradation_v2(self, year: int, round_num, session_name: str) -> bool:
         """Generate V2 tyre degradation (overall, no driver filter, Race/Sprint only)"""
         try:
-            print(f"  → [V2] Generating tyre degradation...")
+            logger.info("[V2] Generating tyre degradation...")
             data = TyreDegradationData()(year, round_num, session_name, None, False)
             if data:
                 self.results['success'].append(f"V2 Tyre Degradation - Y{year} R{round_num} {session_name}")
                 return True
             return False
         except Exception as e:
-            print(f"    ✗ Error: {e}")
+            logger.error("[V2] Error generating tyre degradation: %s", e)
             self.results['failed'].append(f"V2 Tyre Degradation - Y{year} R{round_num} {session_name}: {str(e)}")
             return False
 
     def generate_pit_strategy_v2(self, year: int, round_num, session_name: str) -> bool:
         """Generate V2 pit strategy & undercuts (Race/Sprint only)"""
         try:
-            print(f"  → [V2] Generating pit strategy...")
+            logger.info("[V2] Generating pit strategy...")
             data = PitStrategyData()(year, round_num, session_name)
             if data:
                 self.results['success'].append(f"V2 Pit Strategy - Y{year} R{round_num} {session_name}")
                 return True
             return False
         except Exception as e:
-            print(f"    ✗ Error: {e}")
+            logger.error("[V2] Error generating pit strategy: %s", e)
             self.results['failed'].append(f"V2 Pit Strategy - Y{year} R{round_num} {session_name}: {str(e)}")
             return False
 
     def generate_session_weather_v2(self, year: int, round_num, session_name: str) -> bool:
         """Generate V2 session weather timeline (all session types)"""
         try:
-            print(f"  → [V2] Generating session weather...")
+            logger.info("[V2] Generating session weather...")
             data = SessionWeatherData()(year, round_num, session_name)
             if data:
                 self.results['success'].append(f"V2 Session Weather - Y{year} R{round_num} {session_name}")
                 return True
             return False
         except Exception as e:
-            print(f"    ✗ Error: {e}")
+            logger.error("[V2] Error generating session weather: %s", e)
             self.results['failed'].append(f"V2 Session Weather - Y{year} R{round_num} {session_name}: {str(e)}")
             return False
 
@@ -380,9 +384,7 @@ class PlotDataGenerator:
         """
         # V2 identifier: prefer name-based lookup to avoid pre-season testing offset
         v2_identifier = gp_name if gp_name else round_num
-        print(f"\n{'='*60}")
-        print(f"Generating ALL data (V1 + V2) for Y{year} R{round_num} - {session_name}")
-        print(f"{'='*60}")
+        logger.info("Generating ALL data (V1 + V2) for Y%s R%s - %s", year, round_num, session_name)
 
         success_count = 0
         failed_count = 0
@@ -398,7 +400,7 @@ class PlotDataGenerator:
         if 'qualif' in session_name.lower() or session_name.lower() in ['q', 'sq']:
             v1_session_generators.append(self.generate_qualifying_results)
 
-        print("\n>> V1 Generators (FastF1)")
+        logger.info("V1 Generators (FastF1)")
         for generator in v1_session_generators:
             try:
                 if generator(year, round_num, session_name):
@@ -406,7 +408,7 @@ class PlotDataGenerator:
                 else:
                     failed_count += 1
             except Exception as e:
-                print(f"    ✗ Unexpected error: {e}")
+                logger.error("Unexpected error in V1 generator: %s", e)
                 failed_count += 1
 
         # ---- V2 session-level generators ----
@@ -428,8 +430,7 @@ class PlotDataGenerator:
                 self.generate_tyre_degradation_v2,   # V2 tyre degradation (overall)
             ])
 
-        print("\n>> V2 Generators (F1StaticClient)")
-        print(f"   Using identifier: '{v2_identifier}'")
+        logger.info("V2 Generators (F1StaticClient) using identifier: %s", v2_identifier)
         for generator in v2_session_generators:
             try:
                 if generator(year, v2_identifier, session_name):
@@ -437,7 +438,7 @@ class PlotDataGenerator:
                 else:
                     failed_count += 1
             except Exception as e:
-                print(f"    ✗ Unexpected error: {e}")
+                logger.error("Unexpected error in V2 generator: %s", e)
                 failed_count += 1
 
         # Race gaps take an extra 'reference' arg (leader/average); pre-generate
@@ -450,7 +451,7 @@ class PlotDataGenerator:
                     else:
                         failed_count += 1
                 except Exception as e:
-                    print(f"    ✗ Unexpected error: {e}")
+                    logger.error("Unexpected error generating race gaps: %s", e)
                     failed_count += 1
 
         # Session weather is meaningful for every session type (R/S/Q/SQ/FP1-3).
@@ -460,7 +461,7 @@ class PlotDataGenerator:
             else:
                 failed_count += 1
         except Exception as e:
-            print(f"    ✗ Unexpected error: {e}")
+            logger.error("Unexpected error generating session weather: %s", e)
             failed_count += 1
 
         # ---- Optional driver-specific V1 comparisons ----
@@ -474,7 +475,7 @@ class PlotDataGenerator:
                         else:
                             failed_count += 1
                     except Exception as e:
-                        print(f"    ✗ Unexpected error: {e}")
+                        logger.error("Unexpected error in track comparison: %s", e)
                         failed_count += 1
 
                     try:
@@ -483,7 +484,7 @@ class PlotDataGenerator:
                         else:
                             failed_count += 1
                     except Exception as e:
-                        print(f"    ✗ Unexpected error: {e}")
+                        logger.error("Unexpected error in throttle/brake comparison: %s", e)
                         failed_count += 1
 
             # Lap time distributions
@@ -495,10 +496,10 @@ class PlotDataGenerator:
                         else:
                             failed_count += 1
                     except Exception as e:
-                        print(f"    ✗ Unexpected error: {e}")
+                        logger.error("Unexpected error in lap times distribution: %s", e)
                         failed_count += 1
 
-        print(f"\n  Summary: {success_count} succeeded, {failed_count} failed")
+        logger.info("Summary: %s succeeded, %s failed", success_count, failed_count)
         return {'success': success_count, 'failed': failed_count}
 
     def get_session_drivers(self, year: int, round_num: int, session_name: str) -> List[str]:
@@ -520,7 +521,7 @@ class PlotDataGenerator:
             drivers = pd.unique(session.laps['Driver'])
             return list(drivers)
         except Exception as e:
-            print(f"Error getting drivers: {e}")
+            logger.error("Error getting drivers: %s", e)
             return []
 
     def generate_default_driver_comparisons(self, year: int, round_num: int, session_name: str, 
@@ -552,8 +553,10 @@ class PlotDataGenerator:
                     fastest_lap = session.laps.pick_driver(drv).pick_fastest()
                     if len(fastest_lap) > 0:
                         fastest_laps.append({'driver': drv, 'time': fastest_lap['LapTime']})
-                except:
-                    pass
+                except Exception as exc:
+                    # A driver with no timed lap is normal (DNS/immediate DNF);
+                    # scoped to Exception so Ctrl-C still stops this worker.
+                    logger.debug("No fastest lap for %s: %s", drv, exc)
             
             # Sort by lap time
             fastest_laps_sorted = sorted(fastest_laps, key=lambda x: x['time'])
@@ -568,26 +571,24 @@ class PlotDataGenerator:
                 driver_pairs=driver_pairs,
                 drivers_for_laptimes=top_drivers
             )
-            
+
         except Exception as e:
-            print(f"Error generating default comparisons: {e}")
-            traceback.print_exc()
+            logger.error("Error generating default comparisons: %s", e)
+            logger.exception("Traceback for default comparisons error")
             return {'success': 0, 'failed': 0}
 
     def print_summary(self):
-        """Print generation summary"""
-        print(f"\n{'='*60}")
-        print("GENERATION SUMMARY")
-        print(f"{'='*60}")
-        print(f"✓ Successful: {len(self.results['success'])}")
-        print(f"✗ Failed: {len(self.results['failed'])}")
-        
-        if self.results['failed']:
-            print(f"\nFailed operations:")
-            for failure in self.results['failed']:
-                print(f"  - {failure}")
+        """Log generation summary"""
+        logger.info("GENERATION SUMMARY")
+        logger.info("Successful: %s", len(self.results['success']))
+        logger.info("Failed: %s", len(self.results['failed']))
 
-    def generate_year_data(self, year: int, include_comparisons: bool = False, 
+        if self.results['failed']:
+            logger.info("Failed operations:")
+            for failure in self.results['failed']:
+                logger.info("  - %s", failure)
+
+    def generate_year_data(self, year: int, include_comparisons: bool = False,
                           session_types: Optional[List[str]] = None,
                           skip_practice: bool = True) -> Dict[str, int]:
         """
@@ -596,16 +597,14 @@ class PlotDataGenerator:
         Args:
             year: Race year
             include_comparisons: Whether to include driver comparisons (auto-detect top drivers)
-            session_types: List of session types to include (e.g., ['Qualifying', 'Race']). 
+            session_types: List of session types to include (e.g., ['Qualifying', 'Race']).
                           If None, includes all sessions.
             skip_practice: Whether to skip practice sessions (default True)
 
         Returns:
             Dictionary with total counts of successful and failed generations
         """
-        print(f"\n{'='*60}")
-        print(f"GENERATING DATA FOR ENTIRE {year} SEASON")
-        print(f"{'='*60}")
+        logger.info("GENERATING DATA FOR ENTIRE %s SEASON", year)
 
         total_success = 0
         total_failed = 0
@@ -613,16 +612,14 @@ class PlotDataGenerator:
         try:
             # Get the schedule for the year
             schedule = fastf1.get_event_schedule(year)
-            
-            print(f"\nFound {len(schedule)} events in {year} season")
+
+            logger.info("Found %s events in %s season", len(schedule), year)
             
             for idx, event in schedule.iterrows():
                 event_name = event['EventName']
                 round_num = event['RoundNumber']
-                
-                print(f"\n{'-'*60}")
-                print(f"Event {round_num}: {event_name}")
-                print(f"{'-'*60}")
+
+                logger.info("Event %s: %s", round_num, event_name)
                 
                 # Get available sessions for this event
                 # Typical sessions: FP1, FP2, FP3, Qualifying, Sprint, Race
@@ -645,65 +642,66 @@ class PlotDataGenerator:
                         test_session = fastf1.get_session(year, round_num, session_name)
                         if test_session is not None:
                             available_sessions.append(session_name)
-                    except:
-                        pass
+                    except Exception as exc:
+                        # Session simply not on the calendar for this round.
+                        logger.debug(
+                            "Session %s unavailable for %s round %s: %s",
+                            session_name, year, round_num, exc,
+                        )
                 
                 # Filter sessions based on parameters
                 sessions_to_process = []
                 for session in available_sessions:
                     # Skip practice if requested
                     if skip_practice and 'Practice' in session:
-                        print(f"  ⊘ Skipping {session}")
+                        logger.debug("Skipping %s", session)
                         continue
-                    
+
                     # Filter by session_types if provided
                     if session_types is not None:
                         if session not in session_types and session_map.get(session) not in session_types:
-                            print(f"  ⊘ Skipping {session} (not in filter)")
+                            logger.debug("Skipping %s (not in filter)", session)
                             continue
-                    
+
                     sessions_to_process.append(session)
                 
                 # Process each session
                 for session_name in sessions_to_process:
                     try:
-                        print(f"\n  📊 Processing: {session_name}")
-                        
+                        logger.info("Processing: %s", session_name)
+
                         if include_comparisons:
                             result = self.generate_default_driver_comparisons(year, round_num, session_name)
                         else:
                             result = self.generate_all_session_data(year, round_num, session_name)
-                        
+
                         total_success += result.get('success', 0)
                         total_failed += result.get('failed', 0)
-                        
+
                     except Exception as e:
-                        print(f"    ✗ Error processing {session_name}: {e}")
+                        logger.error("Error processing %s: %s", session_name, e)
+                        logger.exception("Traceback for session processing")
                         total_failed += 1
-                        traceback.print_exc()
-                
+
                 if not sessions_to_process:
-                    print(f"  ℹ No sessions to process for this event")
-            
-            print(f"\n{'='*60}")
-            print(f"YEAR {year} SUMMARY")
-            print(f"{'='*60}")
-            print(f"✓ Total Successful: {total_success}")
-            print(f"✗ Total Failed: {total_failed}")
-            print(f"{'='*60}")
-            
+                    logger.info("No sessions to process for this event")
+
+            logger.info("YEAR %s SUMMARY", year)
+            logger.info("Total Successful: %s", total_success)
+            logger.info("Total Failed: %s", total_failed)
+
             return {'success': total_success, 'failed': total_failed}
-            
+
         except Exception as e:
-            print(f"\n✗ Error generating year data: {e}")
-            traceback.print_exc()
+            logger.error("Error generating year data: %s", e)
+            logger.exception("Traceback for year data error")
             return {'success': total_success, 'failed': total_failed}
 
     def close(self):
         """Close database connection"""
         if self.db_manager:
             self.db_manager.close()
-            print("\n✓ Database connection closed")
+            logger.info("Database connection closed")
 
 
 # Convenience functions for quick usage
@@ -732,7 +730,7 @@ def generate_session_data(year: int, round_num: int, session_name: str,
         generator.close()
 
 
-def generate_multiple_sessions(sessions: List[Tuple[int, int, str]], 
+def generate_multiple_sessions(sessions: List[Tuple[int, int, str]],
                                use_mongo: bool = True,
                                include_comparisons: bool = False):
     """
@@ -744,7 +742,7 @@ def generate_multiple_sessions(sessions: List[Tuple[int, int, str]],
         include_comparisons: Whether to include driver comparisons
     """
     generator = PlotDataGenerator(use_mongo=use_mongo)
-    
+
     try:
         for year, round_num, session_name in sessions:
             try:
@@ -753,9 +751,9 @@ def generate_multiple_sessions(sessions: List[Tuple[int, int, str]],
                 else:
                     generator.generate_all_session_data(year, round_num, session_name)
             except Exception as e:
-                print(f"\n✗ Error processing Y{year} R{round_num} {session_name}: {e}")
-                traceback.print_exc()
-        
+                logger.error("Error processing Y%s R%s %s: %s", year, round_num, session_name, e)
+                logger.exception("Traceback for session processing error")
+
         generator.print_summary()
     finally:
         generator.close()

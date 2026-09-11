@@ -16,6 +16,7 @@ team_colors = {
     "Williams": "#64C4FF",
 }
 
+
 def get_team_color(team):
 
     team_aliases = {
@@ -43,8 +44,6 @@ def get_team_color(team):
         "Red Bull Racing": "#3671C6",
         "Williams": "#64C4FF",
     }
-
-
 
     team = team.lower().strip()
 

@@ -242,7 +242,7 @@ body::before {{
   <div class="telem-panel">
     <div>
       <div class="telem-label">Endpoints active</div>
-      <div class="telem-value accent">247</div>
+      <div class="telem-value accent">190+</div>
       <div class="telem-bar-wrap"><div class="telem-bar" style="width:82%"></div></div>
     </div>
     <div class="telem-divider"></div>
@@ -319,8 +319,8 @@ body::before {{
     <div>
       <div class="info-title">Endpoints</div>
       <div class="endpoint-list">
-        <div class="endpoint"><span class="method">GET</span><span class="path">/api/v2/analysis</span></div>
-        <div class="endpoint"><span class="method">GET</span><span class="path">/api/v2/seasonal</span></div>
+        <div class="endpoint"><span class="method">GET</span><span class="path">/api/v2/dashboard</span></div>
+        <div class="endpoint"><span class="method">GET</span><span class="path">/api/v2/qualifying-results-data</span></div>
         <div class="endpoint"><span class="method">GET</span><span class="path">/api/health</span></div>
       </div>
     </div>

@@ -15,18 +15,21 @@ matplotlib.use("Agg")  # Must precede any import that could pull in pyplot.
 
 import asyncio  # noqa: E402
 from contextlib import asynccontextmanager  # noqa: E402
-from datetime import datetime  # noqa: E402
+from datetime import datetime, timezone  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 from fastapi import FastAPI, HTTPException, Request, status  # noqa: E402
 from fastapi.concurrency import run_in_threadpool  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import JSONResponse, ORJSONResponse  # noqa: E402
+from fastapi.staticfiles import StaticFiles  # noqa: E402
 from slowapi import _rate_limit_exceeded_handler  # noqa: E402
 from slowapi.errors import RateLimitExceeded  # noqa: E402
 
 from src.api.docs_auth import setup_docs_auth  # noqa: E402
+from src.api.schemas.common import ErrorEnvelope  # noqa: E402
 from src.api.schemas.health import HealthCheckResponse  # noqa: E402
-from src.core.config import settings  # noqa: E402
+from src.core.config import check_production_safety, settings  # noqa: E402
 from src.core.exceptions import (  # noqa: E402
     DataNotAvailableError,
     SessionNotFoundError,
@@ -46,6 +49,19 @@ from src.workers.processor import (  # noqa: E402
     start_background_processor,
     stop_background_processor,
 )
+from src.workers.circuits_sync import (  # noqa: E402
+    start_circuits_sync,
+    stop_circuits_sync,
+)
+
+
+def _now_iso() -> str:
+    """Timezone-aware UTC timestamp for error envelopes.
+
+    ``datetime.utcnow()`` is deprecated from 3.12 and produced a *naive*
+    timestamp with no offset, which clients could not interpret unambiguously.
+    """
+    return datetime.now(timezone.utc).isoformat()
 
 
 SWAGGER_UI_PARAMETERS = {
@@ -58,65 +74,245 @@ SWAGGER_UI_PARAMETERS = {
 }
 
 DESCRIPTION = """
-# T1API - Formula 1 Telemetry Analysis
+# T1API — Formula 1 Telemetry Analysis
 
-This API provides advanced telemetry analysis for Formula 1 sessions.
-It powers the dashboards at **t1f1.com** and **turnonehub.com**.
+Telemetry, timing and seasonal analysis for Formula 1 sessions, powering the
+dashboards at **t1f1.com** and **turnonehub.com**.
+
+Most features are available two ways: a `-plot` endpoint returning a rendered
+**PNG**, and a `-data` endpoint returning the same analysis as **JSON**.
+
+## Versions
+
+| | |
+|---|---|
+| **v2** (`/api/v2`) | Current. Built on the F1 live-timing feed. **Use this.** |
+| **v1** (`/api/v1`) | Deprecated. FastF1-backed. Still served; every endpoint names its v2 replacement. |
+
+v2 falls back to the v1 data source automatically when live-timing lacks data, so
+a v2 endpoint may still answer for older sessions.
 
 ## Authentication
-All endpoints require an API key passed via the `X-API-Key` header.
 
-## Features
-* **Daily Data**: High-level daily summary plots
-* **Telemetry Comparison**: Throttle, brake, and speed comparisons between drivers
-* **Qualifying Analysis**: Lap time distributions and top speed charts
-* **Dashboards**: Aggregated data for specific race sessions
+Most endpoints require an API key in the `X-API-Key` header.
 
-## Rate Limits
-The API implements tiered rate limiting:
-- **Public**: 30 requests/minute (unauthenticated)
-- **Standard**: 100 requests/minute (with API key)
-- **Premium**: 300 requests/minute (premium API keys)
-- **Data endpoints**: 60 requests/minute (separate counter)
+* `/api/static/*` — currently served **without** authentication.
+* `/api/auth/*`, `/api/keys/*`, `/api/me/*` — use a **JWT bearer token**, not an API key.
+  Sign up via `/api/auth/signup`, then mint keys at `/api/keys`.
+* `/api/admin/*` and `/metrics` — require an **operator** key. Ordinary consumer keys are
+  rejected.
 
-## Usage
-All endpoints support both plot (PNG) and data (JSON) responses.
+A newly created key is shown **once** and stored hashed; it cannot be retrieved again.
+
+## Rate limits
+
+Applied per key (unauthenticated callers are bucketed by IP):
+
+| Tier | Per minute | Per hour |
+|---|---|---|
+| Public (no key) | 30 | 500 |
+| Standard | 100 | 2,000 |
+| Premium | 300 | 10,000 |
+
+Data-heavy endpoints carry a separate 60/min counter. Exceeding a limit returns
+**429** with a `Retry-After` header.
+
+## Caching
+
+Historical session data never changes once processed, so those responses are
+`private, max-age=86400, immutable` and carry a weak `ETag` — send `If-None-Match`
+to get a **304** and skip the transfer. `/api/v2/dashboard` is the exception: it
+tracks the latest session and is revalidated frequently.
+
+## CSV export
+
+Append `?format=csv` to any JSON endpoint under `/api/v1` or `/api/v2` to receive the
+same payload as CSV, with a `Content-Disposition` filename for direct download.
+
+Without the parameter responses are unchanged. Per-driver series (for example
+race gaps, which nest a `laps` array under each driver) are expanded to long
+format, one row per element with the driver columns repeated. Endpoints whose
+payload has no tabular shape — `/api/v2/dashboard`, for instance — return **400**
+rather than a misleading partially-flattened file.
+
+## Errors
+
+Errors share a common envelope carrying `detail`, a `request_id` for correlating
+with server logs, and a `timestamp`. Session-addressed endpoints add richer
+shapes: **404** may include `valid_rounds`/`suggestions`, and **503** distinguishes
+*data not yet available upstream* from *an upstream source being down*, both with
+`Retry-After`.
 """
 
 TAGS_METADATA = [
-    {"name": "General", "description": "System health, welcome messages, and daily summaries"},
-    {"name": "Monitoring", "description": "Observability, metrics, request tracing, and system monitoring"},
-    {"name": "API v1", "description": "Version 1 API endpoints - Analysis and seasonal data"},
-    {"name": "API v2", "description": "Version 2 API endpoints - Analysis and seasonal data"},
-    {"name": "Latest Session", "description": "Aggregated data for the main frontend dashboard"},
-    {"name": "Seasonal Data", "description": "Season-specific data including drivers, teams, and race schedules"},
-    {"name": "Simple Analysis", "description": "Analysis focused on general session stats or single driver metrics"},
-    {"name": "Driver Comparison", "description": "Head-to-head driver comparisons"},
-    {"name": "Static", "description": "Static data endpoints for drivers, teams, and race schedules"},
+    # Order here is the order Swagger renders the groups, so the surface reads
+    # top-down: what the API is, then the data, then operations, then the
+    # deprecated tail. Every tag a router actually uses must appear here --
+    # undeclared tags render without a description and in arbitrary order.
+    {
+        "name": "General",
+        "description": "Service metadata: welcome payload and health checks.",
+    },
+    {
+        "name": "Latest Session",
+        "description": (
+            "Aggregated payload for the most recently completed session. "
+            "Powers the main dashboard. Unlike the rest of v2 this response is "
+            "**not** immutable -- it changes as a race weekend progresses."
+        ),
+    },
+    {
+        "name": "Simple Analysis",
+        "description": (
+            "Single-session, whole-field metrics: top speeds, throttle traces "
+            "and speed distributions."
+        ),
+    },
+    {
+        "name": "Qualifying",
+        "description": "Qualifying results, lap-time analysis and track comparison.",
+    },
+    {
+        "name": "Pace Analysis",
+        "description": "Driver and constructor race-pace comparisons.",
+    },
+    {
+        "name": "Race Analysis",
+        "description": (
+            "Race-only features: position changes, gaps, tyre degradation, pit "
+            "strategy, weather and race story."
+        ),
+    },
+    {
+        "name": "Telemetry",
+        "description": (
+            "Per-lap and per-corner telemetry: track maps, corner duels, "
+            "driver radars and full lap data."
+        ),
+    },
+    {
+        "name": "Driver Comparison",
+        "description": "Head-to-head comparisons between two drivers.",
+    },
+    {
+        "name": "Seasonal Data",
+        "description": (
+            "Season-scoped data: event schedules, sessions, teammate battles "
+            "and form guides."
+        ),
+    },
+    {
+        "name": "Static",
+        "description": (
+            "Reference data that changes rarely: drivers, teams and circuits."
+        ),
+    },
+    {
+        "name": "Auth",
+        "description": (
+            "Account signup/login and self-service API key management. "
+            "These endpoints use a JWT bearer token, not an API key."
+        ),
+    },
+    {
+        "name": "Monitoring",
+        "description": (
+            "Observability: metrics, request tracing and system health. "
+            "Operator-only."
+        ),
+    },
+    {
+        "name": "Admin",
+        "description": (
+            "Operational endpoints for data backfill, cache and backups. "
+            "Requires an operator key from `ADMIN_API_KEYS`; ordinary consumer "
+            "keys are rejected."
+        ),
+    },
+    {
+        "name": "Admin UI",
+        "description": "Cookie-authenticated HTML console. Hidden from this schema.",
+    },
+    {
+        "name": "API v2",
+        "description": (
+            "Current analysis API, backed by the F1 live-timing feed. "
+            "**Prefer these endpoints for all new integrations.**"
+        ),
+    },
+    {
+        "name": "API v1",
+        "description": (
+            "**Deprecated.** FastF1-backed predecessor to v2, retained for "
+            "compatibility. Every v1 endpoint has a v2 equivalent; see each "
+            "operation's description for its replacement."
+        ),
+    },
 ]
+
+
+def _init_sentry(logger) -> None:
+    """Initialise Sentry error tracking when a DSN is configured.
+
+    The settings (``sentry_dsn``, ``sentry_environment``,
+    ``sentry_traces_sample_rate``) and the dependency have been present for a
+    long time, but ``sentry_sdk.init()`` was never actually called, so every
+    production error went unreported. No DSN means no-op, so this is safe in
+    development and in tests.
+    """
+    if not settings.sentry_dsn:
+        return
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+        from sentry_sdk.integrations.starlette import StarletteIntegration
+
+        sentry_sdk.init(
+            dsn=settings.sentry_dsn,
+            environment=settings.sentry_environment,
+            traces_sample_rate=settings.sentry_traces_sample_rate,
+            release=settings.app_version,
+            integrations=[StarletteIntegration(), FastApiIntegration()],
+            # Request bodies can carry API keys; headers are scrubbed by
+            # Sentry's default denylist but bodies are not.
+            send_default_pii=False,
+        )
+        logger.info("Sentry initialised (environment=%s)", settings.sentry_environment)
+    except Exception as exc:  # never let telemetry break startup
+        logger.warning("Sentry initialisation failed: %s", exc)
 
 
 def create_app() -> FastAPI:
     setup_logging(level=settings.log_level, log_file=settings.log_file)
     logger = get_logger(__name__)
 
+    _init_sentry(logger)
+
     limiter = init_limiter()
 
     # Routers MUST be imported after init_limiter() (decorators bind at import).
     from src.api.routers.admin import router as admin_router
+    from src.api.routers.admin_cache import router as admin_cache_router
+    from src.api.routers.admin_circuits import router as admin_circuits_router
+    from src.api.routers.admin_data import router as admin_data_router
+    from src.api.routers.admin_storage import router as admin_storage_router
     from src.api.routers.admin_ui import router as admin_ui_router
     from src.api.routers.backup_admin import router as backup_admin_router
     from src.api.routers.analysis_v1 import router as analysis_router_v1
     from src.api.routers.analysis_v2 import router as analysis_router_v2
     from src.api.routers.auth import router as auth_router
     from src.api.routers.circuits_api import router as circuits_api_router
+    from src.api.routers.batch_v2 import router as batch_router
+    from src.api.routers.discovery_v2 import router as discovery_router
     from src.api.routers.drivers_api import router as drivers_api_router
+    from src.api.routers.media_api import router as media_api_router
     from src.api.routers.keys import router as keys_router, me_router
     from src.api.routers.monitoring import router as monitoring_router
     from src.api.routers.seasonal_v1 import router as seasonal_router_v1
     from src.api.routers.seasonal_v2 import router as seasonal_router_v2
     from src.api.routers.standings_v2 import router as standings_router_v2
     from src.api.routers.teams_api import router as teams_api_router
+    from src.api.routers.telemetry_v2 import router as telemetry_router_v2
 
     try:
         session_tracker = SessionTracker()
@@ -129,6 +325,12 @@ def create_app() -> FastAPI:
     async def lifespan(app: FastAPI):
         logger.info(f"Starting {settings.app_name} v{settings.app_version}")
         logger.info(f"Environment: {settings.environment}")
+
+        # Refuse to serve a production process that is configured to fail open
+        # (default secrets, dev auth bypass, wildcard CORS with credentials).
+        # Raises InsecureConfigurationError on a fatal finding.
+        for warning in check_production_safety():
+            logger.warning("Configuration: %s", warning)
         logger.info(f"CORS Origins: {settings.cors_origins_list}")
         logger.info(
             "Rate limiting - "
@@ -147,9 +349,22 @@ def create_app() -> FastAPI:
         try:
             from src.repositories.mongo import ensure_indexes
             created = ensure_indexes()
-            logger.info(f"MongoDB indexes ready: {sum(len(v) for v in created.values())} across {len(created)} collections")
+            total = sum(len(v) for v in created.values())
+            logger.info(f"MongoDB indexes ready: {total} across {len(created)} collections")
         except Exception as e:
             logger.warning(f"ensure_indexes() failed: {e}")
+
+        # Re-materialise circuit layouts that exist only in MongoDB. docker-compose
+        # does not mount src/, so a layout written at runtime (circuits_sync, or a
+        # telemetry-derived one for a brand-new circuit) is lost on rebuild; the
+        # Mongo mirror is the durable copy. Never blocks startup.
+        try:
+            from src.ingestion.circuits_store import hydrate_from_mongo
+            restored = await asyncio.to_thread(hydrate_from_mongo)
+            if restored:
+                logger.info(f"Circuit layouts re-materialised from MongoDB: {restored}")
+        except Exception as e:
+            logger.warning(f"Circuit layout hydrate failed (continuing): {e}")
 
         # Initialize Redis response cache (graceful no-op if unavailable).
         try:
@@ -164,6 +379,13 @@ def create_app() -> FastAPI:
             processor_task = asyncio.create_task(start_background_processor())
         else:
             logger.info("Background processor disabled in configuration")
+
+        circuits_sync_task = None
+        if settings.enable_circuits_sync:
+            logger.info(f"Starting circuits sync worker (interval: {settings.circuits_sync_interval_seconds}s)")
+            circuits_sync_task = asyncio.create_task(start_circuits_sync())
+        else:
+            logger.info("Circuits sync worker disabled in configuration")
 
         backup_scheduler = None
         if settings.backup_enabled:
@@ -188,6 +410,13 @@ def create_app() -> FastAPI:
                 pass
         if backup_scheduler:
             await backup_scheduler.stop()
+        if circuits_sync_task:
+            await stop_circuits_sync()
+            circuits_sync_task.cancel()
+            try:
+                await circuits_sync_task
+            except asyncio.CancelledError:
+                pass
         try:
             from src.core.cache.redis_cache import close_redis_cache
             await close_redis_cache()
@@ -207,11 +436,37 @@ def create_app() -> FastAPI:
         },
         license_info={"name": "Proprietary / Internal Use"},
         openapi_tags=TAGS_METADATA,
+        # Declared so "Try it out" targets the right host instead of whatever
+        # origin happens to be serving the docs page.
+        servers=[
+            {"url": "https://api.t1f1.com", "description": "Production"},
+            {"url": "http://localhost:5000", "description": "Local development"},
+        ],
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
     )
     setup_docs_auth(app, settings, SWAGGER_UI_PARAMETERS)
+
+    # Admin console assets (stylesheet + shared JS). Mounted rather than inlined
+    # so the ~500 lines of CSS are fetched once and cached, instead of being
+    # duplicated into every admin page render. Contains no sensitive data; the
+    # pages themselves stay behind the cookie-session + IP-allowlist gates.
+    _static_dir = Path(__file__).resolve().parent / "static"
+    if _static_dir.is_dir():
+        app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
+    else:  # pragma: no cover - only if the package is installed without assets
+        logger.warning("Static assets directory missing at %s", _static_dir)
+
+    # Curated media assets (driver portraits, team logos, fonts, logos) served
+    # read-only at /assets. The media_api router 302-redirects here; a CDN in
+    # front of the app can cache these bytes indefinitely.
+    _assets_dir = Path(__file__).resolve().parents[2] / "assets"
+    if _assets_dir.is_dir():
+        app.mount("/assets", StaticFiles(directory=str(_assets_dir)), name="assets")
+    else:  # pragma: no cover - repo always ships assets/
+        logger.warning("Media assets directory missing at %s", _assets_dir)
+
     app.state.limiter = limiter
     app.state.session_tracker = session_tracker
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -228,7 +483,14 @@ def create_app() -> FastAPI:
     # Weak-ETag short-circuiting + immutable Cache-Control for cacheable V2 GET
     # endpoints (historical F1 session data never changes once processed).
     from src.api.http_cache import DEFAULT_MAX_AGE_SECONDS
+    from src.api.middleware.csv_export import CSVExportMiddleware
     from src.api.middleware.etag import ETagMiddleware
+
+    # Order matters. Starlette applies the LAST-added middleware outermost, so
+    # adding CSV first and ETag second means ETag wraps CSV -- the ETag is
+    # therefore computed over the CSV bytes actually served, not over the JSON
+    # they were rendered from.
+    app.add_middleware(CSVExportMiddleware, path_prefixes=("/api/v1/", "/api/v2/"))
     app.add_middleware(
         ETagMiddleware,
         path_prefixes=("/api/v2/",),
@@ -247,7 +509,7 @@ def create_app() -> FastAPI:
             content={
                 "detail": "Internal server error",
                 "request_id": request_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": _now_iso(),
             },
         )
 
@@ -274,7 +536,7 @@ def create_app() -> FastAPI:
             content={
                 "detail": exc.detail,
                 "request_id": request_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": _now_iso(),
             },
         )
 
@@ -298,7 +560,7 @@ def create_app() -> FastAPI:
                 "sources_tried": exc.sources_tried,
                 "retry_after_seconds": 300,
                 "request_id": request_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": _now_iso(),
             },
         )
 
@@ -318,7 +580,7 @@ def create_app() -> FastAPI:
                 "source": exc.source,
                 "retry_after_seconds": 60,
                 "request_id": request_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": _now_iso(),
             },
         )
 
@@ -336,7 +598,7 @@ def create_app() -> FastAPI:
             "gp": exc.gp,
             "session": exc.session,
             "request_id": request_id,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": _now_iso(),
         }
         if exc.valid_rounds:
             payload["valid_rounds"] = exc.valid_rounds
@@ -356,7 +618,7 @@ def create_app() -> FastAPI:
             content={
                 "detail": str(exc),
                 "request_id": request_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": _now_iso(),
             },
         )
 
@@ -369,7 +631,16 @@ def create_app() -> FastAPI:
             headers={"Cache-Control": "public, max-age=86400", "X-Robots-Tag": "noindex"},
         )
 
-    @app.get("/", tags=["General"])
+    @app.get(
+        "/",
+        tags=["General"],
+        summary="Service banner",
+        operation_id="root_welcome",
+        description=(
+            "Unauthenticated service banner: name, running version, and where to "
+            "find the documentation and health check."
+        ),
+    )
     async def welcome():
         return {
             "message": "Welcome to the T1API",
@@ -378,7 +649,23 @@ def create_app() -> FastAPI:
             "health": "/api/health",
         }
 
-    @app.get("/api/health", tags=["General"], response_model=HealthCheckResponse)
+    @app.get(
+        "/api/health",
+        tags=["General"],
+        response_model=HealthCheckResponse,
+        summary="Health check",
+        operation_id="health_check",
+        description=(
+            "Liveness and dependency check. Unauthenticated, so it can be used as "
+            "a container or load-balancer probe. "
+            "Returns `status: healthy` when MongoDB is reachable, `degraded` when "
+            "it is not (the API can still serve cached responses), and **503** if "
+            "the check itself fails."
+        ),
+        responses={
+            503: {"model": ErrorEnvelope, "description": "Service unhealthy."},
+        },
+    )
     @limiter.limit(f"{settings.rate_limit_public_per_minute}/minute")
     async def health_check(request: Request):
         try:
@@ -414,6 +701,10 @@ def create_app() -> FastAPI:
 
     app.include_router(monitoring_router)
     app.include_router(admin_router)
+    app.include_router(admin_cache_router)
+    app.include_router(admin_data_router)
+    app.include_router(admin_storage_router)
+    app.include_router(admin_circuits_router)
     app.include_router(admin_ui_router)
     app.include_router(backup_admin_router)
     app.include_router(auth_router)
@@ -426,6 +717,10 @@ def create_app() -> FastAPI:
     app.include_router(standings_router_v2)
     app.include_router(drivers_api_router)
     app.include_router(teams_api_router)
+    app.include_router(media_api_router)
     app.include_router(circuits_api_router)
+    app.include_router(discovery_router)
+    app.include_router(batch_router)
+    app.include_router(telemetry_router_v2)
 
     return app

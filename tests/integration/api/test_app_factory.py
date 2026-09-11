@@ -40,9 +40,16 @@ def test_404_for_unknown_route(client):
     assert resp.status_code == 404
 
 
-def test_metrics_endpoint_returns_prometheus_format(client):
+def test_metrics_endpoint_requires_admin(client):
+    """/metrics is operator-only.
+
+    It was previously unauthenticated and in-schema, publishing internal
+    endpoint names, traffic volumes, error rates -- and, via the per-key
+    counter label, a prefix of every API key ever presented.
+    """
     resp = client.get("/metrics")
-    assert resp.status_code == 200
-    # Prometheus exposition format always has a HELP or TYPE line.
-    body = resp.text
-    assert "# HELP" in body or "# TYPE" in body or len(body) >= 0
+    assert resp.status_code in (401, 403)
+
+
+def test_metrics_endpoint_is_hidden_from_schema(client):
+    assert "/metrics" not in client.get("/openapi.json").json()["paths"]

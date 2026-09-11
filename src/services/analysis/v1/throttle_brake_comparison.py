@@ -2,11 +2,14 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import json
 
+from src.core.logging import get_logger
 from src.services.plotting import output as dirOrg
 from src.ingestion import fastf1_client as data_aqcuisition
 from src.services.plotting import theme as setup_theme
 from src.services.plotting.colors import team_colors, teams, get_team_color, get_driver_color
 from src.repositories.plots import store_data_dict_to_mongo, get_plot_data_from_mongo
+
+logger = get_logger(__name__)
 
 def _init(y, r, e, d1, d2, session):
     dirOrg.checkForFolder(str(y) + "/" + session.event['EventName'] + "/" + e)
@@ -16,8 +19,13 @@ def _init(y, r, e, d1, d2, session):
     return location, name, name_json
 
 def throttle_graph(y,r,e,d1,d2):
+    # Cache key is parametrized by the driver pair — otherwise the first pair
+    # ever queried for a (year, round, session) would be served back for
+    # every other pair requested afterward.
+    cache_key = f'throttle_brake_comparison_{d1}_{d2}'
+
     # Check MongoDB cache first (before loading session)
-    cached_data = get_plot_data_from_mongo(y, r, e, 'throttle_brake_comparison')
+    cached_data = get_plot_data_from_mongo(y, r, e, cache_key)
     if cached_data:
         # Load session only for metadata
         sessionloader = data_aqcuisition.SessionLoader(y, r, e)
@@ -112,8 +120,11 @@ def throttle_graph(y,r,e,d1,d2):
     return location + "/" + name
 
 def throttle_graph_data(y,r,e,d1,d2):
+    # Cache key is parametrized by the driver pair — see throttle_graph.
+    cache_key = f'throttle_brake_comparison_{d1}_{d2}'
+
     # Check MongoDB cache first (before loading session)
-    cached_result = get_plot_data_from_mongo(y, r, e, 'throttle_brake_comparison')
+    cached_result = get_plot_data_from_mongo(y, r, e, cache_key)
     if cached_result:
         # Return cached data directly, no need to save to file
         return cached_result['data']
@@ -206,14 +217,14 @@ def throttle_graph_data(y,r,e,d1,d2):
                 round_nr=r,
                 session_name=e,
                 event_name=event_name,
-                data_type='throttle_brake_comparison',
+                data_type=cache_key,
                 data=json_data,
                 version='v1'
             )
         except Exception as e:
-            print(f"Warning: Failed to store to MongoDB: {e}")
+            logger.warning("Failed to store to MongoDB: %s", e)
         
         return json_data  # Return data directly
 
     except Exception as e:
-        print(f"Error generating telemetry data for drivers")
+        logger.error("Error generating telemetry data for drivers")

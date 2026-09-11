@@ -4,11 +4,14 @@ import matplotlib.image as mpimg
 import numpy as np
 from typing import Optional
 
+from src.core.logging import get_logger
 from src.services.plotting import output as dirOrg
 from src.ingestion import fastf1_client as data_aqcuisition
 from src.services.plotting import theme as setup_theme
 from src.services.plotting.colors import get_driver_color, team_colors
 from src.repositories.plots import store_data_dict_to_mongo, get_plot_data_from_mongo
+
+logger = get_logger(__name__)
 
 def _init(y: int, r: int, e: str, session, driver: Optional[str] = None):
     event_folder = session.event['EventName'].replace(' ', '')
@@ -172,24 +175,24 @@ def SpeedDistributionData(y: int, r: int, e: str, driver: Optional[str] = None, 
                 version='v1'
             )
         except Exception as ex:
-            print(f"Warning: Failed to store to MongoDB: {ex}")
-            
+            logger.warning("Failed to store to MongoDB: %s", ex)
+
     return data_list
 
 if __name__ == "__main__":
-    print("Testing V1 Speed Distribution...")
+    logger.info("Testing V1 Speed Distribution...")
     try:
         plot_path = SpeedDistributionPlot(2023, 14, "Race", driver="VER")
-        print(f"Plot saved to: {plot_path}")
-        
+        logger.info("Plot saved to: %s", plot_path)
+
         data = SpeedDistributionData(2023, 14, "Race", driver="VER")
-        print(f"Data length: {len(data)}")
-        
-        print("\nTesting V1 Overall Fastest Lap...")
+        logger.info("Data length: %s", len(data))
+
+        logger.info("Testing V1 Overall Fastest Lap...")
         plot_path_overall = SpeedDistributionPlot(2023, 14, "Race")
-        print(f"Plot saved to: {plot_path_overall}")
+        logger.info("Plot saved to: %s", plot_path_overall)
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error("Error: %s", e)
         import traceback
         traceback.print_exc()
 

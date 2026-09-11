@@ -40,7 +40,7 @@ import matplotlib.pyplot as plt
 from src.core.exceptions import DataNotAvailableError
 from src.core.logging import get_logger
 from src.services.analysis.base import cached_or_generate
-from src.services.analysis.v2._helpers import parse_f1_time
+from src.services.analysis.v2._helpers import assert_session_type, parse_f1_time
 from src.services.analysis.v2._race_helpers import extract_lap_times
 from src.services.analysis.v2.session_store import SessionDataStore
 from src.services.plotting import colors as colors_module
@@ -67,18 +67,6 @@ def _init(y: int, event_name: str, session_name: str):
     location = f"outputs/plots/{y}/{event_folder}/{session_name}"
     name = f"Track evolution {y} {event_name} {session_name}.png"
     return location, name
-
-
-def _assert_valid_session(session_name: str, year: int, identifier: Any) -> None:
-    if session_name.strip().upper() not in _VALID_SESSIONS:
-        raise DataNotAvailableError(
-            year=year, gp=identifier, session=session_name,
-            source="livetiming",
-            reason=(
-                "Track evolution is only available for Practice/Qualifying sessions "
-                f"(got {session_name!r})"
-            ),
-        )
 
 
 # ----------------------------------------------------------------------
@@ -228,7 +216,10 @@ class TrackEvolutionData:
         e: str,
         drivers: Optional[str] = None,
     ) -> Dict[str, Any]:
-        _assert_valid_session(e, y, identifier)
+        assert_session_type(
+            e, y, identifier, allowed=_VALID_SESSIONS,
+            feature="Track evolution", sessions_label="Practice/Qualifying",
+        )
         requested_tlas = _parse_drivers_param(drivers)
 
         # Custom driver selections aren't cached under the base key since the
@@ -258,7 +249,10 @@ class TrackEvolutionPlot:
         e: str,
         drivers: Optional[str] = None,
     ) -> str:
-        _assert_valid_session(e, y, identifier)
+        assert_session_type(
+            e, y, identifier, allowed=_VALID_SESSIONS,
+            feature="Track evolution", sessions_label="Practice/Qualifying",
+        )
 
         payload = TrackEvolutionData()(y, identifier, e, drivers)
         if not payload.get("overall"):
@@ -352,15 +346,15 @@ class TrackEvolutionPlot:
 
 
 if __name__ == "__main__":
-    print("Testing V2 Track Evolution...")
+    logger.info("Testing V2 Track Evolution...")
     try:
         data = TrackEvolutionData()(2025, 1, "Q")
-        print(f"Overall points: {len(data['overall'])}")
-        print(f"Drivers: {list(data['drivers'].keys())}")
-        print(f"Weather points: {len(data['weather'])}")
+        logger.info("Overall points: %s", len(data['overall']))
+        logger.info("Drivers: %s", list(data['drivers'].keys()))
+        logger.info("Weather points: %s", len(data['weather']))
         plot_path = TrackEvolutionPlot()(2025, 1, "Q")
-        print(f"Plot: {plot_path}")
+        logger.info("Plot: %s", plot_path)
     except Exception as ex:
-        print(f"Error: {ex}")
+        logger.error("Error: %s", ex)
         import traceback
         traceback.print_exc()

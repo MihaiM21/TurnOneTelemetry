@@ -90,9 +90,16 @@ def _no_cache(monkeypatch):
 # ---------------------------------------------------------------------------
 # Session validation
 # ---------------------------------------------------------------------------
+def _assert_valid_session(session_name, year, identifier):
+    td.assert_session_type(
+        session_name, year, identifier,
+        allowed=td.RACE_SESSIONS, feature="Tyre degradation", sessions_label="Race/Sprint",
+    )
+
+
 def test_assert_valid_session_rejects_qualifying():
     with pytest.raises(DataNotAvailableError):
-        td._assert_valid_session("Q", 2025, 1)
+        _assert_valid_session("Q", 2025, 1)
 
 
 def test_data_call_rejects_qualifying():
@@ -101,8 +108,8 @@ def test_data_call_rejects_qualifying():
 
 
 def test_assert_valid_session_accepts_race_and_sprint():
-    td._assert_valid_session("R", 2025, 1)
-    td._assert_valid_session("Sprint", 2025, 1)
+    _assert_valid_session("R", 2025, 1)
+    _assert_valid_session("Sprint", 2025, 1)
 
 
 # ---------------------------------------------------------------------------

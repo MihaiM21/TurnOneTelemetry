@@ -1,0 +1,77 @@
+{% extends "admin/_base.html" %}
+{% set active_page = 'data' %}
+{% block title %}T1API Admin · Data{% endblock %}
+
+{% block content %}
+<section>
+  <h2>Stored V2 data</h2>
+  <p class="muted small" style="margin-bottom:12px">
+    Everything actually persisted, including parameterized and legacy keys the completeness
+    inventory says nothing about. Deleting a key makes the backfill regenerate it — otherwise
+    a payload built from bad upstream data is reported as present forever.
+  </p>
+  <form class="filters" method="get" action="/admin/data">
+    <div class="field">
+      <label for="year">Year</label>
+      <select id="year" name="year" onchange="this.form.submit()">
+        {% for y in years %}<option value="{{ y }}" {% if year == y %}selected{% endif %}>{{ y }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="gp">Grand Prix</label>
+      <input type="text" id="gp" name="gp" value="{{ gp or '' }}" placeholder="event name or gp_id">
+    </div>
+    <div class="field">
+      <label for="session">Session</label>
+      <select id="session" name="session">
+        <option value="">All</option>
+        {% for s in session_choices %}
+        <option value="{{ s }}" {% if session == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="primary" type="submit">Filter</button>
+  </form>
+</section>
+
+<div class="grid">
+  <div class="stat"><div class="l">Sessions with data</div><div class="v">{{ browse.total_sessions }}</div></div>
+  <div class="stat"><div class="l">Stored data types</div><div class="v">{{ browse.total_data_types }}</div></div>
+</div>
+
+{% if browse.rows %}
+  {% for row in browse.rows %}
+  <section>
+    <div class="roundhdr">
+      <h3>{{ row.event_name or row.gp_id }} · {{ row.session_type }}</h3>
+      <span class="rn">R{{ row.round_nr }} · <code>{{ row.gp_id }}</code> · {{ row.count }} keys</span>
+    </div>
+    <div class="tablewrap">
+    <table>
+      <thead><tr><th>Data type</th><th style="width:120px" data-nosort></th></tr></thead>
+      <tbody>
+        {% for dt in row.data_types %}
+        <tr>
+          <td><code>{{ dt }}</code></td>
+          <td>
+            <form class="inline" method="post" action="/admin/data/delete"
+                  data-confirm="Delete {{ dt }} for {{ row.gp_id }} {{ row.session_type }}? This cannot be undone; it will be regenerated on the next backfill.">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="year" value="{{ row.year }}">
+              <input type="hidden" name="gp_id" value="{{ row.gp_id }}">
+              <input type="hidden" name="session_type" value="{{ row.session_type }}">
+              <input type="hidden" name="data_type" value="{{ dt }}">
+              <button class="danger" type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </section>
+  {% endfor %}
+{% else %}
+  <section><p class="muted">Nothing stored for this scope.</p></section>
+{% endif %}
+{% endblock %}

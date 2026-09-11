@@ -1,34 +1,26 @@
+{# Standalone: no nav or logout link makes sense pre-authentication, so this is
+   the one admin page that does not extend _base.html. It still uses the shared
+   stylesheet so the tokens cannot drift from the rest of the console. #}
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
 <meta name="referrer" content="no-referrer">
 <title>T1API Admin — Login</title>
-<style>
-  :root { --red:#E8002D; --bg:#0C0C0E; --bg2:#131316; --border:rgba(255,255,255,0.08); --text:#F0F0F2; --muted:rgba(240,240,242,0.5); }
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Inter','Helvetica Neue',Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:grid;place-items:center}
-  form{background:var(--bg2);border:1px solid var(--border);padding:32px;width:360px}
-  h1{font-size:18px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px}
-  p.sub{color:var(--muted);font-size:12px;margin-bottom:24px}
-  label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.15em;color:var(--muted);margin:14px 0 6px}
-  input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:10px 12px;font-family:inherit;font-size:14px;outline:none}
-  input:focus{border-color:var(--red)}
-  button{margin-top:20px;width:100%;background:var(--red);color:#fff;border:0;padding:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
-  .err{background:rgba(232,0,45,.12);border:1px solid rgba(232,0,45,.3);color:#FF4D6D;padding:10px;font-size:12px;margin-bottom:16px}
-</style>
+<link rel="stylesheet" href="/static/admin/admin.css">
 </head>
-<body>
+<body class="login">
 <form method="post" action="/admin/login">
   <h1>Admin Console</h1>
   <p class="sub">T1API v{{ version }}</p>
   {% if error %}<div class="err">Invalid credentials.</div>{% endif %}
-  <label>Username</label>
-  <input name="username" autocomplete="username" autofocus required>
-  <label>Password</label>
-  <input name="password" type="password" autocomplete="current-password" required>
-  <button type="submit">Sign in</button>
+  <label for="username">Username</label>
+  <input id="username" name="username" autocomplete="username" autofocus required>
+  <label for="password">Password</label>
+  <input id="password" name="password" type="password" autocomplete="current-password" required>
+  <button class="primary" type="submit">Sign in</button>
 </form>
 </body>
 </html>

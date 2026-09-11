@@ -71,6 +71,20 @@ def stubbed_store(monkeypatch):
     monkeypatch.setattr(store_module, "get_session_bundle", fake_get_bundle)
     monkeypatch.setattr(store_module, "store_session_bundle", fake_store_bundle)
 
+    # Durable raw-stream (GridFS) cache — in-memory double so the raw tier in
+    # ``_cached`` never touches a real database.
+    fake_raw: dict = {}
+
+    def fake_get_raw(year, round_nr, session, stream_name):
+        return fake_raw.get((year, round_nr, session, stream_name))
+
+    def fake_store_raw(year, round_nr, session, stream_name, data):
+        fake_raw[(year, round_nr, session, stream_name)] = data
+        return True
+
+    monkeypatch.setattr(store_module, "get_raw_stream", fake_get_raw)
+    monkeypatch.setattr(store_module, "store_raw_stream", fake_store_raw)
+
     monkeypatch.setattr(
         F1StaticClient, "get_event_info",
         lambda self, year, ident: {
@@ -131,6 +145,7 @@ def stubbed_store(monkeypatch):
     monkeypatch.setattr(store.client.session, "get", fake_get)
     store._call_counts = call_counts  # expose for assertions
     store._fake_mongo = fake_mongo  # expose durable-cache double for assertions
+    store._fake_raw = fake_raw  # expose durable raw-stream double for assertions
     return store
 
 
@@ -263,3 +278,71 @@ def test_derived_accessor_matches_direct_compute(stubbed_store):
     from src.services.analysis.v2._race_helpers import _compute_lap_times
     direct = _compute_lap_times(stubbed_store)
     assert stubbed_store.lap_times() == direct
+
+
+# ----------------------------------------------------------------------
+# Big compressed telemetry accessors (car_data / position_data) + GridFS tier
+# ----------------------------------------------------------------------
+def _stub_compressed(store, monkeypatch, payload):
+    """Stub the client's compressed-stream parser, counting decode calls."""
+    calls = {"n": 0}
+
+    def fake_parse(url):
+        calls["n"] += 1
+        return payload
+
+    monkeypatch.setattr(store.client, "parse_compressed_stream", fake_parse)
+    return calls
+
+
+def test_car_data_parses_and_caches_in_process(stubbed_store, monkeypatch):
+    payload = [{"Entries": [{"Cars": {"1": {"Channels": {"2": 300}}}}]}]
+    calls = _stub_compressed(stubbed_store, monkeypatch, payload)
+
+    assert stubbed_store.car_data() == payload
+    stubbed_store.car_data()
+    stubbed_store.car_data()
+    # In-process cache means the multi-MB stream is decompressed exactly once.
+    assert calls["n"] == 1
+
+
+def test_car_data_persisted_to_gridfs_when_complete(stubbed_store, monkeypatch):
+    payload = [{"Entries": []}]
+    _stub_compressed(stubbed_store, monkeypatch, payload)
+
+    stubbed_store.car_data()
+    # Completed session (2025 < current year) -> durably cached under car_data.
+    assert stubbed_store._fake_raw.get((2025, 1, "Race", "car_data")) == payload
+
+
+def test_position_data_persisted_to_gridfs_when_complete(stubbed_store, monkeypatch):
+    payload = [{"Position": [{"Entries": {"1": {"X": 1, "Y": 2}}}]}]
+    _stub_compressed(stubbed_store, monkeypatch, payload)
+
+    stubbed_store.position_data()
+    assert stubbed_store._fake_raw.get((2025, 1, "Race", "position_data")) == payload
+
+
+def test_big_streams_not_persisted_when_incomplete(stubbed_store, monkeypatch):
+    monkeypatch.setattr(stubbed_store, "is_session_complete", lambda: False)
+    _stub_compressed(stubbed_store, monkeypatch, [{"Entries": []}])
+
+    stubbed_store.car_data()
+    # A live/ongoing session must not persist partial telemetry.
+    assert (2025, 1, "Race", "car_data") not in stubbed_store._fake_raw
+
+
+def test_warm_gridfs_serves_car_data_without_redownload(stubbed_store, monkeypatch):
+    payload = [{"Entries": [{"Cars": {"44": {"Channels": {"2": 305}}}}]}]
+    _stub_compressed(stubbed_store, monkeypatch, payload)
+    stubbed_store.car_data()  # populates the fake GridFS
+
+    # A fresh store for the same session serves from the durable raw cache and
+    # never re-decompresses the stream.
+    store2 = SessionDataStore(2025, 1, "Race")
+
+    def boom(url):
+        raise AssertionError("re-downloaded telemetry despite warm GridFS")
+
+    monkeypatch.setattr(store2.client, "parse_compressed_stream", boom)
+    assert store2.car_data() == payload

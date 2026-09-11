@@ -75,7 +75,10 @@ class BackgroundProcessor:
         Get list of upcoming F1 sessions from the schedule
         
         Returns:
-            List of tuples (year, gp, session, session_date)
+            List of tuples (year, gp, session, session_date, gp_name). ``gp`` is
+            the schedule row index + 1 (V1/FastF1); ``gp_name`` is the event
+            name, which V2 must use because the schedule can include
+            pre-season testing and shift the positional round by one.
         """
         try:
             current_year = datetime.now().year
@@ -86,6 +89,7 @@ class BackgroundProcessor:
             
             for idx, event in schedule.iterrows():
                 gp_number = idx + 1
+                gp_name = event.get('EventName') if hasattr(event, 'get') else None
                 
                 # Check all session types
                 session_types = {
@@ -106,7 +110,7 @@ class BackgroundProcessor:
                         
                         # Add sessions that finished in the last 24 hours
                         if now - pd.Timedelta(hours=24) <= session_date <= now:
-                            upcoming.append((current_year, gp_number, session_name, session_date))
+                            upcoming.append((current_year, gp_number, session_name, session_date, gp_name))
             
             return upcoming
             
@@ -141,29 +145,113 @@ class BackgroundProcessor:
             logger.debug(f"Session Y{year} GP{gp} {session} not yet available: {e}")
             return False
     
+    def prewarm_session_streams(self, year: int, gp, session: str, gp_name: str = None) -> None:
+        """Fetch + durably cache every V2 raw stream for a session once.
+
+        Builds a single :class:`SessionDataStore` and touches every accessor so
+        the raw streams — including the multi-MB ``CarData.z`` / ``Position.z``
+        telemetry — land in the durable GridFS cache (and the derived bundle in
+        MongoDB) while the session is fresh. Later per-driver / per-pair requests
+        then read from the warm cache instead of re-downloading.
+
+        Fully fail-open: any warm-up error is logged and swallowed so plot
+        generation still proceeds. V2 resolves by ``gp_name`` (avoids the
+        pre-season-testing round-number offset), falling back to ``gp``.
+        """
+        from src.services.analysis.v2.session_store import SessionDataStore
+
+        identifier = gp_name or gp
+        try:
+            store = SessionDataStore(year, identifier, session)
+        except Exception as exc:
+            logger.warning(f"Pre-warm skipped for Y{year} {identifier} {session}: {exc}")
+            return
+
+        # Each accessor is individually guarded: a missing/unpublished stream
+        # (e.g. no telemetry for a session) must not abort warming the rest.
+        accessors = [
+            ("driver_list", store.driver_list),
+            ("session_info", store.session_info),
+            ("timing_data", store.timing_data),
+            ("timing_app_data", store.timing_app_data),
+            ("track_status", store.track_status),
+            ("weather_data", store.weather_data),
+            ("race_control", store.race_control),
+            ("car_data", store.car_data),
+            ("position_data", store.position_data),
+            # Derived bundle (lap_times triggers the full bundle build + persist).
+            ("lap_times", store.lap_times),
+        ]
+        warmed = 0
+        for name, fn in accessors:
+            try:
+                fn()
+                warmed += 1
+            except Exception as exc:
+                logger.debug(f"Pre-warm stream {name} skipped for Y{year} {identifier} {session}: {exc}")
+        logger.info(f"🔥 Pre-warmed {warmed}/{len(accessors)} raw streams for Y{year} {identifier} {session}")
+
+    def ensure_circuit_layout(self, year: int, gp, session: str, gp_name: str = None) -> None:
+        """Derive + store a circuit layout if this session's circuit has none.
+
+        Delegates to :func:`src.services.circuit_derivation.ensure_circuit_layout`,
+        which never raises: an existing layout returns ``None`` immediately, a
+        failed derivation is logged at WARNING. V2 resolves by ``gp_name`` for
+        the same pre-season-testing reason as the pre-warm step.
+        """
+        from src.services.circuit_derivation import ensure_circuit_layout
+
+        result = ensure_circuit_layout(year, gp_name or gp, session)
+        if result:
+            logger.info(
+                "🗺️ Derived circuit layout %s (%s) from Y%s %s %s: %s corners, %s m",
+                result["circuit_id"], result["circuit_name"], year, gp_name or gp, session,
+                result["stats"]["n_corners"], result["stats"]["lap_length_m"],
+            )
+
     async def process_session(self, year: int, gp: int, session: str, gp_name: str = None) -> Dict[str, Any]:
         """
         Process all data for a completed session
-        
+
         Args:
             year: Year
             gp: Grand Prix round number (used for V1/FastF1)
             session: Session type
             gp_name: Grand Prix name string (used for V2/F1StaticClient to avoid
                      round-number mismatch caused by pre-season testing entries)
-            
+
         Returns:
             Dictionary with processing results
         """
         session_id = f"{year}_{gp}_{session}"
-        
+
         # Skip if already processed
         if session_id in self.processed_sessions:
             logger.debug(f"Session {session_id} already processed, skipping")
             return {"status": "skipped", "session": session_id, "reason": "already_processed"}
-        
+
         logger.info(f"🔄 Starting automatic processing for Y{year} GP{gp} ({gp_name or gp}) {session}")
-        
+
+        # Pre-warm all raw V2 streams into the durable cache before generating
+        # plots, so on-demand per-driver/per-pair requests hit a warm cache.
+        if settings.enable_v2_stream_prewarm:
+            try:
+                await asyncio.to_thread(
+                    self.prewarm_session_streams, year, gp, session, gp_name
+                )
+            except Exception as exc:
+                logger.warning(f"Pre-warm step failed (continuing to plots): {exc}")
+
+        # A brand-new circuit has no stored layout until multiviewer publishes
+        # it; trace one from this session's fastest lap so the map-shaped
+        # features work from the first weekend. Cheap when a layout exists
+        # (one small SessionInfo fetch) and fully fail-open.
+        if settings.auto_derive_circuits:
+            try:
+                await asyncio.to_thread(self.ensure_circuit_layout, year, gp, session, gp_name)
+            except Exception as exc:
+                logger.warning(f"Circuit layout derivation failed (continuing to plots): {exc}")
+
         try:
             # Generate all data for this session
             # V1 uses round number, V2 uses gp_name to avoid pre-season testing offset
@@ -225,7 +313,7 @@ class BackgroundProcessor:
             
             logger.info(f"Found {len(upcoming)} recently completed sessions to check")
             
-            for year, gp, session, session_date in upcoming:
+            for year, gp, session, session_date, gp_name in upcoming:
                 session_id = f"{year}_{gp}_{session}"
                 
                 # Skip if already processed
@@ -236,8 +324,8 @@ class BackgroundProcessor:
                 if self.check_session_completed(year, gp, session):
                     logger.info(f"📊 New completed session detected: Y{year} GP{gp} {session}")
                     
-                    # Process the session
-                    result = await self.process_session(year, gp, session)
+                    # Process the session (gp_name drives V2 resolution)
+                    result = await self.process_session(year, gp, session, gp_name=gp_name)
                     
                     # Small delay between sessions
                     await asyncio.sleep(5)

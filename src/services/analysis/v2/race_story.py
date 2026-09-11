@@ -43,7 +43,7 @@ from matplotlib.lines import Line2D
 from src.core.exceptions import DataNotAvailableError
 from src.core.logging import get_logger
 from src.services.analysis.base import cached_or_generate
-from src.services.analysis.v2._helpers import extract_stints_from_data
+from src.services.analysis.v2._helpers import RACE_SESSIONS, assert_session_type, extract_stints_from_data
 from src.services.analysis.v2._race_helpers import (
     cumtime_by_lap,
     extract_lap_times,
@@ -60,9 +60,6 @@ from src.services.plotting.colors import get_compound_color, get_team_color
 logger = get_logger(__name__)
 
 DATA_TYPE = "race_story"
-
-# Sessions where a race-long narrative timeline is meaningful.
-_VALID_SESSIONS = {"R", "RACE", "S", "SPRINT"}
 
 # How many of the top finishers get a full, labeled trace.
 _TOP_N_FINISHERS = 10
@@ -82,18 +79,6 @@ def _init(y: int, event_name: str, session_name: str):
     location = f"outputs/plots/{y}/{event_folder}/{session_name}"
     name = f"Race story {y} {event_name} {session_name}.png"
     return location, name
-
-
-def _assert_valid_session(session_name: str, year: int, identifier: Any) -> None:
-    if session_name.strip().upper() not in _VALID_SESSIONS:
-        raise DataNotAvailableError(
-            year=year, gp=identifier, session=session_name,
-            source="livetiming",
-            reason=(
-                "Race story is only available for Race/Sprint sessions "
-                f"(got {session_name!r})"
-            ),
-        )
 
 
 # ----------------------------------------------------------------------
@@ -277,8 +262,22 @@ def build_payload_from_parts(
 
     gap_series = _build_gap_series(cum, periods)
 
-    # Finishing order: smallest final cumulative time first.
-    finish_order = sorted(cum.keys(), key=lambda num: cum[num][max(cum[num])])
+    # Finishing order: by actual classified position at each driver's last
+    # recorded lap, not by comparing cumulative race time across drivers —
+    # a driver who retired early has fewer laps summed and so a smaller
+    # cumulative total than one who ran the full race, which would otherwise
+    # sort retirees ahead of drivers who finished behind them.
+    def _final_position(num: str) -> Optional[int]:
+        recs = positions.get(num, [])
+        if not recs:
+            return None
+        return max(recs, key=lambda r: r.get("lap", -1)).get("position")
+
+    def _finish_key(num: str):
+        pos = _final_position(num)
+        return (pos is None, pos if pos is not None else 0, cum[num][max(cum[num])])
+
+    finish_order = sorted(cum.keys(), key=_finish_key)
     top_nums = finish_order[:_TOP_N_FINISHERS]
 
     tla_by_num = {num: info.get("tla", num) for num, info in drivers.items()}
@@ -345,7 +344,9 @@ class RaceStoryData:
     """Callable: ``RaceStoryData()(year, identifier, session) -> dict``."""
 
     def __call__(self, y: int, identifier: Union[int, str], e: str) -> Dict[str, Any]:
-        _assert_valid_session(e, y, identifier)
+        assert_session_type(
+            e, y, identifier, allowed=RACE_SESSIONS, feature="Race story", sessions_label="Race/Sprint",
+        )
 
         def _generate() -> Dict[str, Any]:
             store = SessionDataStore(y, identifier, e)
@@ -361,7 +362,9 @@ class RaceStoryPlot:
     """Callable: ``RaceStoryPlot()(year, identifier, session) -> png path``."""
 
     def __call__(self, y: int, identifier: Union[int, str], e: str) -> str:
-        _assert_valid_session(e, y, identifier)
+        assert_session_type(
+            e, y, identifier, allowed=RACE_SESSIONS, feature="Race story", sessions_label="Race/Sprint",
+        )
 
         payload = RaceStoryData()(y, identifier, e)
         if not payload.get("drivers"):
@@ -506,16 +509,16 @@ class RaceStoryPlot:
 
 
 if __name__ == "__main__":
-    print("Testing V2 Race Story...")
+    logger.info("Testing V2 Race Story...")
     try:
         data = RaceStoryData()(2025, 1, "R")
-        print(f"Drivers: {len(data['drivers'])}")
-        print(f"Key moments: {len(data['key_moments'])}")
+        logger.info("Drivers: %s", len(data['drivers']))
+        logger.info("Key moments: %s", len(data['key_moments']))
         for m in data["key_moments"][:5]:
-            print(f"  ({m['n']}) {m['caption']}")
+            logger.info("  (%s) %s", m['n'], m['caption'])
         plot_path = RaceStoryPlot()(2025, 1, "R")
-        print(f"Plot: {plot_path}")
+        logger.info("Plot: %s", plot_path)
     except Exception as ex:
-        print(f"Error: {ex}")
+        logger.error("Error: %s", ex)
         import traceback
         traceback.print_exc()

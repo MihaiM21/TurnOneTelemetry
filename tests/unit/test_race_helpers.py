@@ -259,3 +259,83 @@ def test_race_control_sorted_lap_none_last():
     events = rh.extract_race_control_events(store, leader_ts=[])
     laps = [e["lap"] for e in events]
     assert laps == [1, 5, None]
+
+
+# ----------------------------------------------------------------------
+# get_clean_fastest_lap_window: the naive min(LastLapTime) scan is unsafe
+# for races (pit/SC/VSC/red-flag laps can report a deceptively short time);
+# this picks the fastest lap that is neither pit-affected nor outside a
+# GREEN track-status period.
+# ----------------------------------------------------------------------
+class _FakeCleanLapStore:
+    """Minimal store stub exposing only lap_times()/track_status_periods()."""
+
+    def __init__(self, lap_times, periods):
+        self._lap_times = lap_times
+        self._periods = periods
+
+    def lap_times(self):
+        return self._lap_times
+
+    def track_status_periods(self):
+        return self._periods
+
+
+def test_clean_lap_window_skips_pit_affected_faster_lap():
+    # Lap 2 is a pit-out lap with an artificially fast reported time; lap 5 is
+    # the genuine green-flag fastest lap. Naively picking min(time_s) would
+    # choose lap 2.
+    lap_times = {
+        "44": [
+            {"lap": 1, "time_s": 95.0, "timestamp_s": 95.0, "pit_in": False, "pit_out": False},
+            {"lap": 2, "time_s": 12.0, "timestamp_s": 107.0, "pit_in": False, "pit_out": True},
+            {"lap": 3, "time_s": 88.0, "timestamp_s": 195.0, "pit_in": False, "pit_out": False},
+            {"lap": 4, "time_s": 87.5, "timestamp_s": 282.5, "pit_in": False, "pit_out": False},
+            {"lap": 5, "time_s": 85.0, "timestamp_s": 367.5, "pit_in": False, "pit_out": False},
+        ]
+    }
+    store = _FakeCleanLapStore(lap_times, periods=[])
+    window = rh.get_clean_fastest_lap_window(store, "44")
+    assert window is not None
+    assert window["LapTime"] == pytest.approx(85.0)
+    assert window["EndTime"] == pytest.approx(367.5)
+    assert window["StartTime"] == pytest.approx(367.5 - 85.0)
+
+
+def test_clean_lap_window_skips_non_green_periods():
+    # Lap 3 is fastest but falls inside an SC period; lap 5 is the fastest
+    # lap that's fully within a GREEN period.
+    lap_times = {
+        "44": [
+            {"lap": 1, "time_s": 95.0, "timestamp_s": 95.0, "pit_in": False, "pit_out": False},
+            {"lap": 2, "time_s": 92.0, "timestamp_s": 187.0, "pit_in": False, "pit_out": False},
+            {"lap": 3, "time_s": 60.0, "timestamp_s": 247.0, "pit_in": False, "pit_out": False},
+            {"lap": 4, "time_s": 61.0, "timestamp_s": 308.0, "pit_in": False, "pit_out": False},
+            {"lap": 5, "time_s": 85.0, "timestamp_s": 393.0, "pit_in": False, "pit_out": False},
+        ]
+    }
+    periods = [
+        {"status": "GREEN", "start_lap": 1, "end_lap": 2, "start_time_s": 0.0, "end_time_s": 190.0},
+        {"status": "SC", "start_lap": 3, "end_lap": 4, "start_time_s": 190.0, "end_time_s": 310.0},
+        {"status": "GREEN", "start_lap": 5, "end_lap": None, "start_time_s": 310.0, "end_time_s": None},
+    ]
+    store = _FakeCleanLapStore(lap_times, periods)
+    window = rh.get_clean_fastest_lap_window(store, "44")
+    assert window is not None
+    assert window["LapTime"] == pytest.approx(85.0)
+
+
+def test_clean_lap_window_returns_none_when_no_clean_lap():
+    lap_times = {
+        "44": [
+            {"lap": 1, "time_s": 40.0, "timestamp_s": 40.0, "pit_in": False, "pit_out": True},
+            {"lap": 2, "time_s": 35.0, "timestamp_s": 75.0, "pit_in": True, "pit_out": False},
+        ]
+    }
+    store = _FakeCleanLapStore(lap_times, periods=[])
+    assert rh.get_clean_fastest_lap_window(store, "44") is None
+
+
+def test_clean_lap_window_returns_none_for_unknown_driver():
+    store = _FakeCleanLapStore({"44": []}, periods=[])
+    assert rh.get_clean_fastest_lap_window(store, "99") is None

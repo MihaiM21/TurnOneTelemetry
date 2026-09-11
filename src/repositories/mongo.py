@@ -9,9 +9,12 @@ import os
 import threading
 from dotenv import load_dotenv
 import numpy as np
+from src.core.logging import get_logger
 
 # Load environment variables
 load_dotenv()
+
+logger = get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -129,10 +132,10 @@ class MongoDBManager:
         try:
             self.client.admin.command('ping')
             collection_name = self.collection.name
-            print(f"✓ Successfully connected to MongoDB at {host}:{port}")
-            print(f"✓ Using collection: {collection_name} (version: {version})")
+            logger.info("Successfully connected to MongoDB at %s:%s", host, port)
+            logger.info("Using collection: %s (version: %s)", collection_name, version)
         except Exception as e:
-            print(f"✗ MongoDB connection failed: {e}")
+            logger.error("MongoDB connection failed: %s", e)
             raise
 
     def _get_collection(self, year: Optional[int] = None, version: Optional[str] = None):
@@ -169,7 +172,7 @@ class MongoDBManager:
         """
         self.current_year = year
         self.collection = self._get_collection(year, self.version)
-        print(f"✓ Switched to collection: {self.collection.name}")
+        logger.info("Switched to collection: %s", self.collection.name)
 
     def get_current_year(self) -> int:
         """
@@ -245,7 +248,7 @@ class MongoDBManager:
 
         result = collection.insert_one(new_doc)
         new_doc['_id'] = result.inserted_id
-        print(f"✓ Created new GP document: {gp_id} in collection {collection.name}")
+        logger.info("Created new GP document: %s in collection %s", gp_id, collection.name)
 
         return new_doc
 
@@ -281,7 +284,7 @@ class MongoDBManager:
             gp_doc = collection.find_one({"gp_id": gp_id})
 
             if not gp_doc:
-                print(f"✗ GP document not found: {gp_id}")
+                logger.warning("GP document not found: %s", gp_id)
                 return False
 
             # Find or create session
@@ -315,14 +318,14 @@ class MongoDBManager:
                         {"gp_id": gp_id},
                         {"$set": {f"sessions.{session_index}.data.{data_type_index}": data_entry}}
                     )
-                    print(f"✓ Updated {data_type} for {gp_id} - {session_type}")
+                    logger.info("Updated %s for %s - %s", data_type, gp_id, session_type)
                 else:
                     # Add new data type to existing session
                     collection.update_one(
                         {"gp_id": gp_id},
                         {"$push": {f"sessions.{session_index}.data": data_entry}}
                     )
-                    print(f"✓ Added {data_type} to {gp_id} - {session_type}")
+                    logger.info("Added %s to %s - %s", data_type, gp_id, session_type)
             else:
                 # Create new session with data
                 new_session = {
@@ -339,14 +342,13 @@ class MongoDBManager:
                     {"gp_id": gp_id},
                     {"$push": {"sessions": new_session}}
                 )
-                print(f"✓ Created new session and added {data_type} for {gp_id} - {session_type}")
+                logger.info("Created new session and added %s for %s - %s", data_type, gp_id,
+                            session_type)
 
             return True
 
         except Exception as e:
-            print(f"✗ Error adding session data: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception("Error adding session data: %s", e)
             return False
 
     def store_plot_data(self, year: int, round_nr: int, session_type: str,
@@ -382,7 +384,7 @@ class MongoDBManager:
             return success
 
         except Exception as e:
-            print(f"✗ Error storing plot data: {e}")
+            logger.error("Error storing plot data: %s", e)
             return False
 
     def get_session_data(self, gp_id: str, session_type: str, data_type: Optional[str] = None, year: Optional[int] = None) -> Optional[Dict]:
@@ -428,8 +430,57 @@ class MongoDBManager:
             return session
 
         except Exception as e:
-            print(f"✗ Error retrieving session data: {e}")
+            logger.error("Error retrieving session data: %s", e)
             return None
+
+    def delete_session_data(self, gp_id: str, session_type: str, data_type: str,
+                            year: Optional[int] = None) -> bool:
+        """Remove one stored ``data_type`` from a session.
+
+        Backs the admin data browser: a payload generated from bad upstream data
+        has to be removable, otherwise the inventory reports it as present
+        forever and the backfill skips regenerating it. Pulls only the matching
+        array entry, leaving the rest of the session document untouched.
+        """
+        try:
+            if year is None:
+                year = int(gp_id.split('_')[0])
+
+            result = self._get_collection(year).update_one(
+                {"gp_id": gp_id, "sessions.session_type": session_type},
+                {"$pull": {"sessions.$.data": {"data_type": data_type}}},
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            logger.error("Error deleting session data: %s", e)
+            return False
+
+    def summarize_stored_data(self, year: int) -> List[Dict]:
+        """Every stored ``data_type`` per GP/session, for the admin data browser.
+
+        Returns keys and payload sizes only — never the payloads themselves,
+        which run to megabytes per session.
+        """
+        rows: List[Dict] = []
+        try:
+            for gp in self.list_all_gps(year=year):
+                for sess in gp.get("sessions", []) or []:
+                    entries = sess.get("data", []) or []
+                    rows.append({
+                        "year": year,
+                        "gp_id": gp.get("gp_id"),
+                        "event_name": gp.get("name"),
+                        "round_nr": gp.get("round_nr"),
+                        "session_type": sess.get("session_type"),
+                        "data_types": sorted(
+                            str(e.get("data_type")) for e in entries
+                            if isinstance(e, dict) and e.get("data_type")
+                        ),
+                        "count": len(entries),
+                    })
+        except Exception as e:
+            logger.error("Error summarizing stored data: %s", e)
+        return sorted(rows, key=lambda r: (r.get("round_nr") or 0, r.get("session_type") or ""))
 
     def get_all_gp_data(self, gp_id: str, year: Optional[int] = None) -> Optional[Dict]:
         """
@@ -451,7 +502,7 @@ class MongoDBManager:
             gp_doc = collection.find_one({"gp_id": gp_id}, {"_id": 0})
             return gp_doc
         except Exception as e:
-            print(f"✗ Error retrieving GP data: {e}")
+            logger.error("Error retrieving GP data: %s", e)
             return None
 
     def list_all_gps(self, year: Optional[int] = None) -> List[Dict]:
@@ -473,7 +524,7 @@ class MongoDBManager:
             gps = list(collection.find(query, {"_id": 0}).sort("round_nr", 1))
             return gps
         except Exception as e:
-            print(f"✗ Error listing GPs: {e}")
+            logger.error("Error listing GPs: %s", e)
             return []
 
     def list_all_years(self) -> List[int]:
@@ -499,7 +550,7 @@ class MongoDBManager:
 
             return sorted(years)
         except Exception as e:
-            print(f"✗ Error listing years: {e}")
+            logger.error("Error listing years: %s", e)
             return []
 
     def close(self):
@@ -575,6 +626,19 @@ def ensure_indexes(years: Optional[List[int]] = None) -> Dict[str, List[str]]:
         expireAfterSeconds=USAGE_TTL_DAYS * 86400,
     )
 
+    # Admin background jobs: the history page sorts newest-first and the
+    # overlap guard filters on status.
+    from src.repositories.admin_jobs import COLLECTION as ADMIN_JOBS_COLLECTION
+    _safe_create(ADMIN_JOBS_COLLECTION, [("created_at", -1)])
+    _safe_create(ADMIN_JOBS_COLLECTION, [("status", 1), ("created_at", -1)])
+
+    # Durable V2 caches. Both are addressed by _id, but the admin cache
+    # inventory page scans them by session and by age.
+    _safe_create("v2_session_cache", [("year", 1), ("session", 1)])
+    _safe_create("v2_session_cache", [("created_at", -1)])
+    _safe_create("v2_raw_cache.files", [("metadata.year", 1), ("metadata.session", 1)])
+    _safe_create("circuit_layouts", [("year", 1), ("circuit_id", 1)])
+
     return created
 
 
@@ -583,11 +647,11 @@ def test_connection():
     """Test MongoDB connection"""
     try:
         manager = MongoDBManager()
-        print("MongoDB connection test successful!")
+        logger.info("MongoDB connection test successful!")
         manager.close()
         return True
     except Exception as e:
-        print(f"MongoDB connection test failed: {e}")
+        logger.error("MongoDB connection test failed: %s", e)
         return False
 
 

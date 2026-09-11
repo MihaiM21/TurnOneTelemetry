@@ -4,11 +4,14 @@ import matplotlib.image as mpimg
 from fastf1.core import Laps
 from timple.timedelta import strftimedelta
 
+from src.core.logging import get_logger
 from src.services.plotting import output as dirOrg
 from src.ingestion import fastf1_client as data_aqcuisition
 from src.services.plotting import theme as setup_theme
 from src.services.plotting.colors import team_colors, teams, get_team_color
 from src.repositories.plots import store_data_dict_to_mongo, get_plot_data_from_mongo
+
+logger = get_logger(__name__)
 
 def _init(y, r, e, session):
     dirOrg.checkForFolder(str(y) + "/" + session.event['EventName'] + "/" + e)
@@ -90,7 +93,7 @@ def QualiResults(y,r,e):
             if len(drvs_fastest_lap) > 0:
                 list_fastest_laps.append(drvs_fastest_lap)
         except Exception as e:
-            print(f"Could not retrieve fastest lap for driver {drv}: {e}")
+            logger.error("Could not retrieve fastest lap for driver %s: %s", drv, e)
 
     if not list_fastest_laps:
         raise ValueError("No valid lap times found for any driver.")
@@ -101,7 +104,7 @@ def QualiResults(y,r,e):
     fastest_laps['LapTimeDelta'] = fastest_laps['LapTime'] - pole_lap['LapTime']
 
 
-    print(fastest_laps[['Driver', 'LapTime', 'LapTimeDelta']])
+    logger.debug("Fastest laps: %s", fastest_laps[['Driver', 'LapTime', 'LapTimeDelta']].to_dict(orient='records'))
 
 
     team_colors = list()
@@ -186,7 +189,7 @@ def QualiResultsData(y,r,e, store_to_mongo=True):
             if len(drvs_fastest_lap) > 0:
                 list_fastest_laps.append(drvs_fastest_lap)
         except Exception as drv_ex:
-            print(f"Could not retrieve fastest lap for driver {drv}: {drv_ex}")
+            logger.error("Could not retrieve fastest lap for driver %s: %s", drv, drv_ex)
 
 
     if not list_fastest_laps:
@@ -230,6 +233,6 @@ def QualiResultsData(y,r,e, store_to_mongo=True):
                 version='v1'
             )
         except Exception as e:
-            print(f"Warning: Failed to store to MongoDB: {e}")
+            logger.warning("Failed to store to MongoDB: %s", e)
 
     return data_list  # Return data directly

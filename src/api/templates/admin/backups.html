@@ -1,0 +1,143 @@
+{% extends "admin/_base.html" %}
+{% set active_page = 'backups' %}
+{% block title %}T1API Admin · Backups{% endblock %}
+
+{% block content %}
+{% if not status.enabled %}
+<section>
+  <div class="warnbox">Backup subsystem is disabled (<code>BACKUP_ENABLED=false</code>). Listings and actions are unavailable.</div>
+</section>
+{% endif %}
+
+<div class="grid">
+  <div class="stat">
+    <div class="l">Subsystem</div>
+    <div class="v {% if status.enabled %}ok{% else %}bad{% endif %}" style="font-size:18px">
+      {{ 'enabled' if status.enabled else 'disabled' }}
+    </div>
+  </div>
+  <div class="stat">
+    <div class="l">Scheduler</div>
+    <div class="v {% if status.scheduler_running %}ok{% endif %}" style="font-size:18px">
+      {{ 'running' if status.scheduler_running else 'stopped' }}
+    </div>
+  </div>
+  <div class="stat">
+    <div class="l">Manual run</div>
+    <div class="v" style="font-size:18px">{{ 'in progress' if status.manual_in_progress else 'idle' }}</div>
+  </div>
+  <div class="stat">
+    <div class="l">S3 reachable</div>
+    <div class="v {% if status.s3_ok %}ok{% elif status.s3_ok is not none %}bad{% endif %}" style="font-size:18px">
+      {% if status.s3_ok is none %}n/a{% else %}{{ 'yes' if status.s3_ok else 'no' }}{% endif %}
+    </div>
+  </div>
+</div>
+
+<section>
+  <div class="spread">
+    <h2 style="margin:0">Backups · {{ tier }} tier</h2>
+    <form class="filters" method="get" action="/admin/backups">
+      <div class="field">
+        <label for="tier">Tier</label>
+        <select id="tier" name="tier" onchange="this.form.submit()">
+          {% for t in ['daily', 'weekly', 'monthly'] %}
+          <option value="{{ t }}" {% if tier == t %}selected{% endif %}>{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </form>
+  </div>
+
+  {% if status.enabled %}
+  <form class="inline" method="post" action="/admin/backups/run"
+        data-confirm="Trigger a backup run now?">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button class="primary" type="submit" {% if status.manual_in_progress %}disabled{% endif %}>Run backup now</button>
+  </form>
+  {% endif %}
+
+  {% if backup_ids %}
+  <div class="tablewrap" style="margin-top:14px">
+  <table>
+    <thead><tr><th>Backup ID</th><th style="width:220px" data-nosort></th></tr></thead>
+    <tbody>
+      {% for bid in backup_ids %}
+      <tr>
+        <td><code>{{ bid }}</code></td>
+        <td>
+          <form class="inline" method="post" action="/admin/backups/verify">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="backup_id" value="{{ bid }}">
+            <button class="ghost" type="submit" style="padding:3px 10px;font-size:11px">Verify</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<p class="muted" style="margin-top:14px">No backups in this tier.</p>{% endif %}
+</section>
+
+{% if verify_report %}
+<section>
+  <h2>Verification · <code>{{ verify_report.backup_id }}</code></h2>
+  <div class="tablewrap">
+  <table>
+    <tbody>
+      <tr><th style="width:180px">Tier</th><td>{{ verify_report.tier }}</td></tr>
+      <tr><th>Verified</th><td>
+        {% for item in verify_report.verified %}<span class="tag have">{{ item }}</span>{% else %}
+        <span class="muted">nothing verified</span>{% endfor %}
+      </td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
+<section>
+  <h2>Restore</h2>
+  <div class="errbox">
+    A restore overwrites live data and cannot be undone. Prefer a <strong>drill</strong>: set a
+    throwaway target database and the restore is written there instead of over production.
+  </div>
+  {% if status.enabled %}
+  <form method="post" action="/admin/backups/restore" style="margin-top:14px"
+        data-confirm="Restore from this backup? If no drill database is set, this OVERWRITES live data.">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="filters">
+      <div class="field">
+        <label for="rbid">Backup ID</label>
+        <input type="text" id="rbid" name="backup_id" required placeholder="paste a backup id" style="min-width:260px">
+      </div>
+      <div class="field">
+        <label for="rtarget">Drill target DB (recommended)</label>
+        <input type="text" id="rtarget" name="mongo_target_db" placeholder="T1API_RESTORE_DRILL" style="min-width:220px">
+      </div>
+      <div class="field">
+        <label for="rconfirm">Type RESTORE to confirm</label>
+        <input type="text" id="rconfirm" name="confirm_text" placeholder="RESTORE" style="min-width:140px">
+      </div>
+      <button class="danger" type="submit" style="padding:8px 16px;font-size:12px">Restore</button>
+    </div>
+    <p class="muted small" style="margin-top:8px">
+      Leaving the drill target empty performs a destructive restore and requires the typed confirmation.
+    </p>
+  </form>
+  {% endif %}
+  {% if restore_report %}
+  <div class="tablewrap" style="margin-top:14px">
+  <table>
+    <tbody>
+      <tr><th style="width:180px">Backup</th><td><code>{{ restore_report.backup_id }}</code></td></tr>
+      <tr><th>Target DB</th><td>{{ restore_report.mongo_target_db or 'live database' }}</td></tr>
+      <tr><th>Restored</th><td>{% for c in restore_report.restored %}<span class="tag have">{{ c }}</span>{% endfor %}</td></tr>
+      <tr><th>Skipped</th><td>{% for c in restore_report.skipped %}<span class="tag">{{ c }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td></tr>
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

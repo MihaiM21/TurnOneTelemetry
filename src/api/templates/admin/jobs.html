@@ -1,0 +1,52 @@
+{% extends "admin/_base.html" %}
+{% set active_page = 'jobs' %}
+{% block title %}T1API Admin · Jobs{% endblock %}
+
+{% block content %}
+<section>
+  <div class="spread">
+    <h2 style="margin:0">Backfill jobs</h2>
+    <form class="filters" method="get" action="/admin/jobs">
+      <div class="field">
+        <label for="status">Status</label>
+        <select id="status" name="status" onchange="this.form.submit()">
+          <option value="">All</option>
+          {% for s in ['queued', 'running', 'completed', 'failed', 'cancelled'] %}
+          <option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </form>
+  </div>
+  <p class="muted small" style="margin-bottom:12px">
+    Stored in MongoDB, so history survives restarts and is visible from every worker.
+  </p>
+
+  {% if jobs %}
+  <div class="tablewrap">
+  <table data-sortable>
+    <thead>
+      <tr><th>Job</th><th>Scope</th><th>Status</th><th>Done</th><th>✓</th><th>✗</th><th>⊘</th><th>Started</th><th>Finished</th></tr>
+    </thead>
+    <tbody>
+      {% for j in jobs %}
+      <tr>
+        <td><a class="cellink" href="/admin/jobs/{{ j.job_id }}"><code>{{ j.job_id }}</code></a></td>
+        <td class="small muted">
+          {{ j.scope.year }}{% if j.scope.gp %} · {{ j.scope.gp }}{% endif %}{% if j.scope.session %} · {{ j.scope.session }}{% endif %}
+        </td>
+        <td><span class="pstatus {{ j.status }}" style="font-size:11px">{{ j.status }}</span></td>
+        <td data-sort="{{ j.done }}">{{ j.done }} / {{ j.total }}</td>
+        <td>{{ j.success }}</td>
+        <td>{{ j.failed }}</td>
+        <td>{{ j.skipped }}</td>
+        <td class="muted small nowrap">{{ j.started_at or j.created_at or '—' }}</td>
+        <td class="muted small nowrap">{{ j.finished_at or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<p class="muted">No jobs recorded.</p>{% endif %}
+</section>
+{% endblock %}

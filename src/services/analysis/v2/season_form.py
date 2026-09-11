@@ -32,6 +32,11 @@ logger = get_logger(__name__)
 
 DATA_TYPE_PREFIX = "season_form"
 
+
+def _data_type(window: int) -> str:
+    """Stored MongoDB key for a rolling-form payload of ``window`` rounds."""
+    return f"{DATA_TYPE_PREFIX}_w{window}"
+
 _DEFAULT_WINDOW = 3
 _DEFAULT_TOP_N = 10
 
@@ -186,12 +191,10 @@ class SeasonFormData:
     def __call__(
         self, y: int, window: int = _DEFAULT_WINDOW, drivers: Optional[List[str]] = None
     ) -> Dict[str, Any]:
-        data_type = f"{DATA_TYPE_PREFIX}_w{window}"
-
         def _generate() -> Dict[str, Any]:
             return _build_full_payload(y, window)
 
-        payload = season_cached_or_generate(y, data_type, _generate)
+        payload = season_cached_or_generate(y, _data_type(window), _generate)
 
         selected = drivers
         if not selected:
@@ -297,14 +300,14 @@ class SeasonFormPlot:
 
 
 if __name__ == "__main__":
-    print("Testing V2 Season Form...")
+    logger.info("Testing V2 Season Form...")
     try:
         data = SeasonFormData()(2025)
-        print(f"Drivers: {len(data['drivers'])}")
-        print(f"Rounds: {data['rounds']}")
+        logger.info("Drivers: %s", len(data['drivers']))
+        logger.info("Rounds: %s", data['rounds'])
         plot_path = SeasonFormPlot()(2025)
-        print(f"Plot: {plot_path}")
+        logger.info("Plot: %s", plot_path)
     except Exception as ex:
-        print(f"Error: {ex}")
+        logger.error("Error: %s", ex)
         import traceback
         traceback.print_exc()

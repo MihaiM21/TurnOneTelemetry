@@ -5,23 +5,47 @@ import matplotlib.image as mpimg
 from matplotlib.colors import LinearSegmentedColormap, ListedColormap
 import matplotlib.patches as mpatches
 
+from src.core.logging import get_logger
 from src.services.plotting import output as dirOrg
 from src.ingestion import fastf1_client as data_aqcuisition
 from src.services.plotting import theme as setup_theme
 from src.services.plotting.colors import team_colors, teams, get_team_color, get_driver_color
 from src.repositories.plots import store_data_dict_to_mongo, get_plot_data_from_mongo
 
+logger = get_logger(__name__)
+
 
 def print_sector_times(lap, driver_code):
-    print(f"Sector times for {driver_code}:")
+    logger.debug("Sector times for %s:", driver_code)
     lap_number = lap['LapNumber']
     sector1 = lap['Sector1Time']
     sector2 = lap['Sector2Time']
     sector3 = lap['Sector3Time']
     telemetry = lap.get_car_data()
     speed = max(telemetry['Speed'])
-    print(f"Lap {lap_number}: Sector 1: {sector1}, Sector 2: {sector2}, Sector 3: {sector3}, Speed: {speed}")
-    print("\n")
+    logger.debug("Lap %s: Sector 1: %s, Sector 2: %s, Sector 3: %s, Speed: %s",
+                 lap_number, sector1, sector2, sector3, speed)
+
+def _pick_clean_fastest_lap(driver_laps):
+    """Fastest lap after excluding pit in/out and data-quality-flagged laps.
+
+    ``pick_fastest()`` on unfiltered laps is safe for qualifying/practice
+    (a handful of clean push laps) but not for a race: a pit-affected lap or
+    one FastF1 flags as inaccurate can report a deceptively short time and
+    win the comparison, handing back a short/partial-track telemetry trace
+    that draws chords across the map instead of following the circuit
+    outline. Falls back to the unfiltered fastest lap if filtering leaves no
+    laps (e.g. a very short session).
+    """
+    clean = driver_laps.pick_wo_box()
+    try:
+        clean = clean.pick_accurate()
+    except Exception:
+        pass
+    if len(clean) == 0:
+        clean = driver_laps
+    return clean.pick_fastest()
+
 
 def _init(y, r, e, d1, d2, session):
     dirOrg.checkForFolder(str(y) + "/" + session.event['EventName'] + "/" + e)
@@ -33,8 +57,13 @@ def _init(y, r, e, d1, d2, session):
 
 def TrackComparisonPlot(y, r, e, d1, d2):
 
+    # Cache key is parametrized by the driver pair — otherwise the first pair
+    # ever queried for a (year, round, session) would be served back for
+    # every other pair requested afterward.
+    cache_key = f'track_comparison_{d1}_{d2}'
+
     # Check MongoDB cache first (before loading session)
-    cached_data = get_plot_data_from_mongo(y, r, e, 'track_comparison')
+    cached_data = get_plot_data_from_mongo(y, r, e, cache_key)
     if cached_data:
         # Load session only for metadata
         sessionloader = data_aqcuisition.SessionLoader(y, r, e)
@@ -70,8 +99,8 @@ def TrackComparisonPlot(y, r, e, d1, d2):
     laps_driver2 = laps.pick_driver(d2)
 
     # Get the telemetry data from their fastest lap
-    fastest_driver1 = laps_driver1.pick_fastest().get_telemetry().add_distance()
-    fastest_driver2 = laps_driver2.pick_fastest().get_telemetry().add_distance()
+    fastest_driver1 = _pick_clean_fastest_lap(laps_driver1).get_telemetry().add_distance()
+    fastest_driver2 = _pick_clean_fastest_lap(laps_driver2).get_telemetry().add_distance()
 
     # Since the telemetry data does not have a variable that indicates the driver,
     # we need to create that column
@@ -165,8 +194,11 @@ def TrackComparisonPlot(y, r, e, d1, d2):
 def TrackComparisonData(y, r, e, d1, d2):
 
     import json
+    # Cache key is parametrized by the driver pair — see TrackComparisonPlot.
+    cache_key = f'track_comparison_{d1}_{d2}'
+
     # Check MongoDB cache first (before loading session)
-    cached_result = get_plot_data_from_mongo(y, r, e, 'track_comparison')
+    cached_result = get_plot_data_from_mongo(y, r, e, cache_key)
     if cached_result:
         # Return cached data directly, no need to save to file
         return cached_result['data']
@@ -197,8 +229,8 @@ def TrackComparisonData(y, r, e, d1, d2):
     laps_driver2 = laps.pick_driver(d2)
 
     # Get the telemetry data from their fastest lap
-    fastest_driver1 = laps_driver1.pick_fastest().get_telemetry().add_distance()
-    fastest_driver2 = laps_driver2.pick_fastest().get_telemetry().add_distance()
+    fastest_driver1 = _pick_clean_fastest_lap(laps_driver1).get_telemetry().add_distance()
+    fastest_driver2 = _pick_clean_fastest_lap(laps_driver2).get_telemetry().add_distance()
 
     # Since the telemetry data does not have a variable that indicates the driver,
     # we need to create that column
@@ -290,11 +322,11 @@ def TrackComparisonData(y, r, e, d1, d2):
             round_nr=r,
             session_name=e,
             event_name=event_name,
-            data_type='track_comparison',
+            data_type=cache_key,
             data=result,
             version='v1'
         )
     except Exception as e:
-        print(f"Warning: Failed to store to MongoDB: {e}")
+        logger.warning("Failed to store to MongoDB: %s", e)
 
     return result  # Return data directly

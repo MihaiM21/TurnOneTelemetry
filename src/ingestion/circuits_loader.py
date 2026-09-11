@@ -1,11 +1,29 @@
+"""Read-side access to the stored circuit layouts.
+
+Every circuit file lives under :data:`CIRCUITS_DIR` as
+``{year}/{circuit_id}_{slug}.json`` (our own :class:`CircuitLayout` schema) with a
+per-year ``all_circuits.json`` manifest of :class:`CircuitSummary` entries.
+``circuit_id`` is the livetiming ``Meeting.Circuit.Key``, which is also
+multiviewer's circuit id.
+
+The path is cwd-relative on purpose (Docker ``WORKDIR`` is the repo root).
+``circuits_store`` and ``circuits_sync`` read the constant through this module
+at call time so a single ``monkeypatch.setattr(circuits_loader, "CIRCUITS_DIR",
+tmp_path)`` redirects reads and writes together in tests.
+"""
 import json
 import os
+from pathlib import Path
+
+CIRCUITS_DIR = Path("src/domain/data/circuits")
+MANIFEST_NAME = "all_circuits.json"
+
 
 def get_yearly_circuits(season_year):
-    """Get circuits data for a given season year"""
+    """Get circuits data (CircuitSummary list) for a given season year"""
 
     try:
-        with open(f"src/domain/data/circuits/{season_year}/all_circuits.json", "r") as f:
+        with open(CIRCUITS_DIR / str(season_year) / MANIFEST_NAME, "r") as f:
             data = json.load(f)
             # Handle if circuits are nested under a key
             if isinstance(data, dict) and "circuits" in data:
@@ -13,9 +31,10 @@ def get_yearly_circuits(season_year):
             return data if isinstance(data, list) else []
     except FileNotFoundError:
         raise ValueError(f"Circuits data for season year {season_year} not found.")
-    
+
+
 def get_circuit_data_by_id(circuit_id, season_year):
-    """Get circuit data for a given circuit ID and season year"""
+    """Get circuit summary for a given circuit ID and season year"""
     circuits = get_yearly_circuits(season_year)
     # Convert circuit_id to int for comparison (circuit IDs are numeric)
     try:
@@ -30,27 +49,23 @@ def get_circuit_data_by_id(circuit_id, season_year):
                 return circuit
     return None
 
+
 def get_circuit_data_file(circuit_id, season_year):
-    """Get x and y coordinate data (SVG path) from the individual circuit JSON file in original order"""
+    """Get the full CircuitLayout (corners, marshal lights/sectors, rotation, track
+    outline, etc.) stored for a circuit/year, in our own schema."""
     try:
         # Look for the circuit data file matching the circuit_id
-        circuit_dir = f"src/domain/data/circuits/{season_year}"
+        circuit_dir = CIRCUITS_DIR / str(season_year)
         # Find file matching pattern {circuit_id}_*.json
         for filename in os.listdir(circuit_dir):
-            if filename.startswith(f"{circuit_id}_") and filename.endswith(".json") and filename != "all_circuits.json":
+            if filename.startswith(f"{circuit_id}_") and filename.endswith(".json") and filename != MANIFEST_NAME:
                 filepath = os.path.join(circuit_dir, filename)
                 with open(filepath, "r") as f:
-                    data = json.load(f)
-                    # Extract only x and y data from race_data
-                    if "race_data" in data:
-                        return {
-                            "x": data["race_data"].get("x", []),
-                            "y": data["race_data"].get("y", [])
-                        }
-                    return {"x": [], "y": []}
+                    return json.load(f)
         raise ValueError(f"Circuit data file for ID {circuit_id} not found in {season_year}")
     except FileNotFoundError:
         raise ValueError(f"Circuits directory for year {season_year} not found")
+
 
 def get_circuit_data_by_name(circuit_name, season_year):
     """Get circuit data for a given circuit name and season year"""

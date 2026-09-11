@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 from src.core.exceptions import DataNotAvailableError
 from src.core.logging import get_logger
 from src.services.analysis.base import cached_or_generate
+from src.services.analysis.v2._helpers import RACE_SESSIONS, assert_session_type
 from src.services.analysis.v2._race_helpers import (
     extract_positions_by_lap,
     get_track_status_periods,
@@ -31,9 +32,6 @@ logger = get_logger(__name__)
 
 DATA_TYPE = "position_changes"
 
-# Sessions where a lap-by-lap position chart is meaningful.
-_VALID_SESSIONS = {"R", "RACE", "S", "SPRINT"}
-
 
 def _init(y: int, event_name: str, session_name: str):
     event_folder = event_name.replace(' ', '')
@@ -41,18 +39,6 @@ def _init(y: int, event_name: str, session_name: str):
     location = f"outputs/plots/{y}/{event_folder}/{session_name}"
     name = f"Position changes {y} {event_name} {session_name}.png"
     return location, name
-
-
-def _assert_valid_session(session_name: str, year: int, identifier: Any) -> None:
-    if session_name.strip().upper() not in _VALID_SESSIONS:
-        raise DataNotAvailableError(
-            year=year, gp=identifier, session=session_name,
-            source="livetiming",
-            reason=(
-                "Position changes are only available for Race/Sprint sessions "
-                f"(got {session_name!r})"
-            ),
-        )
 
 
 def _build_payload(store: SessionDataStore) -> List[Dict[str, Any]]:
@@ -94,7 +80,9 @@ class PositionChangesData:
     """Callable: ``PositionChangesData()(year, identifier, session) -> list``."""
 
     def __call__(self, y: int, identifier: Union[int, str], e: str) -> List[Dict[str, Any]]:
-        _assert_valid_session(e, y, identifier)
+        assert_session_type(
+            e, y, identifier, allowed=RACE_SESSIONS, feature="Position changes", sessions_label="Race/Sprint",
+        )
 
         def _generate() -> List[Dict[str, Any]]:
             store = SessionDataStore(y, identifier, e)
@@ -110,7 +98,9 @@ class PositionChangesPlot:
     """Callable: ``PositionChangesPlot()(year, identifier, session) -> png path``."""
 
     def __call__(self, y: int, identifier: Union[int, str], e: str) -> str:
-        _assert_valid_session(e, y, identifier)
+        assert_session_type(
+            e, y, identifier, allowed=RACE_SESSIONS, feature="Position changes", sessions_label="Race/Sprint",
+        )
 
         payload = PositionChangesData()(y, identifier, e)
         if not payload:
@@ -196,15 +186,15 @@ class PositionChangesPlot:
 
 
 if __name__ == "__main__":
-    print("Testing V2 Position Changes...")
+    logger.info("Testing V2 Position Changes...")
     try:
         data = PositionChangesData()(2025, 1, "R")
-        print(f"Drivers: {len(data)}")
+        logger.info("Drivers: %s", len(data))
         if data:
-            print(f"Winner: {data[0]}")
+            logger.info("Winner: %s", data[0])
         plot_path = PositionChangesPlot()(2025, 1, "R")
-        print(f"Plot: {plot_path}")
+        logger.info("Plot: %s", plot_path)
     except Exception as ex:
-        print(f"Error: {ex}")
+        logger.error("Error: %s", ex)
         import traceback
         traceback.print_exc()

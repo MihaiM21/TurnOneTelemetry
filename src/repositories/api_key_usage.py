@@ -146,6 +146,42 @@ def dashboard_for_key(key_hash: str) -> Dict[str, Any]:
     }
 
 
+def dashboard_for_each_key(key_hashes: List[str]) -> Dict[str, Dict[str, Any]]:
+    """Current-month totals for many keys in **one** aggregation.
+
+    The admin dashboard's quota table needs a per-key month total for every
+    active key. Calling :func:`dashboard_for_key` in a loop meant three
+    aggregations per key (today / 7d / month) plus an hourly series — hundreds
+    of sequential round trips on a busy install, for six numbers per row. This
+    groups by ``key_hash`` instead and returns only what the table renders.
+    """
+    if not key_hashes:
+        return {}
+
+    month = _month_start(datetime.now(timezone.utc))
+    pipeline = [
+        {"$match": {"key_hash": {"$in": list(key_hashes)}, "created_at": {"$gte": month}}},
+        {
+            "$group": {
+                "_id": "$key_hash",
+                "count": {"$sum": "$count"},
+                "errors": {"$sum": "$errors"},
+            }
+        },
+    ]
+    out: Dict[str, Dict[str, Any]] = {
+        key_hash: {"current_month": {"requests": 0, "errors": 0}} for key_hash in key_hashes
+    }
+    for doc in _collection().aggregate(pipeline):
+        out[doc["_id"]] = {
+            "current_month": {
+                "requests": doc.get("count", 0),
+                "errors": doc.get("errors", 0),
+            }
+        }
+    return out
+
+
 def peak_hours_for_key(key_hash: Optional[str], days: int = 30) -> List[Dict[str, Any]]:
     """Aggregate by hour-of-day (UTC) over the last ``days`` days.
 

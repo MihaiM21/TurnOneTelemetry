@@ -1,6 +1,6 @@
-import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as pe
+
 
 def setup_turnone_theme():
     plt.rcParams.update({

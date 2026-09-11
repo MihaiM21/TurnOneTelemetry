@@ -3,12 +3,18 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import json
 
+from src.core.logging import get_logger
 from src.services.plotting import output as dirOrg
 from src.ingestion import fastf1_client as data_aqcuisition
 from src.services.plotting import theme as setup_theme
 from src.services.plotting.colors import team_colors, teams
-from src.repositories.plots import store_plot_data_to_mongo, get_plot_data_from_mongo
-from src.repositories.plots import store_plot_data_to_mongo, get_plot_data_from_mongo
+from src.repositories.plots import (
+    get_plot_data_from_mongo,
+    store_data_dict_to_mongo,
+    store_plot_data_to_mongo,
+)
+
+logger = get_logger(__name__)
 
 
 def _format_laptime(laptime_seconds):
@@ -30,14 +36,19 @@ def _init(y, r, e, d, session):
 
 def LatimesDistribution(y, r, e, d):
 
+    # Cache key is parametrized by driver — otherwise the first driver ever
+    # queried for a (year, round, session) would be served back for every
+    # other driver requested afterward.
+    cache_key = f'lap_times_distribution_{d}'
+
     # Check MongoDB cache first (before loading session)
-    cached_result = get_plot_data_from_mongo(y, r, e, 'lap_times_distribution')
+    cached_result = get_plot_data_from_mongo(y, r, e, cache_key)
     if cached_result:
         # Return cached data directly, no need to save to file
-        print("Using cached Lap Times Distribution data from MongoDB")
+        logger.info("Using cached Lap Times Distribution data from MongoDB")
         return cached_result['data']
 
-    print("No cached Lap Times Distribution data found in MongoDB, generating new data.")
+    logger.info("No cached Lap Times Distribution data found in MongoDB, generating new data.")
 
     # If not in cache, load session using data_aqcuisition module
     sessionloader = data_aqcuisition.SessionLoader(y, r, e)
@@ -82,12 +93,12 @@ def LatimesDistribution(y, r, e, d):
             round_nr=r,
             session_name=e,
             event_name=event_name,
-            data_type='lap_times_distribution',
+            data_type=cache_key,
             data=data_list,
             version='v1'
         )
     except Exception as e:
-        print(f"Warning: Failed to store to MongoDB: {e}")
+        logger.warning("Failed to store to MongoDB: %s", e)
     
     return data_list  # Return data directly
 

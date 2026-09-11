@@ -286,6 +286,57 @@ def _compute_track_status_periods(store: "SessionDataStore") -> List[Dict[str, A
     return periods
 
 
+def get_clean_fastest_lap_window(store: "SessionDataStore", driver_num: str) -> Optional[Dict[str, float]]:
+    """A driver's fastest *clean* lap window, or ``None`` if none qualifies.
+
+    Unlike a naive scan for the minimum reported ``LastLapTime`` across a
+    whole session (safe for practice/qualifying's handful of green-flag push
+    laps, unsafe for a 50-70 lap race), this excludes pit in/out laps and
+    laps that don't fall in a ``GREEN`` :func:`get_track_status_periods`
+    window, so a red-flag-shortened lap, a VSC/SC in/out lap, or a
+    pit-affected lap can't win the comparison and hand back a near-empty
+    telemetry window.
+
+    Returns ``{"StartTime", "EndTime", "LapTime"}`` (same shape as one row of
+    ``get_fastest_lap_windows`` in ``_helpers.py``) for the fastest qualifying
+    lap, or ``None`` when the driver has no clean lap (falls back to the
+    caller's non-race-aware selection).
+    """
+    records = extract_lap_times(store).get(str(driver_num), [])
+    if not records:
+        return None
+
+    periods = get_track_status_periods(store)
+    green_ranges = [
+        (p["start_lap"], p["end_lap"]) for p in periods if p["status"] == "GREEN"
+    ]
+
+    def _in_green(lap: int) -> bool:
+        if not green_ranges:
+            return True
+        for start, end in green_ranges:
+            if start is not None and lap < start:
+                continue
+            if end is not None and lap > end:
+                continue
+            return True
+        return False
+
+    candidates = [
+        r for r in records
+        if not r["pit_in"] and not r["pit_out"] and r["time_s"] > 0 and _in_green(r["lap"])
+    ]
+    if not candidates:
+        return None
+
+    best = min(candidates, key=lambda r: r["time_s"])
+    return {
+        "StartTime": best["timestamp_s"] - best["time_s"],
+        "EndTime": best["timestamp_s"],
+        "LapTime": best["time_s"],
+    }
+
+
 def cumtime_by_lap(lap_times: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Dict[int, float]]:
     """Per-driver cumulative race time at the end of each completed lap.
 
@@ -459,6 +510,7 @@ __all__ = [
     "extract_positions_by_lap",
     "extract_pit_stops",
     "get_track_status_periods",
+    "get_clean_fastest_lap_window",
     "cumtime_by_lap",
     "best_sectors_from_entries",
     "extract_best_sectors",

@@ -36,15 +36,22 @@ def _positions(num_to_final_pos):
 # ----------------------------------------------------------------------
 # Session validation
 # ----------------------------------------------------------------------
+def _assert_valid_session(session_name, year, identifier):
+    rph.assert_session_type(
+        session_name, year, identifier,
+        allowed=rph.RACE_SESSIONS, feature="Race pace heatmap", sessions_label="Race/Sprint",
+    )
+
+
 def test_assert_valid_session_rejects_qualifying():
     with pytest.raises(DataNotAvailableError):
-        rph._assert_valid_session("Q", 2025, 1)
+        _assert_valid_session("Q", 2025, 1)
 
 
 def test_assert_valid_session_accepts_race_and_sprint():
-    rph._assert_valid_session("R", 2025, 1)
-    rph._assert_valid_session("Race", 2025, 1)
-    rph._assert_valid_session("S", 2025, 1)
+    _assert_valid_session("R", 2025, 1)
+    _assert_valid_session("Race", 2025, 1)
+    _assert_valid_session("S", 2025, 1)
 
 
 def test_data_call_rejects_qualifying():

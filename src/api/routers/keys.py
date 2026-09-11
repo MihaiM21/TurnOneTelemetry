@@ -4,6 +4,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
+from src.api.schemas.accounts import (
+    CreateKeyResponse,
+    KeyDashboardResponse,
+    KeyPeakHoursResponse,
+    KeyUsageResponse,
+    ListMyKeysResponse,
+    MyUsageResponse,
+    RevokeKeyResponse,
+)
+from src.api.schemas.common import ErrorEnvelope
 from src.auth.dependencies import get_current_user
 from src.core.security.api_keys import invalidate_key_cache
 from src.core.security.rate_limiting import apply_tiered_limit, limits_for_tier
@@ -19,6 +29,11 @@ from src.repositories.api_keys import (
     revoke,
 )
 
+#: Shared 401 for every endpoint here — all are gated by `get_current_user` (JWT bearer).
+_UNAUTHORIZED = {401: {"model": ErrorEnvelope, "description": "Bearer token missing, invalid, or expired."}}
+#: A key_id that doesn't exist, or belongs to a different user (never leaked as 403).
+_KEY_NOT_FOUND = {404: {"model": ErrorEnvelope, "description": "No such key owned by the caller."}}
+
 router = APIRouter(prefix="/api/keys", tags=["Auth"])
 me_router = APIRouter(prefix="/api/me", tags=["Auth"])
 
@@ -27,13 +42,31 @@ class CreateKeyRequest(BaseModel):
     label: str = Field(min_length=1, max_length=80)
 
 
-@router.get("")
+@router.get(
+    "",
+    summary="List my API keys",
+    operation_id="keys_list_mine",
+    description="List every API key (active and revoked) owned by the caller. Requires a bearer token.",
+    responses={200: {"model": ListMyKeysResponse, "description": "Keys owned by the caller."}, **_UNAUTHORIZED},
+)
 async def list_my_keys(user: dict = Depends(get_current_user)):
     keys = await run_in_threadpool(list_for_owner, user["id"])
     return {"keys": keys}
 
 
-@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    status_code=status.HTTP_201_CREATED,
+    summary="Create an API key",
+    operation_id="keys_create",
+    responses={
+        201: {
+            "model": CreateKeyResponse,
+            "description": "Key created. `raw_key` is shown exactly once — capture it now.",
+        },
+        **_UNAUTHORIZED,
+    },
+)
 @apply_tiered_limit("public")
 async def create_my_key(
     request: Request,
@@ -43,7 +76,10 @@ async def create_my_key(
     """Mint a new API key for the current user.
 
     The ``raw_key`` is returned **once**; persist it client-side immediately
-    because we only store its hash.
+    because we only store its hash (see ``src/repositories/api_keys.py``).
+    This endpoint always mints a **standard**-tier key — non-admin users
+    cannot self-serve a premium-tier key; premium tier is only granted
+    through the admin endpoints.
     """
     # Non-admin users always get standard tier — admins promote keys via
     # the admin endpoints.
@@ -59,7 +95,16 @@ async def create_my_key(
     }
 
 
-@router.get("/{key_id}/usage")
+@router.get(
+    "/{key_id}/usage",
+    summary="Get hourly usage stats for a key",
+    operation_id="keys_get_usage",
+    responses={
+        200: {"model": KeyUsageResponse, "description": "Hourly usage buckets over the window."},
+        **_UNAUTHORIZED,
+        **_KEY_NOT_FOUND,
+    },
+)
 async def get_my_key_usage(
     key_id: str,
     hours: int = Query(24, ge=1, le=720),
@@ -95,7 +140,16 @@ def _build_quota(tier: str, used_this_month: int, month_resets_at: str) -> dict:
     }
 
 
-@router.get("/{key_id}/dashboard")
+@router.get(
+    "/{key_id}/dashboard",
+    summary="Get the usage dashboard for a key",
+    operation_id="keys_get_dashboard",
+    responses={
+        200: {"model": KeyDashboardResponse, "description": "Quota, rate limit, and usage dashboard."},
+        **_UNAUTHORIZED,
+        **_KEY_NOT_FOUND,
+    },
+)
 async def get_my_key_dashboard(
     key_id: str,
     user: dict = Depends(get_current_user),
@@ -143,7 +197,16 @@ async def get_my_key_dashboard(
     }
 
 
-@router.get("/{key_id}/peak-hours")
+@router.get(
+    "/{key_id}/peak-hours",
+    summary="Get hour-of-day usage distribution for a key",
+    operation_id="keys_get_peak_hours",
+    responses={
+        200: {"model": KeyPeakHoursResponse, "description": "24-entry hour-of-day (UTC) request distribution."},
+        **_UNAUTHORIZED,
+        **_KEY_NOT_FOUND,
+    },
+)
 async def get_my_key_peak_hours(
     key_id: str,
     days: int = Query(30, ge=1, le=90),
@@ -161,7 +224,12 @@ async def get_my_key_peak_hours(
     return {"key_id": key_id, "days": days, "peak_hour_utc": peak, "by_hour": series}
 
 
-@me_router.get("/usage")
+@me_router.get(
+    "/usage",
+    summary="Get my aggregate usage across all keys",
+    operation_id="me_get_usage",
+    responses={200: {"model": MyUsageResponse, "description": "Aggregate usage dashboard."}, **_UNAUTHORIZED},
+)
 async def get_my_usage(user: dict = Depends(get_current_user)):
     """Aggregate dashboard across **all** active keys owned by the user.
 
@@ -217,7 +285,17 @@ async def get_my_usage(user: dict = Depends(get_current_user)):
     }
 
 
-@router.delete("/{key_id}", status_code=status.HTTP_200_OK)
+@router.delete(
+    "/{key_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Revoke an API key",
+    operation_id="keys_revoke",
+    responses={
+        200: {"model": RevokeKeyResponse, "description": "Key revoked."},
+        **_UNAUTHORIZED,
+        **_KEY_NOT_FOUND,
+    },
+)
 async def revoke_my_key(key_id: str, user: dict = Depends(get_current_user)):
     existing = await run_in_threadpool(find_by_id, key_id)
     if not existing or str(existing.get("owner_id")) != user["id"]:

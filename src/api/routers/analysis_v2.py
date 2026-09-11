@@ -2,11 +2,41 @@ from fastapi import APIRouter, Request, HTTPException, Depends, Query
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.concurrency import run_in_threadpool
 from typing import Optional, Union
+from src.api.deps import guard_session_params
 from src.core.logging import get_logger
 from src.core.security.api_keys import verify_api_key
 from src.core.security.rate_limiting import apply_tiered_limit
 from src.services.orchestrator_helpers import get_latest_finished_session
 from src.services.orchestrator import latest_session_analised_v2
+from src.api.schemas.common import ANALYSIS_ERROR_RESPONSES, COMMON_ERROR_RESPONSES, ErrorEnvelope
+from src.api.schemas.analysis import (
+    DashboardResponse,
+    TopSpeedTelemetryDataResponse,
+    TopSpeedSpeedTrapDataResponse,
+    ThrottleComparisonDataResponse,
+    SpeedDistributionDataResponse,
+    LaptimesDistributionDataResponse,
+    QualifyingResultsDataResponse,
+    ThrottleBrakeComparisonResponse,
+    TrackComparisonResponse,
+    LapTimeAnalysisResponse,
+    DriverPaceDataResponse,
+    TeamsPaceDataResponse,
+    TyreStintUsageDataResponse,
+    PositionChangesDataResponse,
+    RaceGapsDataResponse,
+    TyreDegradationDataResponse,
+    PitStrategyResponse,
+    SessionWeatherResponse,
+    RacePaceHeatmapResponse,
+    TrackEvolutionResponse,
+    TheoreticalBestDataResponse,
+    RaceStoryResponse,
+    TrackMapResponse,
+    LapAllDataResponse,
+    CornerDuelResponse,
+    DriverRadarResponse,
+)
 
 # Importing Turn One Core files
 from src.services.analysis.v2.top_speed import TopSpeedPlot_Telemetry, TopSpeedData_Telemetry, TopSpeedPlot_SpeedTrap, TopSpeedData_SpeedTrap
@@ -30,6 +60,7 @@ from src.services.analysis.v2.track_evolution import TrackEvolutionPlot, TrackEv
 from src.services.analysis.v2.theoretical_best import TheoreticalBestPlot, TheoreticalBestData
 from src.services.analysis.v2.race_story import RaceStoryPlot, RaceStoryData
 from src.services.analysis.v2.telemetry_track_map import TrackMapPlot, TrackMapData
+from src.services.analysis.v2.lap_all_data import LapAllData
 from src.services.analysis.v2.corner_duel import CornerDuelPlot, CornerDuelData
 from src.services.analysis.v2.driver_radar import DriverRadarPlot, DriverRadarData
 
@@ -55,16 +86,40 @@ def _track(event_name, *args):
     except Exception:
         pass
 
-router = APIRouter(prefix="/api/v2")
+
+#: Documentation-only shape for every ``-plot`` endpoint: a PNG body, no JSON schema.
+_PNG_RESPONSE = {"content": {"image/png": {}}, "description": "PNG plot."}
+
+router = APIRouter(
+    prefix="/api/v2",
+    # Validates `session` / `driver*` from the raw query string. Declares no
+    # parameters of its own, so the OpenAPI schema and the frozen public
+    # query-parameter contract are untouched.
+    dependencies=[Depends(guard_session_params)],
+)
 
 
-@router.get('/dashboard', tags=["API v2", "Latest Session"])
+@router.get(
+    '/dashboard',
+    tags=["API v2", "Latest Session"],
+    summary="Latest session dashboard",
+    operation_id="v2_dashboard_latest_session",
+    responses={
+        200: {"model": DashboardResponse},
+        404: {"model": ErrorEnvelope, "description": "No finished sessions found in the schedule."},
+        **COMMON_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("data")
 async def get_dashboard_data_v2(request: Request, api_key: str = Depends(verify_api_key)):
     """
     Get main latest session data via the livetiming-only V2 path.
     Automatically detects the most recent completed session from the F1
     static index (no FastF1).
+
+    Unlike the rest of V2, this response is **not** immutable: it targets
+    the latest finished session and its content changes as a race weekend
+    progresses (each new completed session becomes the new "latest").
     """
     try:
         logger.info("Fetching V2 dashboard data for latest session")
@@ -88,7 +143,17 @@ async def get_dashboard_data_v2(request: Request, api_key: str = Depends(verify_
 
 # --- Simple Analysis Endpoints ---
 
-@router.get('/top-speed-telemetry-plot', tags=["API v2", "Simple Analysis"])
+@router.get(
+    '/top-speed-telemetry-plot',
+    tags=["API v2", "Simple Analysis"],
+    summary="Top speed per team (telemetry) plot",
+    operation_id="v2_top_speed_telemetry_plot",
+    description=(
+        "PNG plot of each team's maximum speed for the session, computed from CarData "
+        "telemetry. Falls back to V1/FastF1 if livetiming data is unavailable."
+    ),
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def top_speed_telemetry_plot(
     request: Request,
@@ -116,7 +181,17 @@ async def top_speed_telemetry_plot(
         logger.error(f"Plot file not found: Y{year} GP{gp} {session}")
         raise HTTPException(status_code=404, detail="Plot not found")
 
-@router.get('/top-speed-telemetry-data', tags=["API v2", "Simple Analysis"])
+@router.get(
+    '/top-speed-telemetry-data',
+    tags=["API v2", "Simple Analysis"],
+    summary="Top speed per team (telemetry) data",
+    operation_id="v2_top_speed_telemetry_data",
+    description=(
+        "JSON per-team top speed for the session, computed from CarData telemetry. "
+        "Falls back to V1/FastF1 if livetiming data is unavailable."
+    ),
+    responses={200: {"model": TopSpeedTelemetryDataResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def top_speed_telemetry_data(
     request: Request,
@@ -140,7 +215,16 @@ async def top_speed_telemetry_data(
     except T1APIError:
         raise
 
-@router.get('/top-speed-st-plot', tags=["API v2", "Simple Analysis"])
+@router.get(
+    '/top-speed-st-plot',
+    tags=["API v2", "Simple Analysis"],
+    summary="Top speed per team (speed trap) plot",
+    operation_id="v2_top_speed_speed_trap_plot",
+    description=(
+        "PNG plot of each team's official Speed Trap top speed for the session (no V1 fallback)."
+    ),
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def top_speed_st_plot(
     request: Request,
@@ -153,13 +237,7 @@ async def top_speed_st_plot(
         logger.info(f"Generating top speed plot: Y{year} GP{gp} {session}")
         output_path = await run_in_threadpool(TopSpeedPlot_SpeedTrap, year, gp, session)
 
-        # Track session if tracker is available
-        try:
-            from src.core.observability.analytics import SessionTracker
-            session_tracker = SessionTracker()
-            session_tracker.track_session('top-speed', year, gp, session)
-        except:
-            pass
+        _track('top-speed', year, gp, session)
 
         return FileResponse(output_path, media_type="image/png")
     except FileNotFoundError:
@@ -171,7 +249,16 @@ async def top_speed_st_plot(
         logger.error(f"Error generating top speed plot: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to generate plot")
     
-@router.get('/top-speed-st-data', tags=["API v2", "Simple Analysis"])
+@router.get(
+    '/top-speed-st-data',
+    tags=["API v2", "Simple Analysis"],
+    summary="Top speed per team (speed trap) data",
+    operation_id="v2_top_speed_speed_trap_data",
+    description=(
+        "JSON per-team official Speed Trap top speed for the session (no V1 fallback)."
+    ),
+    responses={200: {"model": TopSpeedSpeedTrapDataResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def top_speed_st_data(
     request: Request,
@@ -183,15 +270,9 @@ async def top_speed_st_data(
     try:
         logger.info(f"Fetching top speed data: Y{year} GP{gp} {session}")
         result = await run_in_threadpool(TopSpeedData_SpeedTrap, year, gp, session)
-        
-        # Track session if tracker is available
-        try:
-            from src.core.observability.analytics import SessionTracker
-            session_tracker = SessionTracker()
-            session_tracker.track_session('top-speed', year, gp, session)
-        except:
-            pass
-        
+
+        _track('top-speed', year, gp, session)
+
         # Data functions now always return list directly (from MongoDB or processed)
         return result
     except T1APIError:
@@ -202,7 +283,13 @@ async def top_speed_st_data(
     
 
 # Throttle comparison endpoints
-@router.get('/throttle-comparison-plot', tags=["API v2", "Simple Analysis"])
+@router.get(
+    '/throttle-comparison-plot',
+    tags=["API v2", "Simple Analysis"],
+    summary="Throttle comparison plot",
+    operation_id="v2_throttle_comparison_plot",
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def throttle_comparison_plot(
     request: Request,
@@ -227,7 +314,13 @@ async def throttle_comparison_plot(
     except T1APIError:
         raise
 
-@router.get('/throttle-comparison-data', tags=["API v2", "Simple Analysis"])
+@router.get(
+    '/throttle-comparison-data',
+    tags=["API v2", "Simple Analysis"],
+    summary="Throttle comparison data",
+    operation_id="v2_throttle_comparison_data",
+    responses={200: {"model": ThrottleComparisonDataResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def throttle_comparison_data(
     request: Request,
@@ -254,7 +347,13 @@ async def throttle_comparison_data(
     except T1APIError:
         raise
 
-@router.get('/speed-distribution-plot', tags=["API v2", "Simple Analysis"])
+@router.get(
+    '/speed-distribution-plot',
+    tags=["API v2", "Simple Analysis"],
+    summary="Speed distribution plot",
+    operation_id="v2_speed_distribution_plot",
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def speed_distribution_plot(
     request: Request,
@@ -268,15 +367,15 @@ async def speed_distribution_plot(
     try:
         logger.info(f"Generating speed distribution plot: Y{year} GP{gp} {session} Driver={driver}")
         output_path = await run_in_threadpool(SpeedDistributionPlot, year, gp, session, driver)
-        
+
         # Track session if tracker is available
         try:
             from src.core.observability.analytics import SessionTracker
             session_tracker = SessionTracker()
             session_tracker.track_session('speed-distribution', year, gp, session)
-        except:
-            pass
-        
+        except Exception as track_err:
+            logger.debug(f"Session tracking failed: {track_err}")
+
         return FileResponse(output_path, media_type='image/png')
     except T1APIError:
         raise
@@ -284,7 +383,13 @@ async def speed_distribution_plot(
         logger.error(f"Error generating speed distribution plot: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to generate plot")
 
-@router.get('/speed-distribution-data', tags=["API v2", "Simple Analysis"])
+@router.get(
+    '/speed-distribution-data',
+    tags=["API v2", "Simple Analysis"],
+    summary="Speed distribution data",
+    operation_id="v2_speed_distribution_data",
+    responses={200: {"model": SpeedDistributionDataResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def speed_distribution_data(
     request: Request,
@@ -298,15 +403,15 @@ async def speed_distribution_data(
     try:
         logger.info(f"Fetching speed distribution data: Y{year} GP{gp} {session} Driver={driver}")
         result = await run_in_threadpool(SpeedDistributionData, year, gp, session, driver)
-        
+
         # Track session if tracker is available
         try:
             from src.core.observability.analytics import SessionTracker
             session_tracker = SessionTracker()
             session_tracker.track_session('speed-distribution', year, gp, session)
-        except:
-            pass
-        
+        except Exception as track_err:
+            logger.debug(f"Session tracking failed: {track_err}")
+
         if isinstance(result, (dict, list)):
             return result
         else:
@@ -320,7 +425,13 @@ async def speed_distribution_data(
 
 # --- Lap Times Distribution ---
 
-@router.get('/laptimes-distribution-data', tags=["API v2", "Simple Analysis"])
+@router.get(
+    '/laptimes-distribution-data',
+    tags=["API v2", "Simple Analysis"],
+    summary="Lap times distribution data",
+    operation_id="v2_laptimes_distribution_data",
+    responses={200: {"model": LaptimesDistributionDataResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def laptimes_distribution_data(
     request: Request,
@@ -344,7 +455,13 @@ async def laptimes_distribution_data(
 
 # --- Qualifying Results ---
 
-@router.get('/qualifying-results-plot', tags=["API v2", "Qualifying"])
+@router.get(
+    '/qualifying-results-plot',
+    tags=["API v2", "Qualifying"],
+    summary="Qualifying results plot",
+    operation_id="v2_qualifying_results_plot",
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def qualifying_results_plot(
     request: Request,
@@ -375,7 +492,13 @@ async def qualifying_results_plot(
         raise HTTPException(status_code=404, detail="Plot not found")
 
 
-@router.get('/qualifying-results-data', tags=["API v2", "Qualifying"])
+@router.get(
+    '/qualifying-results-data',
+    tags=["API v2", "Qualifying"],
+    summary="Qualifying results data",
+    operation_id="v2_qualifying_results_data",
+    responses={200: {"model": QualifyingResultsDataResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def qualifying_results_data(
     request: Request,
@@ -398,7 +521,13 @@ async def qualifying_results_data(
 
 # --- Throttle/Brake Comparison (2 drivers) ---
 
-@router.get('/throttle-brake-comparison-plot', tags=["API v2", "Qualifying"])
+@router.get(
+    '/throttle-brake-comparison-plot',
+    tags=["API v2", "Qualifying"],
+    summary="Throttle/brake comparison plot",
+    operation_id="v2_throttle_brake_comparison_plot",
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def throttle_brake_comparison_plot(
     request: Request,
@@ -427,7 +556,13 @@ async def throttle_brake_comparison_plot(
         raise HTTPException(status_code=500, detail="Failed to generate plot")
 
 
-@router.get('/throttle-brake-comparison-data', tags=["API v2", "Qualifying"])
+@router.get(
+    '/throttle-brake-comparison-data',
+    tags=["API v2", "Qualifying"],
+    summary="Throttle/brake comparison data",
+    operation_id="v2_throttle_brake_comparison_data",
+    responses={200: {"model": ThrottleBrakeComparisonResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def throttle_brake_comparison_data(
     request: Request,
@@ -452,7 +587,13 @@ async def throttle_brake_comparison_data(
 
 # --- Track Comparison (2 drivers) ---
 
-@router.get('/track-comparison-plot', tags=["API v2", "Qualifying"])
+@router.get(
+    '/track-comparison-plot',
+    tags=["API v2", "Qualifying"],
+    summary="Track minisector comparison plot",
+    operation_id="v2_track_comparison_plot",
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def track_comparison_plot(
     request: Request,
@@ -481,7 +622,13 @@ async def track_comparison_plot(
         raise HTTPException(status_code=500, detail="Failed to generate plot")
 
 
-@router.get('/track-comparison-data', tags=["API v2", "Qualifying"])
+@router.get(
+    '/track-comparison-data',
+    tags=["API v2", "Qualifying"],
+    summary="Track minisector comparison data",
+    operation_id="v2_track_comparison_data",
+    responses={200: {"model": TrackComparisonResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def track_comparison_data(
     request: Request,
@@ -506,7 +653,13 @@ async def track_comparison_data(
 
 # --- Lap Time Analysis (2 drivers) ---
 
-@router.get('/lap-time-analysis-plot', tags=["API v2", "Qualifying"])
+@router.get(
+    '/lap-time-analysis-plot',
+    tags=["API v2", "Qualifying"],
+    summary="Lap time analysis plot",
+    operation_id="v2_lap_time_analysis_plot",
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def lap_time_analysis_plot(
     request: Request,
@@ -540,7 +693,13 @@ async def lap_time_analysis_plot(
         raise
 
 
-@router.get('/lap-time-analysis-data', tags=["API v2", "Qualifying"])
+@router.get(
+    '/lap-time-analysis-data',
+    tags=["API v2", "Qualifying"],
+    summary="Lap time analysis data",
+    operation_id="v2_lap_time_analysis_data",
+    responses={200: {"model": LapTimeAnalysisResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def lap_time_analysis_data(
     request: Request,
@@ -570,7 +729,13 @@ async def lap_time_analysis_data(
 
 # --- Pace Analysis ---
 
-@router.get('/driver-pace-plot', tags=["API v2", "Pace Analysis"])
+@router.get(
+    '/driver-pace-plot',
+    tags=["API v2", "Pace Analysis"],
+    summary="Driver pace distribution plot",
+    operation_id="v2_driver_pace_plot",
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def driver_pace_plot_v2(
     request: Request,
@@ -598,7 +763,13 @@ async def driver_pace_plot_v2(
         raise HTTPException(status_code=404, detail="Plot not found")
 
 
-@router.get('/driver-pace-data', tags=["API v2", "Pace Analysis"])
+@router.get(
+    '/driver-pace-data',
+    tags=["API v2", "Pace Analysis"],
+    summary="Driver pace distribution data",
+    operation_id="v2_driver_pace_data",
+    responses={200: {"model": DriverPaceDataResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def driver_pace_data_v2(
     request: Request,
@@ -624,7 +795,13 @@ async def driver_pace_data_v2(
         raise
 
 
-@router.get('/teams-pace-plot', tags=["API v2", "Pace Analysis"])
+@router.get(
+    '/teams-pace-plot',
+    tags=["API v2", "Pace Analysis"],
+    summary="Team pace distribution plot",
+    operation_id="v2_teams_pace_plot",
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def teams_pace_plot_v2(
     request: Request,
@@ -652,7 +829,13 @@ async def teams_pace_plot_v2(
         raise HTTPException(status_code=404, detail="Plot not found")
 
 
-@router.get('/teams-pace-data', tags=["API v2", "Pace Analysis"])
+@router.get(
+    '/teams-pace-data',
+    tags=["API v2", "Pace Analysis"],
+    summary="Team pace distribution data",
+    operation_id="v2_teams_pace_data",
+    responses={200: {"model": TeamsPaceDataResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def teams_pace_data_v2(
     request: Request,
@@ -678,7 +861,13 @@ async def teams_pace_data_v2(
         raise
 
 
-@router.get('/tyre-stint-usage-plot', tags=["API v2", "Race Analysis"])
+@router.get(
+    '/tyre-stint-usage-plot',
+    tags=["API v2", "Race Analysis"],
+    summary="Tyre stint usage plot",
+    operation_id="v2_tyre_stint_usage_plot",
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def tyre_stint_usage_plot_v2(
     request: Request,
@@ -706,7 +895,13 @@ async def tyre_stint_usage_plot_v2(
         raise HTTPException(status_code=404, detail="Plot not found")
 
 
-@router.get('/tyre-stint-usage-data', tags=["API v2", "Race Analysis"])
+@router.get(
+    '/tyre-stint-usage-data',
+    tags=["API v2", "Race Analysis"],
+    summary="Tyre stint usage data",
+    operation_id="v2_tyre_stint_usage_data",
+    responses={200: {"model": TyreStintUsageDataResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def tyre_stint_usage_data_v2(
     request: Request,
@@ -732,7 +927,13 @@ async def tyre_stint_usage_data_v2(
         raise
 
 
-@router.get('/position-changes-plot', tags=["API v2", "Race Analysis"])
+@router.get(
+    '/position-changes-plot',
+    tags=["API v2", "Race Analysis"],
+    summary="Race position changes plot",
+    operation_id="v2_position_changes_plot",
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def position_changes_plot_v2(
     request: Request,
@@ -753,7 +954,13 @@ async def position_changes_plot_v2(
         raise HTTPException(status_code=404, detail="Plot not found")
 
 
-@router.get('/position-changes-data', tags=["API v2", "Race Analysis"])
+@router.get(
+    '/position-changes-data',
+    tags=["API v2", "Race Analysis"],
+    summary="Race position changes data",
+    operation_id="v2_position_changes_data",
+    responses={200: {"model": PositionChangesDataResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def position_changes_data_v2(
     request: Request,
@@ -772,7 +979,13 @@ async def position_changes_data_v2(
         raise
 
 
-@router.get('/race-gaps-plot', tags=["API v2", "Race Analysis"])
+@router.get(
+    '/race-gaps-plot',
+    tags=["API v2", "Race Analysis"],
+    summary="Race gaps / race trace plot",
+    operation_id="v2_race_gaps_plot",
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def race_gaps_plot_v2(
     request: Request,
@@ -797,7 +1010,13 @@ async def race_gaps_plot_v2(
         raise HTTPException(status_code=404, detail="Plot not found")
 
 
-@router.get('/race-gaps-data', tags=["API v2", "Race Analysis"])
+@router.get(
+    '/race-gaps-data',
+    tags=["API v2", "Race Analysis"],
+    summary="Race gaps / race trace data",
+    operation_id="v2_race_gaps_data",
+    responses={200: {"model": RaceGapsDataResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def race_gaps_data_v2(
     request: Request,
@@ -820,7 +1039,13 @@ async def race_gaps_data_v2(
         raise
 
 
-@router.get('/tyre-degradation-plot', tags=["API v2", "Race Analysis"])
+@router.get(
+    '/tyre-degradation-plot',
+    tags=["API v2", "Race Analysis"],
+    summary="Tyre degradation plot",
+    operation_id="v2_tyre_degradation_plot",
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def tyre_degradation_plot_v2(
     request: Request,
@@ -848,7 +1073,13 @@ async def tyre_degradation_plot_v2(
         raise HTTPException(status_code=404, detail="Plot not found")
 
 
-@router.get('/tyre-degradation-data', tags=["API v2", "Race Analysis"])
+@router.get(
+    '/tyre-degradation-data',
+    tags=["API v2", "Race Analysis"],
+    summary="Tyre degradation data",
+    operation_id="v2_tyre_degradation_data",
+    responses={200: {"model": TyreDegradationDataResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def tyre_degradation_data_v2(
     request: Request,
@@ -874,7 +1105,13 @@ async def tyre_degradation_data_v2(
         raise
 
 
-@router.get('/pit-strategy-plot', tags=["API v2", "Race Analysis"])
+@router.get(
+    '/pit-strategy-plot',
+    tags=["API v2", "Race Analysis"],
+    summary="Pit strategy & undercuts plot",
+    operation_id="v2_pit_strategy_plot",
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def pit_strategy_plot_v2(
     request: Request,
@@ -895,7 +1132,13 @@ async def pit_strategy_plot_v2(
         raise HTTPException(status_code=404, detail="Plot not found")
 
 
-@router.get('/pit-strategy-data', tags=["API v2", "Race Analysis"])
+@router.get(
+    '/pit-strategy-data',
+    tags=["API v2", "Race Analysis"],
+    summary="Pit strategy & undercuts data",
+    operation_id="v2_pit_strategy_data",
+    responses={200: {"model": PitStrategyResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def pit_strategy_data_v2(
     request: Request,
@@ -914,7 +1157,13 @@ async def pit_strategy_data_v2(
         raise
 
 
-@router.get('/session-weather-plot', tags=["API v2", "Race Analysis"])
+@router.get(
+    '/session-weather-plot',
+    tags=["API v2", "Race Analysis"],
+    summary="Session weather timeline plot",
+    operation_id="v2_session_weather_plot",
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def session_weather_plot_v2(
     request: Request,
@@ -935,7 +1184,13 @@ async def session_weather_plot_v2(
         raise HTTPException(status_code=404, detail="Plot not found")
 
 
-@router.get('/session-weather-data', tags=["API v2", "Race Analysis"])
+@router.get(
+    '/session-weather-data',
+    tags=["API v2", "Race Analysis"],
+    summary="Session weather timeline data",
+    operation_id="v2_session_weather_data",
+    responses={200: {"model": SessionWeatherResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def session_weather_data_v2(
     request: Request,
@@ -954,7 +1209,13 @@ async def session_weather_data_v2(
         raise
 
 
-@router.get('/race-pace-heatmap-plot', tags=["API v2", "Race Analysis"])
+@router.get(
+    '/race-pace-heatmap-plot',
+    tags=["API v2", "Race Analysis"],
+    summary="Race pace heatmap plot",
+    operation_id="v2_race_pace_heatmap_plot",
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def race_pace_heatmap_plot_v2(
     request: Request,
@@ -975,7 +1236,13 @@ async def race_pace_heatmap_plot_v2(
         raise HTTPException(status_code=404, detail="Plot not found")
 
 
-@router.get('/race-pace-heatmap-data', tags=["API v2", "Race Analysis"])
+@router.get(
+    '/race-pace-heatmap-data',
+    tags=["API v2", "Race Analysis"],
+    summary="Race pace heatmap data",
+    operation_id="v2_race_pace_heatmap_data",
+    responses={200: {"model": RacePaceHeatmapResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def race_pace_heatmap_data_v2(
     request: Request,
@@ -994,7 +1261,13 @@ async def race_pace_heatmap_data_v2(
         raise
 
 
-@router.get('/track-evolution-plot', tags=["API v2", "Race Analysis"])
+@router.get(
+    '/track-evolution-plot',
+    tags=["API v2", "Race Analysis"],
+    summary="Track evolution plot",
+    operation_id="v2_track_evolution_plot",
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def track_evolution_plot_v2(
     request: Request,
@@ -1018,7 +1291,13 @@ async def track_evolution_plot_v2(
         raise HTTPException(status_code=404, detail="Plot not found")
 
 
-@router.get('/track-evolution-data', tags=["API v2", "Race Analysis"])
+@router.get(
+    '/track-evolution-data',
+    tags=["API v2", "Race Analysis"],
+    summary="Track evolution data",
+    operation_id="v2_track_evolution_data",
+    responses={200: {"model": TrackEvolutionResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def track_evolution_data_v2(
     request: Request,
@@ -1040,7 +1319,13 @@ async def track_evolution_data_v2(
         raise
 
 
-@router.get('/theoretical-best-plot', tags=["API v2", "Qualifying Analysis"])
+@router.get(
+    '/theoretical-best-plot',
+    tags=["API v2", "Qualifying"],
+    summary="Theoretical best lap plot",
+    operation_id="v2_theoretical_best_plot",
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def theoretical_best_plot_v2(
     request: Request,
@@ -1061,7 +1346,13 @@ async def theoretical_best_plot_v2(
         raise HTTPException(status_code=404, detail="Plot not found")
 
 
-@router.get('/theoretical-best-data', tags=["API v2", "Qualifying Analysis"])
+@router.get(
+    '/theoretical-best-data',
+    tags=["API v2", "Qualifying"],
+    summary="Theoretical best lap data",
+    operation_id="v2_theoretical_best_data",
+    responses={200: {"model": TheoreticalBestDataResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def theoretical_best_data_v2(
     request: Request,
@@ -1080,7 +1371,13 @@ async def theoretical_best_data_v2(
         raise
 
 
-@router.get('/race-story-plot', tags=["API v2", "Race Analysis"])
+@router.get(
+    '/race-story-plot',
+    tags=["API v2", "Race Analysis"],
+    summary="Race story timeline plot",
+    operation_id="v2_race_story_plot",
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def race_story_plot_v2(
     request: Request,
@@ -1101,7 +1398,13 @@ async def race_story_plot_v2(
         raise HTTPException(status_code=404, detail="Plot not found")
 
 
-@router.get('/race-story-data', tags=["API v2", "Race Analysis"])
+@router.get(
+    '/race-story-data',
+    tags=["API v2", "Race Analysis"],
+    summary="Race story timeline data",
+    operation_id="v2_race_story_data",
+    responses={200: {"model": RaceStoryResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def race_story_data_v2(
     request: Request,
@@ -1120,7 +1423,13 @@ async def race_story_data_v2(
         raise
 
 
-@router.get('/track-map-plot', tags=["API v2", "Telemetry"])
+@router.get(
+    '/track-map-plot',
+    tags=["API v2", "Telemetry"],
+    summary="Telemetry track map plot",
+    operation_id="v2_track_map_plot",
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def track_map_plot_v2(
     request: Request,
@@ -1143,7 +1452,13 @@ async def track_map_plot_v2(
         raise HTTPException(status_code=404, detail="Plot not found")
 
 
-@router.get('/track-map-data', tags=["API v2", "Telemetry"])
+@router.get(
+    '/track-map-data',
+    tags=["API v2", "Telemetry"],
+    summary="Telemetry track map data",
+    operation_id="v2_track_map_data",
+    responses={200: {"model": TrackMapResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def track_map_data_v2(
     request: Request,
@@ -1164,7 +1479,42 @@ async def track_map_data_v2(
         raise
 
 
-@router.get('/corner-duel-plot', tags=["API v2", "Telemetry"])
+@router.get(
+    '/lap-all-data',
+    tags=["API v2", "Telemetry"],
+    summary="Full single-lap telemetry & metadata",
+    operation_id="v2_lap_all_data",
+    responses={200: {"model": LapAllDataResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
+@apply_tiered_limit("data")
+async def lap_all_data_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('Q'),
+    driver: str = Query(..., description="Driver TLA (e.g., VER)"),
+    lap: int = Query(..., ge=1, description="Lap number (required)"),
+    api_key: str = Depends(verify_api_key)
+):
+    """Everything for one driver's single lap: full telemetry time-series (speed/rpm/throttle/
+    brake/gear/drs + X/Y/Z + distance), lap/tyre/sector/pit metadata, nearest weather sample,
+    track status, and driver/session context. Any session."""
+    logger.info(f"Fetching lap-all-data (V2): Y{year} GP{gp} {session} driver={driver} lap={lap}")
+    try:
+        result = await run_in_threadpool(LapAllData(), year, gp, session, driver, lap)
+        _track('lap-all-data', year, gp, session)
+        return result
+    except T1APIError:
+        raise
+
+
+@router.get(
+    '/corner-duel-plot',
+    tags=["API v2", "Telemetry"],
+    summary="Corner-by-corner duel plot",
+    operation_id="v2_corner_duel_plot",
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def corner_duel_plot_v2(
     request: Request,
@@ -1187,7 +1537,13 @@ async def corner_duel_plot_v2(
         raise HTTPException(status_code=404, detail="Plot not found")
 
 
-@router.get('/corner-duel-data', tags=["API v2", "Telemetry"])
+@router.get(
+    '/corner-duel-data',
+    tags=["API v2", "Telemetry"],
+    summary="Corner-by-corner duel data",
+    operation_id="v2_corner_duel_data",
+    responses={200: {"model": CornerDuelResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def corner_duel_data_v2(
     request: Request,
@@ -1208,7 +1564,13 @@ async def corner_duel_data_v2(
         raise
 
 
-@router.get('/driver-radar-plot', tags=["API v2", "Telemetry"])
+@router.get(
+    '/driver-radar-plot',
+    tags=["API v2", "Telemetry"],
+    summary="Driver performance radar plot",
+    operation_id="v2_driver_radar_plot",
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def driver_radar_plot_v2(
     request: Request,
@@ -1231,7 +1593,13 @@ async def driver_radar_plot_v2(
         raise HTTPException(status_code=404, detail="Plot not found")
 
 
-@router.get('/driver-radar-data', tags=["API v2", "Telemetry"])
+@router.get(
+    '/driver-radar-data',
+    tags=["API v2", "Telemetry"],
+    summary="Driver performance radar data",
+    operation_id="v2_driver_radar_data",
+    responses={200: {"model": DriverRadarResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
 @apply_tiered_limit("data")
 async def driver_radar_data_v2(
     request: Request,

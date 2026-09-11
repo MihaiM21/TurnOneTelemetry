@@ -23,8 +23,11 @@ from src.ingestion.static_client import F1StaticClient
 from src.services.analysis.v2._helpers import (
     get_all_driver_codes, get_fastest_lap_windows,
     extract_telemetry_for_lap, extract_position_for_lap,
-    compute_distance, merge_distance_onto_telemetry,
+    compute_distance, merge_distance_onto_telemetry, build_session_store,
 )
+from src.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 DATA_TYPE = 'lap_time_analysis'
 
@@ -37,30 +40,30 @@ def _init(y: int, event_name: str, session_name: str, d1: str, d2: str):
     return location, name, name.replace('png', 'json')
 
 
-def _get_driver_telemetry(base_url: str, client: F1StaticClient, driver_tla: str):
+def _get_driver_telemetry(base_url: str, client: F1StaticClient, driver_tla: str, store=None):
     """Returns (Speed/Throttle/Time/Distance DataFrame, lap_time_seconds)."""
     driver_codes = get_all_driver_codes(base_url, client)
     tla_to_num = {v.upper(): k for k, v in driver_codes.items()}
 
     driver_num = tla_to_num.get(driver_tla.upper())
     if not driver_num:
-        print(f"Driver {driver_tla} not found in session")
+        logger.warning("Driver %s not found in session", driver_tla)
         return pd.DataFrame(), None
 
-    df_windows = get_fastest_lap_windows(base_url, client, target_driver_num=driver_num)
+    df_windows = get_fastest_lap_windows(base_url, client, target_driver_num=driver_num, store=store)
     if df_windows.empty:
-        print(f"No fastest lap found for {driver_tla}")
+        logger.warning("No fastest lap found for %s", driver_tla)
         return pd.DataFrame(), None
 
     row = df_windows.iloc[0]
     start_t, end_t, lap_time = row['StartTime'], row['EndTime'], float(row['LapTime'])
 
     df_tel = extract_telemetry_for_lap(base_url, client, driver_num, start_t, end_t,
-                                       channels=['2', '4'])
+                                       channels=['2', '4'], store=store)
     if df_tel.empty:
         return pd.DataFrame(), None
 
-    df_pos = extract_position_for_lap(base_url, client, driver_num, start_t, end_t)
+    df_pos = extract_position_for_lap(base_url, client, driver_num, start_t, end_t, store=store)
     if not df_pos.empty:
         df_pos = compute_distance(df_pos)
         df_tel = merge_distance_onto_telemetry(df_tel, df_pos)
@@ -86,12 +89,12 @@ def _compute_delta(ref_dist, ref_time, cmp_dist, cmp_time):
 
 
 def _process_data(base_url: str, client: F1StaticClient,
-                  d1: str, d2: str, y: int, event_name: str, e: str) -> Dict:
+                  d1: str, d2: str, y: int, event_name: str, e: str, store=None) -> Dict:
     color1 = get_driver_color(d1)
     color2 = get_driver_color(d2)
 
-    tel1, lap1 = _get_driver_telemetry(base_url, client, d1)
-    tel2, lap2 = _get_driver_telemetry(base_url, client, d2)
+    tel1, lap1 = _get_driver_telemetry(base_url, client, d1, store=store)
+    tel2, lap2 = _get_driver_telemetry(base_url, client, d2, store=store)
 
     if tel1.empty or tel2.empty:
         return {}
@@ -200,7 +203,8 @@ def LapTimeAnalysisPlot(y: int, identifier: Union[int, str], e: str, d1: str, d2
         base_url = client.get_event_session_url(y, event_name, e, round_nr=round_nr)
         if not base_url:
             return ""
-        data = _process_data(base_url, client, d1, d2, y, event_name, e)
+        store = build_session_store(y, identifier, e, client)
+        data = _process_data(base_url, client, d1, d2, y, event_name, e, store=store)
         if data and data.get('telemetry'):
             store_data_dict_to_mongo(
                 year=y, round_nr=round_nr, session_name=e, event_name=event_name,
@@ -234,7 +238,8 @@ def LapTimeAnalysisData(y: int, identifier: Union[int, str], e: str, d1: str, d2
     if not base_url:
         return {}
 
-    data = _process_data(base_url, client, d1, d2, y, event_name, e)
+    store = build_session_store(y, identifier, e, client)
+    data = _process_data(base_url, client, d1, d2, y, event_name, e, store=store)
 
     if store_to_mongo and data and data.get('telemetry'):
         store_data_dict_to_mongo(
@@ -245,14 +250,14 @@ def LapTimeAnalysisData(y: int, identifier: Union[int, str], e: str, d1: str, d2
 
 
 if __name__ == "__main__":
-    print("Testing V2 Lap Time Analysis...")
+    logger.info("Testing V2 Lap Time Analysis...")
     try:
         plot_path = LapTimeAnalysisPlot(2023, 14, "Qualifying", "VER", "NOR")
-        print(f"Plot: {plot_path}")
+        logger.info("Plot: %s", plot_path)
         data = LapTimeAnalysisData(2023, 14, "Qualifying", "VER", "NOR")
-        print(f"Telemetry points: {len(data.get('telemetry', []))}, "
-              f"delta points: {len(data.get('delta', []))}")
+        logger.info("Telemetry points: %s, delta points: %s",
+                    len(data.get('telemetry', [])), len(data.get('delta', [])))
     except Exception as ex:
-        print(f"Error: {ex}")
+        logger.error("Error: %s", ex)
         import traceback
         traceback.print_exc()

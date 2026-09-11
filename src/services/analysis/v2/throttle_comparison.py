@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
-from typing import Dict, List, Tuple, Any, Optional, Union
+from typing import Dict, List, Tuple, Optional, Union
 
 from src.services.plotting import output as dirOrg
 from src.services.plotting import theme as setup_theme
@@ -11,25 +11,14 @@ from src.repositories.plots import store_data_dict_to_mongo, get_plot_data_from_
 from src.ingestion.static_client import F1StaticClient
 from src.domain.mappings import get_driver_team_mapping
 from src.services.plotting.colors import get_driver_color
+from src.services.analysis.v2._helpers import build_session_store, parse_f1_time
+from src.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 # ============================================================================
 # UTILS & PARSERS
 # ============================================================================
-
-def parse_f1_time(time_str: Any) -> float:
-    if pd.isna(time_str) or time_str == '':
-        return 0.0
-    if isinstance(time_str, (int, float)):
-        return float(time_str)
-    try:
-        time_str = str(time_str).strip()
-        parts = time_str.split(':')
-        if len(parts) == 3: # h:mm:ss.ms
-            return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
-        elif len(parts) == 2: # mm:ss.ms
-            return float(parts[0]) * 60 + float(parts[1])
-        return float(parts[0])
-    except: return 0.0
 
 def _init(y: int, event_name: str, session_name: str) -> Tuple[str, str, str]:
     event_folder = event_name.replace(' ', '')
@@ -93,16 +82,16 @@ def get_fastest_lap_windows_pandas(base_url: str, client: F1StaticClient) -> pd.
                                 'LapTime': lap_time
                             }
         return pd.DataFrame(list(best_laps.values()))
-    except Exception as ex: 
-        print(f"Error in fast laps: {ex}")
+    except Exception as ex:
+        logger.error("Error in fast laps: %s", ex)
         return pd.DataFrame(columns=columns)
 
 from datetime import datetime
 
-def extract_telemetry_pandas(base_url: str, client: F1StaticClient) -> pd.DataFrame:
+def extract_telemetry_pandas(base_url: str, client: F1StaticClient, store=None) -> pd.DataFrame:
     records = []
     try:
-        entries = client.parse_compressed_stream(base_url + "CarData.z.jsonStream")
+        entries = store.car_data() if store is not None else client.parse_compressed_stream(base_url + "CarData.z.jsonStream")
         session_start_utc = None
         
         for entry in entries:
@@ -131,7 +120,7 @@ def extract_telemetry_pandas(base_url: str, client: F1StaticClient) -> pd.DataFr
                         records.append({'Time': sample_time, 'Driver': drv_num, 'Throttle': float(thr)})
         return pd.DataFrame(records)
     except Exception as e:
-        print(f"Error in telemetry extraction: {e}")
+        logger.error("Error in telemetry extraction: %s", e)
         return pd.DataFrame()
 
 # ============================================================================
@@ -147,9 +136,10 @@ def process_throttle_data(y: int, identifier: Union[int, str], e: str, client: F
     base_url = client.get_event_session_url(y, event_name, e, round_nr=round_nr)
     if not base_url: raise ValueError("URL sesiune negăsit")
         
+    store = build_session_store(y, identifier, e, client)
     driver_codes = get_all_driver_codes(base_url, client)
     df_windows = get_fastest_lap_windows_pandas(base_url, client)
-    df_telemetry = extract_telemetry_pandas(base_url, client)
+    df_telemetry = extract_telemetry_pandas(base_url, client, store=store)
     
     if df_telemetry.empty: return []
 
@@ -185,7 +175,8 @@ def get_all_driver_codes(base_url, client):
         r = client.session.get(base_url + "DriverList.json")
         data = json.loads(r.content.decode('utf-8-sig'))
         for k, v in data.items(): mapping[k] = v.get('Tla', k)
-    except: pass
+    except Exception as exc:
+        logger.warning("Error fetching driver codes from DriverList.json: %s", exc)
     return mapping
 
 # ============================================================================
@@ -249,7 +240,8 @@ def _generate_plot(drivers, throttles, colors, y, event, session, loc, name):
     try:
         logo = mpimg.imread('assets/images/logo mic.png')
         fig.figimage(logo, 575, 575, zorder=3, alpha=.6)
-    except: pass
+    except (FileNotFoundError, OSError) as exc:
+        logger.debug("Watermark logo unavailable, skipping: %s", exc)
     
     plt.suptitle(f'Throttle comparison (V2 Engine)\n{y} {event} {session}')
     setup_theme.add_glow(ax)

@@ -4,11 +4,14 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 
+from src.core.logging import get_logger
 from src.services.plotting import output as dirOrg
 from src.ingestion import fastf1_client as data_aqcuisition
 from src.services.plotting import theme as setup_theme
 from src.services.plotting.colors import team_colors, teams, get_driver_color
 from src.repositories.plots import store_data_dict_to_mongo, get_plot_data_from_mongo
+
+logger = get_logger(__name__)
 
 def _init(y, r, e, session):
     dirOrg.checkForFolder(str(y) + "/" + session.event['EventName'] + "/" + e)
@@ -87,7 +90,7 @@ def ThrottleComp(y,r,e):
             drivercolor = get_driver_color(drv)
             list_colors.append(drivercolor)
         except Exception as ex:
-            print(f"An error occurred for driver {drv}: {ex}")
+            logger.error("An error occurred for driver %s: %s", drv, ex)
 
     # Sort all lists together
     list_telemetry, valid_drivers, list_colors = (list(t) for t in zip(*sorted(zip(list_telemetry, valid_drivers, list_colors))))
@@ -97,7 +100,7 @@ def ThrottleComp(y,r,e):
     list_colors.reverse()
     string_telemetry.reverse()
 
-    print(list_colors)
+    logger.debug("Driver colors: %s", list_colors)
 
     fig, ax = plt.subplots(figsize=(13, 13), layout='constrained')
     ax.bar(valid_drivers, list_telemetry, color = list_colors)
@@ -158,7 +161,7 @@ def ThrottleCompData(y,r,e, store_to_mongo=True):
             drivercolor = get_driver_color(drv)
             list_colors.append(drivercolor)
         except Exception as ex:
-            print(f"An error occurred for driver {drv}: {ex}")
+            logger.error("An error occurred for driver %s: %s", drv, ex)
 
     # Sort all lists together
     list_telemetry, valid_drivers, list_colors = (list(t) for t in zip(*sorted(zip(list_telemetry, valid_drivers, list_colors))))
@@ -168,7 +171,7 @@ def ThrottleCompData(y,r,e, store_to_mongo=True):
     list_colors.reverse()
     string_telemetry.reverse()
 
-    print(list_colors)
+    logger.debug("Driver colors: %s", list_colors)
 
     # Return data in JSON format - Create list of records manually for consistent output
     json_data = []
@@ -193,6 +196,6 @@ def ThrottleCompData(y,r,e, store_to_mongo=True):
                 version='v1'
             )
         except Exception as e:
-            print(f"Warning: Failed to store to MongoDB: {e}")
+            logger.warning("Failed to store to MongoDB: %s", e)
 
     return json_data  # Return data directly

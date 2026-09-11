@@ -10,7 +10,15 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
 from src.api.admin_security import enforce_ip_allowlist, enforce_ui_rate_limit
-from src.api.routers.admin import require_admin_key
+from src.api.routers.admin import ADMIN_ERROR_RESPONSES, _err, require_admin_key
+from src.api.schemas.admin import (
+    BackupListResponse,
+    BackupManifestResponse,
+    BackupRestoreResponse,
+    BackupRunResponse,
+    BackupStatusResponse,
+    BackupVerifyResponse,
+)
 from src.core.config import settings
 from src.core.logging import get_logger
 from src.core.security.rate_limiting import apply_tiered_limit
@@ -26,7 +34,7 @@ def _gate(request: Request) -> None:
     enforce_ui_rate_limit(request)
 
 
-router = APIRouter(prefix="/api/admin/backup", tags=["General"], dependencies=[Depends(_gate)])
+router = APIRouter(prefix="/api/admin/backup", tags=["Admin"], dependencies=[Depends(_gate)])
 
 
 def _require_enabled() -> None:
@@ -42,9 +50,19 @@ class RestoreRequest(BaseModel):
 
 
 # ── status / discovery ────────────────────────────────────────────────────
-@router.get("/status")
+@router.get(
+    "/status",
+    summary="Backup subsystem status",
+    operation_id="backup_status",
+    responses={200: {"model": BackupStatusResponse}, **ADMIN_ERROR_RESPONSES},
+)
 @apply_tiered_limit("standard")
 async def backup_status(request: Request, api_key: str = Depends(require_admin_key)):
+    """Scheduler state, last/next run, last backup outcome, and current retention/S3 config.
+
+    Available even when the subsystem is disabled (``s3_reachable`` is then ``null``
+    since S3 is never pinged) — every other endpoint here requires it enabled.
+    """
     sched = get_scheduler()
     s3_ok: Optional[bool] = None
     if settings.backup_enabled:
@@ -77,26 +95,46 @@ async def backup_status(request: Request, api_key: str = Depends(require_admin_k
     }
 
 
-@router.get("/list")
+@router.get(
+    "/list",
+    summary="List backup ids for a retention tier",
+    operation_id="backup_list",
+    responses={
+        200: {"model": BackupListResponse},
+        503: _err("Backup subsystem is disabled (BACKUP_ENABLED=false)."),
+        **ADMIN_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def backup_list(
     request: Request,
     tier: str = Query("daily", pattern="^(daily|weekly|monthly)$"),
     api_key: str = Depends(require_admin_key),
 ):
+    """Backup ids present in S3 for one retention tier."""
     _require_enabled()
     storage = await run_in_threadpool(S3Storage)
     ids = await run_in_threadpool(storage.list_backups, tier)
     return {"tier": tier, "count": len(ids), "backup_ids": ids}
 
 
-@router.get("/manifest/{backup_id}")
+@router.get(
+    "/manifest/{backup_id}",
+    summary="Fetch a backup's manifest",
+    operation_id="backup_manifest",
+    responses={
+        200: {"model": BackupManifestResponse},
+        503: _err("Backup subsystem is disabled (BACKUP_ENABLED=false)."),
+        **ADMIN_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def backup_manifest(
     request: Request,
     backup_id: str,
     api_key: str = Depends(require_admin_key),
 ):
+    """Checksums, sizes, and per-artifact metadata for one backup."""
     _require_enabled()
     runner = await run_in_threadpool(RestoreRunner)
     manifest = await run_in_threadpool(runner.load_manifest, backup_id)
@@ -106,12 +144,24 @@ async def backup_manifest(
 
 
 # ── actions ───────────────────────────────────────────────────────────────
-@router.post("/run")
+@router.post(
+    "/run",
+    summary="Trigger an immediate backup",
+    operation_id="backup_run",
+    responses={
+        200: {"model": BackupRunResponse},
+        409: _err("A backup is already in progress."),
+        503: _err("Backup subsystem is disabled (BACKUP_ENABLED=false)."),
+        **ADMIN_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def backup_run(
     request: Request,
     api_key: str = Depends(require_admin_key),
 ):
+    """Queue a backup to start immediately, outside the normal schedule. Returns
+    before the backup finishes; poll ``GET /api/admin/backup/status`` for outcome."""
     _require_enabled()
     sched = get_scheduler()
     if sched._manual_in_progress:
@@ -120,13 +170,23 @@ async def backup_run(
     return {"status": "triggered", "message": "Backup scheduled to start immediately"}
 
 
-@router.post("/verify/{backup_id}")
+@router.post(
+    "/verify/{backup_id}",
+    summary="Verify a backup's artifact checksums",
+    operation_id="backup_verify",
+    responses={
+        200: {"model": BackupVerifyResponse},
+        503: _err("Backup subsystem is disabled (BACKUP_ENABLED=false)."),
+        **ADMIN_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def backup_verify(
     request: Request,
     backup_id: str,
     api_key: str = Depends(require_admin_key),
 ):
+    """Download each manifest artifact and confirm its ciphertext sha256 still matches. Read-only."""
     _require_enabled()
     runner = await run_in_threadpool(RestoreRunner)
     report = await run_in_threadpool(runner.verify, backup_id)
@@ -137,7 +197,21 @@ async def backup_verify(
     }
 
 
-@router.post("/restore/{backup_id}")
+@router.post(
+    "/restore/{backup_id}",
+    summary="Restore a backup into MongoDB/SQLite (destructive)",
+    operation_id="backup_restore",
+    responses={
+        200: {"model": BackupRestoreResponse},
+        400: _err(
+            "Missing double-confirmation for a real (non-drill) restore: both `?confirm=true` "
+            "and body field `i_understand=true` are required. For a safe drill instead, pass "
+            "body field `mongo_target_db=<throwaway_db>`, which needs neither."
+        ),
+        503: _err("Backup subsystem is disabled (BACKUP_ENABLED=false)."),
+        **ADMIN_ERROR_RESPONSES,
+    },
+)
 @apply_tiered_limit("standard")
 async def backup_restore(
     request: Request,
@@ -146,6 +220,16 @@ async def backup_restore(
     confirm: bool = Query(False),
     api_key: str = Depends(require_admin_key),
 ):
+    """Restore backup components into MongoDB (and SQLite) from the manifest.
+
+    **Destructive against the live database** — restored collections are
+    overwritten (and, with ``mongo_drop=true``, dropped first) by the backup's
+    contents. Requires **both** ``?confirm=true`` on the query string **and**
+    body field ``i_understand=true``; without both, the handler refuses with
+    400 before touching anything. The one exception is a drill: passing body
+    field ``mongo_target_db=<throwaway_db>`` restores into that database
+    instead of production and needs neither confirmation flag.
+    """
     _require_enabled()
     is_drill = bool(payload.mongo_target_db)
     if not is_drill and not (confirm and payload.i_understand):

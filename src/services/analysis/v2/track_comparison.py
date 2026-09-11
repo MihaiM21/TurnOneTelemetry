@@ -14,8 +14,12 @@ from src.services.plotting.colors import get_driver_color
 from src.ingestion.static_client import F1StaticClient
 from src.services.analysis.v2._helpers import (
     get_all_driver_codes, get_fastest_lap_windows,
-    extract_telemetry_for_lap, extract_position_for_lap, compute_distance
+    extract_telemetry_for_lap, extract_position_for_lap, compute_distance,
+    build_session_store,
 )
+from src.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def _init(y: int, event_name: str, session_name: str, d1: str, d2: str):
@@ -27,32 +31,33 @@ def _init(y: int, event_name: str, session_name: str, d1: str, d2: str):
 
 
 def _get_driver_track_data(base_url: str, client: F1StaticClient,
-                            driver_tla: str) -> pd.DataFrame:
+                            driver_tla: str, store=None) -> pd.DataFrame:
     """Returns X/Y/Distance/Speed DataFrame for a driver's fastest lap."""
     driver_codes = get_all_driver_codes(base_url, client)
     tla_to_num = {v.upper(): k for k, v in driver_codes.items()}
 
     driver_num = tla_to_num.get(driver_tla.upper())
     if not driver_num:
-        print(f"Driver {driver_tla} not found in session")
+        logger.warning("Driver %s not found in session", driver_tla)
         return pd.DataFrame()
 
-    df_windows = get_fastest_lap_windows(base_url, client, target_driver_num=driver_num)
+    df_windows = get_fastest_lap_windows(base_url, client, target_driver_num=driver_num, store=store)
     if df_windows.empty:
-        print(f"No fastest lap found for {driver_tla}")
+        logger.warning("No fastest lap found for %s", driver_tla)
         return pd.DataFrame()
 
     row = df_windows.iloc[0]
     start_t, end_t = row['StartTime'], row['EndTime']
 
-    df_pos = extract_position_for_lap(base_url, client, driver_num, start_t, end_t)
+    df_pos = extract_position_for_lap(base_url, client, driver_num, start_t, end_t, store=store)
     if df_pos.empty:
-        print(f"No position data for {driver_tla}")
+        logger.warning("No position data for %s", driver_tla)
         return pd.DataFrame()
 
     df_pos = compute_distance(df_pos)
 
-    df_tel = extract_telemetry_for_lap(base_url, client, driver_num, start_t, end_t, channels=['2'])
+    df_tel = extract_telemetry_for_lap(base_url, client, driver_num, start_t, end_t,
+                                       channels=['2'], store=store)
 
     if not df_tel.empty:
         df_tel_sorted = df_tel.sort_values('Time')
@@ -67,12 +72,12 @@ def _get_driver_track_data(base_url: str, client: F1StaticClient,
 
 
 def _process_data(base_url: str, client: F1StaticClient,
-                   d1: str, d2: str, y: int, event_name: str, e: str) -> Dict:
+                   d1: str, d2: str, y: int, event_name: str, e: str, store=None) -> Dict:
     color1 = get_driver_color(d1)
     color2 = get_driver_color(d2)
 
-    df1 = _get_driver_track_data(base_url, client, d1)
-    df2 = _get_driver_track_data(base_url, client, d2)
+    df1 = _get_driver_track_data(base_url, client, d1, store=store)
+    df2 = _get_driver_track_data(base_url, client, d2, store=store)
 
     if df1.empty or df2.empty:
         return {}
@@ -167,8 +172,8 @@ def _generate_plot(data: Dict, y: int, event_name: str, session_name: str,
     try:
         logo = mpimg.imread('assets/images/logo mic.png')
         plt.figimage(logo, 575, 575, zorder=3, alpha=.6)
-    except:
-        pass
+    except (FileNotFoundError, OSError) as exc:
+        logger.debug("Watermark logo unavailable, skipping: %s", exc)
 
     plt.savefig(f"{location}/{name}")
     plt.close()
@@ -194,7 +199,8 @@ def TrackComparisonPlot(y: int, identifier: Union[int, str], e: str, d1: str, d2
         base_url = client.get_event_session_url(y, event_name, e, round_nr=round_nr)
         if not base_url:
             return ""
-        data = _process_data(base_url, client, d1, d2, y, event_name, e)
+        store = build_session_store(y, identifier, e, client)
+        data = _process_data(base_url, client, d1, d2, y, event_name, e, store=store)
         if data and data.get('telemetry'):
             store_data_dict_to_mongo(
                 year=y, round_nr=round_nr, session_name=e, event_name=event_name,
@@ -228,7 +234,8 @@ def TrackComparisonData(y: int, identifier: Union[int, str], e: str, d1: str, d2
     if not base_url:
         return {}
 
-    data = _process_data(base_url, client, d1, d2, y, event_name, e)
+    store = build_session_store(y, identifier, e, client)
+    data = _process_data(base_url, client, d1, d2, y, event_name, e, store=store)
 
     if store_to_mongo and data and data.get('telemetry'):
         store_data_dict_to_mongo(
@@ -239,13 +246,13 @@ def TrackComparisonData(y: int, identifier: Union[int, str], e: str, d1: str, d2
 
 
 if __name__ == "__main__":
-    print("Testing V2 Track Comparison...")
+    logger.info("Testing V2 Track Comparison...")
     try:
         plot_path = TrackComparisonPlot(2023, 14, "Qualifying", "VER", "NOR")
-        print(f"Plot: {plot_path}")
+        logger.info("Plot: %s", plot_path)
         data = TrackComparisonData(2023, 14, "Qualifying", "VER", "NOR")
-        print(f"Telemetry points: {len(data.get('telemetry', []))}")
+        logger.info("Telemetry points: %s", len(data.get('telemetry', [])))
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error("Error: %s", e)
         import traceback
         traceback.print_exc()
