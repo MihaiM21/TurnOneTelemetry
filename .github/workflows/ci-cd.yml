@@ -77,6 +77,11 @@ jobs:
             src/api/schemas/telemetry.py \
             src/services/analysis/v2/lap_frames.py \
             src/services/storage_cleanup.py \
+            src/services/circuit_derivation.py \
+            src/ingestion/circuits_store.py \
+            src/ingestion/circuits_loader.py \
+            src/repositories/circuit_layouts.py \
+            src/api/routers/admin_circuits.py \
             tests/unit/api/
 
       # ADVISORY, for now. The repo still carries ~1200 whitespace-class

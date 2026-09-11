@@ -1,0 +1,249 @@
+{% extends "admin/_base.html" %}
+{% set active_page = 'circuits' %}
+{% block title %}T1API Admin · Circuits{% endblock %}
+
+{#
+  A brand-new circuit (Madring 2026 was the first) can run a whole weekend
+  before multiviewer publishes its layout. This page traces one from a
+  session's fastest lap instead: preview the outline, then save it to disk
+  and MongoDB. See src/services/circuit_derivation.py for how the trace works.
+#}
+{% block content %}
+{% if error %}
+  <div class="errbox">{{ error }}</div>
+{% endif %}
+{% if saved %}
+  <div class="warnbox">
+    Layout for circuit {{ saved }} written.
+    <a href="/admin/circuits/{{ status.year }}/{{ saved }}/download">Download the file</a>
+    to commit it to the repo.
+  </div>
+{% endif %}
+
+<section>
+  <div class="spread">
+    <h2 style="margin:0">Circuit layouts</h2>
+    <form class="filters" method="get" action="/admin/circuits">
+      <div class="field">
+        <label for="year">Year</label>
+        <select id="year" name="year" onchange="this.form.submit()">
+          {% for y in years %}
+          <option value="{{ y }}" {% if status.year == y %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </form>
+  </div>
+  <p class="muted small">
+    Sourced from the season schedule, not a directory scan, so a circuit with no file at all
+    still shows up as missing. Layouts are seeded from api.multiviewer.app when possible;
+    <code>telemetry</code> sources are provisional and get replaced once multiviewer publishes.
+  </p>
+</section>
+
+<div class="grid">
+  <div class="stat">
+    <div class="l">Events</div>
+    <div class="v">{{ status.total }}</div>
+  </div>
+  <div class="stat">
+    <div class="l">With layout</div>
+    <div class="v ok">{{ status.total - status.missing - status.unknown_key }}</div>
+  </div>
+  <div class="stat">
+    <div class="l">Missing</div>
+    <div class="v {% if status.missing %}warn{% else %}ok{% endif %}">{{ status.missing }}</div>
+  </div>
+  <div class="stat">
+    <div class="l">Unknown key</div>
+    <div class="v {% if status.unknown_key %}warn{% else %}ok{% endif %}">{{ status.unknown_key }}</div>
+  </div>
+  <div class="stat">
+    <div class="l">Stored files</div>
+    <div class="v">{{ status.stored_files }}</div>
+  </div>
+</div>
+
+{% if status.error %}
+<div class="errbox">Season schedule unavailable: {{ status.error }}</div>
+{% endif %}
+
+<section>
+  <h2>Status by event</h2>
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Round</th><th>Grand Prix</th><th>Circuit</th><th>Key</th>
+          <th>Layout</th><th>Mongo</th><th data-nosort>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in status.rows %}
+        <tr>
+          <td>{{ row.round if row.round is not none else '—' }}</td>
+          <td>{{ row.grand_prix }}</td>
+          <td>{{ row.circuit }}{% if row.location %} <span class="muted small">({{ row.location }})</span>{% endif %}</td>
+          <td><code>{{ row.circuit_key if row.circuit_key is not none else '—' }}</code></td>
+          <td>
+            {% if row.layout_present %}
+            <span class="tag ok">{{ row.source }}</span>
+            {% elif row.circuit_key is none %}
+            <span class="tag miss">no key</span>
+            {% else %}
+            <span class="tag miss">missing</span>
+            {% endif %}
+          </td>
+          <td>{% if row.in_mongo %}<span class="ok">&check;</span>{% else %}<span class="muted">&ndash;</span>{% endif %}</td>
+          <td class="nowrap">
+            <a class="cellink" href="/admin/circuits?year={{ status.year }}&amp;gp={{ row.grand_prix | urlencode }}&amp;session=Q#derive">Derive</a>
+            {% if row.layout_present and row.circuit_key is not none %}
+            &middot; <a class="cellink" href="/admin/circuits/{{ status.year }}/{{ row.circuit_key }}/download">Download</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="derive">
+  <h2>Derive a layout</h2>
+  <p class="muted small" style="margin-bottom:12px">
+    Preview traces the session's fastest lap. Nothing is written until you Save.
+  </p>
+  <form class="filters" method="post" action="/admin/circuits/preview">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="field">
+      <label for="d_year">Year</label>
+      <input id="d_year" type="number" name="year" value="{{ form.year }}" min="2018" max="2030" required>
+    </div>
+    <div class="field">
+      <label for="d_gp">Grand Prix</label>
+      <input id="d_gp" type="text" name="gp" value="{{ form.gp }}" maxlength="80" required
+             placeholder="Spanish Grand Prix / Madrid / 16">
+    </div>
+    <div class="field">
+      <label for="d_session">Session</label>
+      <select id="d_session" name="session">
+        {% for s in session_choices %}
+        <option value="{{ s }}" {% if form.session == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="d_driver">Driver</label>
+      <input id="d_driver" type="text" name="driver" value="{{ form.driver }}" maxlength="3"
+             placeholder="auto = fastest">
+    </div>
+    <div class="field">
+      <label for="d_rotation">Rotation</label>
+      <input id="d_rotation" type="number" step="0.1" name="rotation" value="{{ form.rotation }}"
+             placeholder="auto">
+    </div>
+    <div class="field">
+      <label for="d_min_turn_deg">Min turn &deg;</label>
+      <input id="d_min_turn_deg" type="number" step="1" name="min_turn_deg" value="{{ form.min_turn_deg }}">
+    </div>
+    <div class="field">
+      <label>&nbsp;</label>
+      <button type="submit" class="primary">Preview</button>
+    </div>
+  </form>
+  <p class="muted small" style="margin-top:8px">Lower min turn &deg; detects more corners.</p>
+</section>
+
+{% if preview %}
+<section>
+  <h2>Preview</h2>
+  <div class="trackmap">
+    <svg viewBox="{{ preview.viewbox }}" preserveAspectRatio="xMidYMid meet">
+      <polyline points="{{ preview.polyline_points }}" fill="none" stroke="#e8002d"
+                stroke-width="{{ (preview.width / 150) | round(1) }}"
+                stroke-linejoin="round" stroke-linecap="round"/>
+      {% for c in preview.corners %}
+      <circle cx="{{ c.x }}" cy="{{ c.y }}" r="{{ (preview.width / 200) | round(1) }}"
+              fill="#0C0C0E" stroke="#e8002d" stroke-width="1.5"/>
+      <text x="{{ c.x }}" y="{{ c.y }}" font-size="{{ (preview.width / 40) | round(1) }}"
+            fill="#F0F0F2" text-anchor="middle" dominant-baseline="central">{{ c.number }}</text>
+      {% endfor %}
+      {% if preview.sf %}
+      <rect x="{{ preview.sf.x - (preview.width / 100) }}" y="{{ preview.sf.y - (preview.width / 100) }}"
+            width="{{ preview.width / 50 }}" height="{{ preview.width / 50 }}" fill="#38BDF8"/>
+      {% endif %}
+    </svg>
+  </div>
+
+  {% if existing_source %}
+  <div class="warnbox">
+    A {{ existing_source }} layout already exists for this circuit &mdash; saving will replace it.
+  </div>
+  {% endif %}
+
+  <div class="tablewrap" style="margin-top:14px">
+    <table>
+      <tbody>
+        <tr><th>Driver</th><td>{{ result.stats.source_driver }}</td></tr>
+        <tr><th>Lap time</th><td>{{ result.stats.source_lap_time_s }} s</td></tr>
+        <tr><th>Lap length</th><td>{{ result.stats.lap_length_m }} m</td></tr>
+        <tr><th>Points</th><td>{{ result.stats.n_points }}</td></tr>
+        <tr><th>Corners</th><td>{{ result.stats.n_corners }}</td></tr>
+        <tr><th>Snapped to speed</th><td>{{ result.stats.snapped }}</td></tr>
+        <tr><th>Closure gap</th><td>{{ result.stats.closure_gap_m }} m</td></tr>
+        <tr>
+          <th>Rotation</th>
+          <td>{{ result.stats.rotation }}{% if result.stats.auto_rotation %} <span class="muted small">(auto)</span>{% endif %}</td>
+        </tr>
+        <tr><th>Candidates tried</th><td>{{ result.stats.candidates_tried }}</td></tr>
+        {% if result.stats.rejected %}
+        <tr>
+          <th>Rejected</th>
+          <td class="small muted">
+            {% for r in result.stats.rejected %}{{ r }}<br>{% endfor %}
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="tablewrap" style="margin-top:14px">
+    <table>
+      <thead><tr><th>#</th><th>Distance</th><th>Turn &deg;</th><th>Direction</th><th>Min speed</th></tr></thead>
+      <tbody>
+        {% for c in result.stats.corners %}
+        <tr>
+          <td>{{ c.number }}</td>
+          <td>{{ c.length_m }} m</td>
+          <td>{{ c.turn_deg }}</td>
+          <td>{{ c.direction }}</td>
+          <td>{{ c.min_speed_kmh if c.min_speed_kmh is not none else '—' }}{% if c.min_speed_kmh is not none %} km/h{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <form method="post" action="/admin/circuits/save" style="margin-top:14px"
+        data-confirm="Write this layout to disk and MongoDB?">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="year" value="{{ form.year }}">
+    <input type="hidden" name="gp" value="{{ form.gp }}">
+    <input type="hidden" name="session" value="{{ form.session }}">
+    <input type="hidden" name="driver" value="{{ form.driver }}">
+    <input type="hidden" name="rotation" value="{{ form.rotation }}">
+    <input type="hidden" name="min_turn_deg" value="{{ form.min_turn_deg }}">
+    {% if existing_source %}
+    <div class="field">
+      <label class="inline chk">
+        <input type="checkbox" name="overwrite" value="true">
+        <span class="small">Overwrite the existing {{ existing_source }} layout</span>
+      </label>
+    </div>
+    {% endif %}
+    <button type="submit" class="primary">Save layout</button>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

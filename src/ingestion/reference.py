@@ -76,11 +76,25 @@ def _adapt_livetiming_index_to_season_events(year: int, index: dict) -> list[dic
     """
     events: list[dict] = []
     for idx, meeting in enumerate(index.get("Meetings", []), start=1):
+        # The livetiming index is not always a full, round-1-anchored season
+        # list — it can be a rolling/truncated window (e.g. starting mid-season).
+        # Prefer the meeting's own calendar round ("Number") over array position.
+        number = meeting.get("Number")
+        circuit = meeting.get("Circuit") if isinstance(meeting.get("Circuit"), dict) else {}
         events.append({
-            "round": idx,
+            "round": number if isinstance(number, int) else idx,
             "grandPrix": meeting.get("Name", ""),
             "officialName": meeting.get("OfficialName", ""),
-            "circuit": meeting.get("Circuit", {}).get("ShortName", "") if isinstance(meeting.get("Circuit"), dict) else "",
+            "circuit": circuit.get("ShortName", ""),
+            # Livetiming's Circuit.Key doubles as the stored circuit-layout id
+            # (src/domain/data/circuits/{year}/{key}_*.json), so carrying it
+            # here lets the admin circuits page map events to layouts without
+            # fetching each session's SessionInfo.json.
+            "circuitKey": circuit.get("Key"),
+            # Host city ("Madrid", "Monza"): the name people actually use for a
+            # round whose GP name does not contain it (2026 "Spanish Grand
+            # Prix" is in Madrid). The resolver matches on it.
+            "location": meeting.get("Location", ""),
             "country": meeting.get("Country", {}).get("Name", "") if isinstance(meeting.get("Country"), dict) else "",
             "code": meeting.get("Code", ""),
             "key": meeting.get("Key"),
@@ -144,6 +158,71 @@ def _fetch_livetiming_meetings_safe(year: int) -> Optional[list[dict]]:
         return None
 
 
+def _match_curated_to_livetiming(curated: list[dict], live: list[dict]) -> list[Optional[dict]]:
+    """Pair each curated race with at most one livetiming meeting.
+
+    Three passes, each *claiming* the meeting it matches so no meeting is
+    handed to two curated races:
+
+    1. exact folded ``grandPrix`` name;
+    2. circuit-name containment ("Circuit de Barcelona-Catalunya" vs
+       livetiming's "Catalunya"), only when exactly one unclaimed meeting fits;
+    3. the only remaining unclaimed meeting in the same country.
+
+    A plain country lookup was wrong as soon as a season had two rounds in one
+    country: 2026 has Barcelona ("Gran Premio de Barcelona-Catalunya", which
+    livetiming calls "Barcelona Grand Prix") and Madrid ("Spanish Grand Prix"),
+    both ``country == "Spain"``. A dict keyed by country kept whichever came
+    last, so the Barcelona record was enriched with Madrid's meeting key, code
+    and official name.
+    """
+    matches: list[Optional[dict]] = [None] * len(curated)
+    claimed: set[int] = set()
+
+    def _claim(idx: int, meeting: dict) -> None:
+        matches[idx] = meeting
+        claimed.add(id(meeting))
+
+    def _unclaimed() -> list[dict]:
+        return [m for m in live if id(m) not in claimed]
+
+    # Pass 1: exact name.
+    live_by_name = {_fold(m.get("grandPrix")): m for m in live if m.get("grandPrix")}
+    for idx, race in enumerate(curated):
+        meeting = live_by_name.get(_fold(race.get("grandPrix")))
+        if meeting is not None and id(meeting) not in claimed:
+            _claim(idx, meeting)
+
+    # Pass 2: circuit-name containment (both sides non-empty: "" is a
+    # substring of everything).
+    for idx, race in enumerate(curated):
+        if matches[idx] is not None:
+            continue
+        wanted = _fold(race.get("circuit"))
+        if not wanted:
+            continue
+        candidates = []
+        for meeting in _unclaimed():
+            have = _fold(meeting.get("circuit"))
+            if have and (have in wanted or wanted in have):
+                candidates.append(meeting)
+        if len(candidates) == 1:
+            _claim(idx, candidates[0])
+
+    # Pass 3: unique unclaimed meeting in the same country.
+    for idx, race in enumerate(curated):
+        if matches[idx] is not None:
+            continue
+        country = _fold(race.get("country"))
+        if not country:
+            continue
+        candidates = [m for m in _unclaimed() if _fold(m.get("country")) == country]
+        if len(candidates) == 1:
+            _claim(idx, candidates[0])
+
+    return matches
+
+
 def _enrich_curated_with_livetiming(year: int, curated: list[dict]) -> list[dict]:
     """Attach livetiming ``key`` / ``code`` / ``officialName`` to curated races.
 
@@ -164,20 +243,15 @@ def _enrich_curated_with_livetiming(year: int, curated: list[dict]) -> list[dict
         _ENRICHED_SEASON_CACHE.set(year, curated)
         return curated
 
-    # Build lookup from folded curated name -> livetiming meeting.
-    live_by_name = {_fold(m.get("grandPrix")): m for m in live if m.get("grandPrix")}
-    live_by_country = {_fold(m.get("country")): m for m in live if m.get("country")}
+    matches = _match_curated_to_livetiming(curated, live)
 
     result: list[dict] = []
     for idx, race in enumerate(curated):
-        match = (
-            live_by_name.get(_fold(race.get("grandPrix")))
-            or live_by_country.get(_fold(race.get("country")))
-        )
+        match = matches[idx]
         merged = dict(race)
         if match:
             # Don't overwrite curated keys — only fill gaps.
-            for k in ("officialName", "code", "key", "circuit"):
+            for k in ("officialName", "code", "key", "circuit", "circuitKey", "location"):
                 v = match.get(k)
                 if v and not merged.get(k):
                     merged[k] = v

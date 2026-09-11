@@ -291,6 +291,17 @@ body.login input { width: 100%; background: var(--bg); padding: 10px 12px; font-
 body.login button { margin-top: 20px; width: 100%; padding: 12px; font-weight: 600; }
 body.login .err { background: rgba(232, 0, 45, .12); border: 1px solid rgba(232, 0, 45, .3); color: #FF4D6D; padding: 10px; font-size: 12px; margin-bottom: 16px; border-radius: 2px; }
 
+/* ---------------------------------------------------------------- circuit preview */
+.trackmap {
+  max-width: 720px; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 3px; padding: 12px;
+}
+.trackmap svg { width: 100%; height: auto; display: block; }
+/* font-size is set per-corner in the SVG markup (scaled to the layout's
+ * viewbox); a size here would win the cascade over that attribute and
+ * flatten every corner number to the same size. */
+.trackmap text { font-family: var(--font); font-weight: 600; fill: var(--text); }
+
 @media (max-width: 640px) {
   body { padding: 12px; }
   section { padding: 14px; }

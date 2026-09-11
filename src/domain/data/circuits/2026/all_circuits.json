@@ -1,6 +1,6 @@
 {
   "year": 2026,
-  "total_circuits": 32,
+  "total_circuits": 33,
   "circuits": [
     {
       "circuit_id": "2",
@@ -405,6 +405,16 @@
       "circuit_key": 152,
       "years_available": [
         2023,
+        2026
+      ]
+    },
+    {
+      "circuit_id": "153",
+      "name": "Madring",
+      "country": "Spain",
+      "country_code": "ESP",
+      "circuit_key": 153,
+      "years_available": [
         2026
       ]
     }

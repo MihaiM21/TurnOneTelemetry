@@ -637,6 +637,7 @@ def ensure_indexes(years: Optional[List[int]] = None) -> Dict[str, List[str]]:
     _safe_create("v2_session_cache", [("year", 1), ("session", 1)])
     _safe_create("v2_session_cache", [("created_at", -1)])
     _safe_create("v2_raw_cache.files", [("metadata.year", 1), ("metadata.session", 1)])
+    _safe_create("circuit_layouts", [("year", 1), ("circuit_id", 1)])
 
     return created
 

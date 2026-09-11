@@ -36,8 +36,13 @@ def _init(y, r, e, d, session):
 
 def LatimesDistribution(y, r, e, d):
 
+    # Cache key is parametrized by driver — otherwise the first driver ever
+    # queried for a (year, round, session) would be served back for every
+    # other driver requested afterward.
+    cache_key = f'lap_times_distribution_{d}'
+
     # Check MongoDB cache first (before loading session)
-    cached_result = get_plot_data_from_mongo(y, r, e, 'lap_times_distribution')
+    cached_result = get_plot_data_from_mongo(y, r, e, cache_key)
     if cached_result:
         # Return cached data directly, no need to save to file
         logger.info("Using cached Lap Times Distribution data from MongoDB")
@@ -88,7 +93,7 @@ def LatimesDistribution(y, r, e, d):
             round_nr=r,
             session_name=e,
             event_name=event_name,
-            data_type='lap_times_distribution',
+            data_type=cache_key,
             data=data_list,
             version='v1'
         )

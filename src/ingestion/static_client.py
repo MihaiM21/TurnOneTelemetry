@@ -353,6 +353,7 @@ class F1StaticClient:
             "code": info.code,
             "circuit": info.circuit,
             "country": info.country,
+            "circuit_key": info.circuit_key,
         }
     
     # ========================================================================

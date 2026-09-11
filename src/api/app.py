@@ -293,6 +293,7 @@ def create_app() -> FastAPI:
     # Routers MUST be imported after init_limiter() (decorators bind at import).
     from src.api.routers.admin import router as admin_router
     from src.api.routers.admin_cache import router as admin_cache_router
+    from src.api.routers.admin_circuits import router as admin_circuits_router
     from src.api.routers.admin_data import router as admin_data_router
     from src.api.routers.admin_storage import router as admin_storage_router
     from src.api.routers.admin_ui import router as admin_ui_router
@@ -352,6 +353,18 @@ def create_app() -> FastAPI:
             logger.info(f"MongoDB indexes ready: {total} across {len(created)} collections")
         except Exception as e:
             logger.warning(f"ensure_indexes() failed: {e}")
+
+        # Re-materialise circuit layouts that exist only in MongoDB. docker-compose
+        # does not mount src/, so a layout written at runtime (circuits_sync, or a
+        # telemetry-derived one for a brand-new circuit) is lost on rebuild; the
+        # Mongo mirror is the durable copy. Never blocks startup.
+        try:
+            from src.ingestion.circuits_store import hydrate_from_mongo
+            restored = await asyncio.to_thread(hydrate_from_mongo)
+            if restored:
+                logger.info(f"Circuit layouts re-materialised from MongoDB: {restored}")
+        except Exception as e:
+            logger.warning(f"Circuit layout hydrate failed (continuing): {e}")
 
         # Initialize Redis response cache (graceful no-op if unavailable).
         try:
@@ -691,6 +704,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_cache_router)
     app.include_router(admin_data_router)
     app.include_router(admin_storage_router)
+    app.include_router(admin_circuits_router)
     app.include_router(admin_ui_router)
     app.include_router(backup_admin_router)
     app.include_router(auth_router)

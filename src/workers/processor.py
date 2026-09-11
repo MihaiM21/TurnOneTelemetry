@@ -75,7 +75,10 @@ class BackgroundProcessor:
         Get list of upcoming F1 sessions from the schedule
         
         Returns:
-            List of tuples (year, gp, session, session_date)
+            List of tuples (year, gp, session, session_date, gp_name). ``gp`` is
+            the schedule row index + 1 (V1/FastF1); ``gp_name`` is the event
+            name, which V2 must use because the schedule can include
+            pre-season testing and shift the positional round by one.
         """
         try:
             current_year = datetime.now().year
@@ -86,6 +89,7 @@ class BackgroundProcessor:
             
             for idx, event in schedule.iterrows():
                 gp_number = idx + 1
+                gp_name = event.get('EventName') if hasattr(event, 'get') else None
                 
                 # Check all session types
                 session_types = {
@@ -106,7 +110,7 @@ class BackgroundProcessor:
                         
                         # Add sessions that finished in the last 24 hours
                         if now - pd.Timedelta(hours=24) <= session_date <= now:
-                            upcoming.append((current_year, gp_number, session_name, session_date))
+                            upcoming.append((current_year, gp_number, session_name, session_date, gp_name))
             
             return upcoming
             
@@ -187,6 +191,24 @@ class BackgroundProcessor:
                 logger.debug(f"Pre-warm stream {name} skipped for Y{year} {identifier} {session}: {exc}")
         logger.info(f"🔥 Pre-warmed {warmed}/{len(accessors)} raw streams for Y{year} {identifier} {session}")
 
+    def ensure_circuit_layout(self, year: int, gp, session: str, gp_name: str = None) -> None:
+        """Derive + store a circuit layout if this session's circuit has none.
+
+        Delegates to :func:`src.services.circuit_derivation.ensure_circuit_layout`,
+        which never raises: an existing layout returns ``None`` immediately, a
+        failed derivation is logged at WARNING. V2 resolves by ``gp_name`` for
+        the same pre-season-testing reason as the pre-warm step.
+        """
+        from src.services.circuit_derivation import ensure_circuit_layout
+
+        result = ensure_circuit_layout(year, gp_name or gp, session)
+        if result:
+            logger.info(
+                "🗺️ Derived circuit layout %s (%s) from Y%s %s %s: %s corners, %s m",
+                result["circuit_id"], result["circuit_name"], year, gp_name or gp, session,
+                result["stats"]["n_corners"], result["stats"]["lap_length_m"],
+            )
+
     async def process_session(self, year: int, gp: int, session: str, gp_name: str = None) -> Dict[str, Any]:
         """
         Process all data for a completed session
@@ -219,6 +241,16 @@ class BackgroundProcessor:
                 )
             except Exception as exc:
                 logger.warning(f"Pre-warm step failed (continuing to plots): {exc}")
+
+        # A brand-new circuit has no stored layout until multiviewer publishes
+        # it; trace one from this session's fastest lap so the map-shaped
+        # features work from the first weekend. Cheap when a layout exists
+        # (one small SessionInfo fetch) and fully fail-open.
+        if settings.auto_derive_circuits:
+            try:
+                await asyncio.to_thread(self.ensure_circuit_layout, year, gp, session, gp_name)
+            except Exception as exc:
+                logger.warning(f"Circuit layout derivation failed (continuing to plots): {exc}")
 
         try:
             # Generate all data for this session
@@ -281,7 +313,7 @@ class BackgroundProcessor:
             
             logger.info(f"Found {len(upcoming)} recently completed sessions to check")
             
-            for year, gp, session, session_date in upcoming:
+            for year, gp, session, session_date, gp_name in upcoming:
                 session_id = f"{year}_{gp}_{session}"
                 
                 # Skip if already processed
@@ -292,8 +324,8 @@ class BackgroundProcessor:
                 if self.check_session_completed(year, gp, session):
                     logger.info(f"📊 New completed session detected: Y{year} GP{gp} {session}")
                     
-                    # Process the session
-                    result = await self.process_session(year, gp, session)
+                    # Process the session (gp_name drives V2 resolution)
+                    result = await self.process_session(year, gp, session, gp_name=gp_name)
                     
                     # Small delay between sessions
                     await asyncio.sleep(5)

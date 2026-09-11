@@ -9,14 +9,15 @@ Hardened against scrapers and brute-force probes via ``src.api.admin_security``
 """
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from urllib.parse import quote_plus
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Path as PathParam, Query, Request, status
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from src.api.admin_security import (
@@ -32,16 +33,25 @@ from src.api.admin_security import (
     verify_session_token,
 )
 from src.core.config import settings
+from src.core.exceptions import DataNotAvailableError, SessionNotFoundError, UpstreamUnavailableError
 from src.core.logging import get_logger
 from src.core.observability.monitoring import get_request_tracker
 from src.core.security.api_keys import invalidate_key_cache
 from src.core.security.rate_limiting import limits_for_tier
+from src.ingestion.circuits_store import find_circuit_file
 from src.repositories import api_key_usage as _key_usage
 from src.repositories import api_keys as _keys
 from src.repositories import raw_stream_cache, session_cache
 from src.repositories import users as _users
 from src.repositories.mongo import MongoDBManager
-from src.services.admin_views import browse_stored_data, cache_inventory
+from src.services.admin_views import browse_stored_data, cache_inventory, circuit_layout_status
+from src.services.circuit_derivation import (
+    CircuitDerivationError,
+    DeriveOptions,
+    LayoutExistsError,
+    build_preview_geometry,
+    derive_and_store,
+)
 from src.services.storage_cleanup import (
     ALL_LAYERS,
     CleanupError,
@@ -52,6 +62,7 @@ from src.services.storage_cleanup import (
     storage_totals,
 )
 from src.services.analysis.v2 import registry
+from src.domain.models.circuits import CircuitLayout
 from src.workers import plot_inventory
 
 logger = get_logger(__name__)
@@ -1164,3 +1175,188 @@ async def admin_cleanup_purge(
         f"&reclaimed={result['bytes_reclaimed']}",
         status_code=302,
     ))
+
+
+# --------------------------------------------------------------------------- #
+# Circuit derivation
+# --------------------------------------------------------------------------- #
+# Exceptions the derivation service can raise for a bad/unusable request, as
+# opposed to a genuine bug -- these must render as an operator-facing message,
+# never a 500. LayoutExistsError is a CircuitDerivationError subclass; it is
+# listed anyway so the set is self-documenting at the call site.
+_DERIVE_ERRORS = (
+    LayoutExistsError, CircuitDerivationError,
+    SessionNotFoundError, DataNotAvailableError, UpstreamUnavailableError,
+    ValueError,
+)
+_CIRCUIT_ID_RE = re.compile(r"^[0-9]{1,6}$")
+
+
+def _circuits_form(
+    year: int, gp: str, session: str, driver: str = "", rotation: str = "", min_turn_deg: float = 25.0,
+) -> dict:
+    return {
+        "year": year,
+        "gp": gp,
+        "session": session or "Q",
+        "driver": driver,
+        "rotation": rotation,
+        "min_turn_deg": min_turn_deg,
+    }
+
+
+def _circuits_context(
+    year: int,
+    form: dict,
+    *,
+    saved: str = "",
+    error: str = "",
+    preview: Optional[dict] = None,
+    result: Optional[dict] = None,
+    existing_source: Optional[str] = None,
+) -> dict:
+    return {
+        "version": settings.app_version,
+        "status": circuit_layout_status(year),
+        "years": plot_inventory.available_years(),
+        "session_choices": _SESSION_CHOICES,
+        "form": form,
+        "saved": saved,
+        "error": error,
+        "preview": preview,
+        "result": result,
+        "existing_source": existing_source,
+    }
+
+
+@router.get("/admin/circuits", include_in_schema=False)
+async def admin_circuits_page(
+    request: Request,
+    year: int = Query(None, ge=2018, le=2030),
+    saved: str = Query("", max_length=40),
+    error: str = Query("", max_length=300),
+    gp: str = Query("", max_length=80),
+    session: str = Query("", max_length=20),
+):
+    """Circuit-layout status board, plus a derive-from-telemetry workflow.
+
+    Sessions like Madring 2026 can run a whole weekend before multiviewer
+    publishes a layout; this lets an operator trace one from a session's
+    fastest lap instead of waiting.
+    """
+    if not _is_admin_session(request):
+        return apply_no_index(RedirectResponse("/admin/login", status_code=302))
+
+    if year is None:
+        year = datetime.now(timezone.utc).year
+
+    form = _circuits_form(year, gp, session)
+    context = await run_in_threadpool(_circuits_context, year, form, saved=saved, error=error)
+    return _render(request, "admin/circuits.html", context)
+
+
+@router.post("/admin/circuits/preview", include_in_schema=False)
+async def admin_circuits_preview(
+    request: Request,
+    year: int = Form(...),
+    gp: str = Form(...),
+    session: str = Form(...),
+    driver: str = Form(""),
+    rotation: str = Form(""),
+    min_turn_deg: float = Form(25.0),
+    csrf_token: str = Form(...),
+):
+    """Dry-run a derivation and render the traced outline for review.
+
+    Nothing is written here -- ``derive_and_store`` is called with
+    ``dry_run=True`` so the operator can inspect the outline and corners
+    before committing anything to disk or MongoDB.
+    """
+    if not _is_admin_session(request):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    verify_csrf(request, csrf_token)
+
+    form = _circuits_form(year, gp, session, driver, rotation, min_turn_deg)
+    try:
+        result = await run_in_threadpool(
+            derive_and_store,
+            year, gp.strip(), session.strip().upper(),
+            DeriveOptions(
+                driver=driver.strip().upper() or None,
+                rotation=float(rotation) if rotation.strip() else None,
+                min_turn_deg=min_turn_deg,
+            ),
+            dry_run=True,
+        )
+    except _DERIVE_ERRORS as exc:
+        context = await run_in_threadpool(_circuits_context, year, form, error=str(exc))
+        return _render(request, "admin/circuits.html", context)
+
+    preview = build_preview_geometry(CircuitLayout(**result["layout"]))
+    context = await run_in_threadpool(
+        _circuits_context, year, form,
+        preview=preview, result=result, existing_source=result["existing_source"],
+    )
+    return _render(request, "admin/circuits.html", context)
+
+
+@router.post("/admin/circuits/save", include_in_schema=False)
+async def admin_circuits_save(
+    request: Request,
+    year: int = Form(...),
+    gp: str = Form(...),
+    session: str = Form(...),
+    driver: str = Form(""),
+    rotation: str = Form(""),
+    min_turn_deg: float = Form(25.0),
+    overwrite: bool = Form(False),
+    csrf_token: str = Form(...),
+):
+    """Persist a previewed derivation to disk and MongoDB."""
+    if not _is_admin_session(request):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    verify_csrf(request, csrf_token)
+
+    try:
+        result = await run_in_threadpool(
+            derive_and_store,
+            year, gp.strip(), session.strip().upper(),
+            DeriveOptions(
+                driver=driver.strip().upper() or None,
+                rotation=float(rotation) if rotation.strip() else None,
+                min_turn_deg=min_turn_deg,
+            ),
+            dry_run=False,
+            overwrite=overwrite,
+        )
+    except _DERIVE_ERRORS as exc:
+        return apply_no_index(RedirectResponse(
+            f"/admin/circuits?year={year}&error={quote_plus(str(exc))}", status_code=302
+        ))
+
+    logger.warning(
+        "Admin circuit layout written: %s %s (%s) from %s",
+        result["circuit_id"], result["circuit_name"], result["session"],
+        result["stats"].get("source_driver"),
+    )
+    return apply_no_index(RedirectResponse(
+        f"/admin/circuits?year={year}&saved={result['circuit_id']}", status_code=302
+    ))
+
+
+@router.get("/admin/circuits/{year}/{circuit_id}/download", include_in_schema=False)
+async def admin_circuits_download(
+    request: Request,
+    year: int = PathParam(..., ge=2018, le=2030),
+    circuit_id: str = PathParam(...),
+):
+    """Serve a derived layout file so the operator can commit it to the repo."""
+    if not _is_admin_session(request):
+        return apply_no_index(RedirectResponse("/admin/login", status_code=302))
+    if not _CIRCUIT_ID_RE.match(circuit_id):
+        raise HTTPException(status_code=404, detail="Circuit not found")
+
+    path = await run_in_threadpool(find_circuit_file, year, circuit_id)
+    if path is None:
+        raise HTTPException(status_code=404, detail="Circuit layout not found")
+    return apply_no_index(FileResponse(path, media_type="application/json", filename=path.name))

@@ -21,6 +21,7 @@ os.environ["DOCS_PASSWORD"] = "testpw"
 os.environ["DOCS_AUTH_ALWAYS"] = "false"
 os.environ["ENABLE_BACKGROUND_PROCESSOR"] = "false"
 os.environ["ENABLE_CIRCUITS_SYNC"] = "false"
+os.environ["AUTO_DERIVE_CIRCUITS"] = "false"
 # Keep unit tests fully offline and deterministic: never touch a real Redis.
 # Otherwise a warm response cache leaks state across tests (e.g. a shared
 # livetiming stream key served stale data between fixtures).
@@ -148,3 +149,24 @@ def _clear_season_event_caches():
     for cache in (reference._LIVETIMING_SEASON_CACHE, reference._ENRICHED_SEASON_CACHE):
         with cache._lock:
             cache._store.clear()
+
+
+@pytest.fixture(autouse=True)
+def _clear_admin_ui_rate_window():
+    """Reset the admin console's per-IP rate-limit window between tests.
+
+    ``src/api/admin_security.py`` keeps a module-level sliding window of hits
+    per client IP (``ADMIN_UI_RATE_PER_MINUTE``, default 60). Every TestClient
+    request comes from the same IP, so once the suite carries more than ~60
+    admin-console requests within a minute, whichever admin test runs last
+    gets 429s -- a "passes alone, fails in the suite" failure that appeared the
+    moment a second admin test module was added. Clearing the window per test
+    keeps the limiter itself testable (a test can still fill its own window).
+    """
+    from src.api import admin_security
+
+    with admin_security._ui_lock:
+        admin_security._ui_hits.clear()
+    yield
+    with admin_security._ui_lock:
+        admin_security._ui_hits.clear()

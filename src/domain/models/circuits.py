@@ -41,6 +41,12 @@ class CircuitLayout(BaseModel):
     schema_version: int = 1
     source: str = "multiviewer"
     source_fetched_at: Optional[str] = None
+    # Provenance for layouts derived from telemetry (source == "telemetry"):
+    # which session/driver/lap the outline was traced from. Always None for
+    # multiviewer layouts. Additive, so schema_version stays 1.
+    source_session: Optional[str] = None      # "2026/Spanish Grand Prix/Q"
+    source_driver: Optional[str] = None       # TLA
+    source_lap_time_s: Optional[float] = None
 
 
 class CircuitSummary(BaseModel):

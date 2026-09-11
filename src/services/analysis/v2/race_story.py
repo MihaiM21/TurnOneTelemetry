@@ -262,8 +262,22 @@ def build_payload_from_parts(
 
     gap_series = _build_gap_series(cum, periods)
 
-    # Finishing order: smallest final cumulative time first.
-    finish_order = sorted(cum.keys(), key=lambda num: cum[num][max(cum[num])])
+    # Finishing order: by actual classified position at each driver's last
+    # recorded lap, not by comparing cumulative race time across drivers —
+    # a driver who retired early has fewer laps summed and so a smaller
+    # cumulative total than one who ran the full race, which would otherwise
+    # sort retirees ahead of drivers who finished behind them.
+    def _final_position(num: str) -> Optional[int]:
+        recs = positions.get(num, [])
+        if not recs:
+            return None
+        return max(recs, key=lambda r: r.get("lap", -1)).get("position")
+
+    def _finish_key(num: str):
+        pos = _final_position(num)
+        return (pos is None, pos if pos is not None else 0, cum[num][max(cum[num])])
+
+    finish_order = sorted(cum.keys(), key=_finish_key)
     top_nums = finish_order[:_TOP_N_FINISHERS]
 
     tla_by_num = {num: info.get("tla", num) for num, info in drivers.items()}

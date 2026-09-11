@@ -637,11 +637,15 @@ def _warn_if_sparse(kind: str, driver_num: str, n: int, start_t: float, end_t: f
 def extract_telemetry_for_lap(base_url: str, client: F1StaticClient,
                                driver_num: str, start_t: float, end_t: float,
                                channels: Optional[List[str]] = None,
-                               store: Optional[Any] = None) -> pd.DataFrame:
+                               store: Optional[Any] = None,
+                               raw_names: bool = False) -> pd.DataFrame:
     """
     Extract telemetry for a specific driver during a lap window.
     channels: channel keys ('2'=Speed, '4'=Throttle, '5'=Brake, ...)
-    Returns DataFrame with Time and one column per channel using CHANNEL_NAMES.
+    Returns DataFrame with Time and one column per channel using CHANNEL_NAMES
+    by default. Pass ``raw_names=True`` to keep the feed's own numeric keys
+    instead -- see the accuracy warning on :data:`CHANNEL_NAMES` for why a
+    caller might want to do its own mapping (e.g. via :data:`CAR_DATA_CHANNELS`).
 
     Single-driver wrapper over :func:`extract_channels_window`; ``Time`` is
     rebased to 0 at ``start_t`` and clipped to the lap. When several drivers are
@@ -652,7 +656,8 @@ def extract_telemetry_for_lap(base_url: str, client: F1StaticClient,
     re-decompressed for every driver.
     """
     frames = extract_channels_window(
-        base_url, client, [driver_num], start_t, end_t, channels=channels, store=store,
+        base_url, client, [driver_num], start_t, end_t, channels=channels,
+        store=store, raw_names=raw_names,
     )
     df = _rebase_and_clip(frames.get(str(driver_num), pd.DataFrame()), start_t, end_t)
     _warn_if_sparse("CarData", driver_num, len(df), start_t, end_t)

@@ -19,8 +19,13 @@ def _init(y, r, e, d1, d2, session):
     return location, name, name_json
 
 def throttle_graph(y,r,e,d1,d2):
+    # Cache key is parametrized by the driver pair — otherwise the first pair
+    # ever queried for a (year, round, session) would be served back for
+    # every other pair requested afterward.
+    cache_key = f'throttle_brake_comparison_{d1}_{d2}'
+
     # Check MongoDB cache first (before loading session)
-    cached_data = get_plot_data_from_mongo(y, r, e, 'throttle_brake_comparison')
+    cached_data = get_plot_data_from_mongo(y, r, e, cache_key)
     if cached_data:
         # Load session only for metadata
         sessionloader = data_aqcuisition.SessionLoader(y, r, e)
@@ -115,8 +120,11 @@ def throttle_graph(y,r,e,d1,d2):
     return location + "/" + name
 
 def throttle_graph_data(y,r,e,d1,d2):
+    # Cache key is parametrized by the driver pair — see throttle_graph.
+    cache_key = f'throttle_brake_comparison_{d1}_{d2}'
+
     # Check MongoDB cache first (before loading session)
-    cached_result = get_plot_data_from_mongo(y, r, e, 'throttle_brake_comparison')
+    cached_result = get_plot_data_from_mongo(y, r, e, cache_key)
     if cached_result:
         # Return cached data directly, no need to save to file
         return cached_result['data']
@@ -209,7 +217,7 @@ def throttle_graph_data(y,r,e,d1,d2):
                 round_nr=r,
                 session_name=e,
                 event_name=event_name,
-                data_type='throttle_brake_comparison',
+                data_type=cache_key,
                 data=json_data,
                 version='v1'
             )

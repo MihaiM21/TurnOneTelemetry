@@ -4,36 +4,43 @@ Light fallback sync for circuit data.
 Our stored circuit files (src/domain/data/circuits/{year}/) are the source of truth,
 seeded once from api.multiviewer.app via fetch_circuits.py + organize_circuits.py.
 This module only ever ADDS circuits/years we don't already have on disk - it never
-overwrites or re-derives anything that's already stored, and any network failure is
-logged and skipped rather than raised, so multiviewer being unreachable can never
-break the running API.
+overwrites a multiviewer layout, and any network failure is logged and skipped
+rather than raised, so multiviewer being unreachable can never break the running
+API.
+
+The one thing it *does* replace is a telemetry-derived layout
+(``source == "telemetry"``, see src/services/circuit_derivation.py): those are a
+stopgap traced from a single lap for a circuit multiviewer had not published yet,
+so they count as "missing" here and the real layout (marshal posts, official
+corner numbering) takes over as soon as it exists upstream. The write goes
+through circuits_store.save_circuit_layout, which removes the stale derived file
+and replaces its manifest entry.
 """
 
 import asyncio
-import json
-import os
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import List, Optional, Set, Tuple
 
 from src.core.logging import get_logger
+from src.ingestion import circuits_store
 from src.ingestion.circuit_sources.multiviewer_adapter import adapt_circuit_layout, adapt_circuit_summary
 from src.workers.fetch_circuits import YEARS, fetch_circuit_data, fetch_circuits_list
-from src.workers.organize_circuits import slugify
 
 logger = get_logger(__name__)
 
-BASE_DIR = Path("src/domain/data/circuits")
+MULTIVIEWER_SOURCE = "multiviewer"
 
 
 def _known_circuit_ids_for_year(year: int) -> Set[str]:
-    year_dir = BASE_DIR / str(year)
-    if not year_dir.exists():
-        return set()
+    """Circuit ids for ``year`` that already hold a *multiviewer* layout.
+
+    A telemetry-derived file is deliberately not "known": it is provisional,
+    and multiviewer's version must replace it when available.
+    """
     return {
-        filename.split("_", 1)[0]
-        for filename in os.listdir(year_dir)
-        if filename != "all_circuits.json" and filename.endswith(".json")
+        circuit_id
+        for circuit_id, info in circuits_store.list_circuit_files(year).items()
+        if info.get("source") == MULTIVIEWER_SOURCE
     }
 
 
@@ -89,42 +96,18 @@ def sync_missing_circuits() -> int:
             continue
 
         try:
-            year_dir = BASE_DIR / str(year)
-            year_dir.mkdir(parents=True, exist_ok=True)
-
             layout = adapt_circuit_layout(raw_detail, circuit_id, year, source_fetched_at=fetched_at)
-            slug = slugify(circuit_name)
-            circuit_file = year_dir / f"{circuit_id}_{slug}.json"
-            with open(circuit_file, "w", encoding="utf-8") as f:
-                json.dump(layout.model_dump(), f, indent=2, ensure_ascii=False)
-
-            _append_to_year_summary(year_dir, circuit_id, base_info, year)
+            if not layout.name:
+                layout.name = circuit_name
+            years_available = sorted(set(base_info.get("years", []) + [year]))
+            summary = adapt_circuit_summary(base_info, circuit_id, years_available)
+            circuit_file = circuits_store.save_circuit_layout(layout, summary)
             added += 1
             logger.info(f"circuits_sync: added {circuit_file.name}")
         except Exception as e:
             logger.warning(f"circuits_sync: failed to store circuit {circuit_id} for {year}: {e}")
 
     return added
-
-
-def _append_to_year_summary(year_dir: Path, circuit_id: str, base_info: dict, year: int) -> None:
-    summary_file = year_dir / "all_circuits.json"
-    if summary_file.exists():
-        with open(summary_file, "r", encoding="utf-8") as f:
-            year_data = json.load(f)
-    else:
-        year_data = {"year": year, "total_circuits": 0, "circuits": []}
-
-    if any(c.get("circuit_id") == circuit_id for c in year_data["circuits"]):
-        return
-
-    years_available = sorted(set(base_info.get("years", []) + [year]))
-    summary = adapt_circuit_summary(base_info, circuit_id, years_available)
-    year_data["circuits"].append(summary.model_dump())
-    year_data["total_circuits"] = len(year_data["circuits"])
-
-    with open(summary_file, "w", encoding="utf-8") as f:
-        json.dump(year_data, f, indent=2, ensure_ascii=False)
 
 
 class CircuitsSyncWorker:

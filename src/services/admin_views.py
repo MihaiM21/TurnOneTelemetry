@@ -11,8 +11,12 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from src.repositories import raw_stream_cache, session_cache
+from src.core.logging import get_logger
+from src.ingestion import circuits_store
+from src.repositories import circuit_layouts, raw_stream_cache, session_cache
 from src.repositories.mongo import MongoDBManager
+
+logger = get_logger(__name__)
 
 
 def cache_inventory(year: Optional[int] = None) -> Dict[str, Any]:
@@ -74,4 +78,69 @@ def browse_stored_data(
         "rows": rows,
         "total_sessions": len(rows),
         "total_data_types": sum(r["count"] for r in rows),
+    }
+
+
+def circuit_layout_status(year: int) -> Dict[str, Any]:
+    """Per-event view of which circuits in ``year`` have a stored layout.
+
+    Schedule-driven (``get_season_events``) rather than a directory scan, so a
+    brand-new circuit with no file at all shows up as *missing* instead of
+    silently not existing. The event -> layout link is livetiming's
+    ``Circuit.Key`` (``circuitKey``), which the enrichment carries through; an
+    event livetiming has not listed yet has no key and is reported as
+    ``unknown_key`` rather than missing.
+
+    ``rows[i]``: ``round, grand_prix, circuit, country, circuit_key,
+    layout_present, source, file, in_mongo``. Layout sources are
+    ``"multiviewer"`` (seeded/synced), ``"telemetry"`` (derived from a lap) or
+    ``"invalid"`` (file present but unparseable). Mongo lookups fail open.
+    """
+    from src.ingestion.reference import get_season_events
+
+    try:
+        events = get_season_events(year)
+        error = None
+    except Exception as exc:  # noqa: BLE001 - surfaced to the operator, never raised
+        logger.warning("circuit_layout_status: season %s unavailable: %s", year, exc)
+        events, error = [], str(exc)
+
+    files = circuits_store.list_circuit_files(year)
+    mongo_ids = set()
+    try:
+        mongo_ids = {str(doc.get("circuit_id")) for doc in circuit_layouts.list_layouts(year)}
+    except Exception:  # noqa: BLE001
+        logger.debug("circuit_layout_status: Mongo listing unavailable", exc_info=True)
+
+    rows: List[Dict[str, Any]] = []
+    missing = unknown_key = 0
+    for event in events:
+        key = event.get("circuitKey")
+        circuit_id = str(key) if key is not None else None
+        entry = files.get(circuit_id) if circuit_id else None
+        if circuit_id is None:
+            unknown_key += 1
+        elif entry is None:
+            missing += 1
+        rows.append({
+            "round": event.get("round"),
+            "grand_prix": event.get("grandPrix") or event.get("name") or "",
+            "circuit": event.get("circuit") or "",
+            "location": event.get("location") or "",
+            "country": event.get("country") or "",
+            "circuit_key": key,
+            "layout_present": entry is not None,
+            "source": entry["source"] if entry else None,
+            "file": entry["path"].name if entry else None,
+            "in_mongo": circuit_id in mongo_ids if circuit_id else False,
+        })
+
+    return {
+        "year": int(year),
+        "rows": rows,
+        "total": len(rows),
+        "missing": missing,
+        "unknown_key": unknown_key,
+        "stored_files": len(files),
+        "error": error,
     }

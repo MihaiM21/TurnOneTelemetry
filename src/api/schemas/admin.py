@@ -1027,3 +1027,119 @@ class StorageOrphansResponse(BaseModel):
     groups: List[StorageOrphanGroup]
     total_groups: int
     total_reclaimable_bytes: int
+
+
+# ---------------------------------------------------------------------------
+# Circuit layouts (/api/admin/circuits/*)
+# ---------------------------------------------------------------------------
+
+class CircuitStatusRow(BaseModel):
+    """One scheduled event's layout coverage — ``admin_views.circuit_layout_status``."""
+
+    round: Optional[int] = None
+    grand_prix: str
+    circuit: str
+    location: str
+    country: str
+    circuit_key: Optional[int] = Field(
+        None, description="Livetiming's Circuit.Key. Absent when the event hasn't been listed yet."
+    )
+    layout_present: bool
+    source: Optional[str] = Field(
+        None, description='"multiviewer" (seeded/synced), "telemetry" (derived) or "invalid".'
+    )
+    file: Optional[str] = Field(None, description="Stored layout filename, if any.")
+    in_mongo: bool
+
+
+class CircuitLayoutStatusResponse(BaseModel):
+    """``GET /api/admin/circuits/status`` — which circuits in a season have a
+    stored layout. Schedule-driven, so a brand-new circuit multiviewer hasn't
+    published yet shows as missing rather than silently absent.
+    """
+
+    year: int
+    rows: List[CircuitStatusRow]
+    total: int
+    missing: int
+    unknown_key: int
+    stored_files: int
+    error: Optional[str] = Field(
+        None, description="Set when the season schedule itself could not be loaded; rows are then empty."
+    )
+
+
+class CircuitDeriveRequest(BaseModel):
+    """Body for ``POST /api/admin/circuits/derive``."""
+
+    year: int = Field(..., ge=2018, le=2030, examples=[2026])
+    gp: str = Field(
+        ...,
+        description="Grand Prix: name, round number, livetiming key, circuit or host city, e.g. 'Madrid'.",
+        examples=["Madrid"],
+    )
+    session: str = Field("Q", description="Session identifier, e.g. FP1, Q, SQ, S, R.", examples=["Q"])
+    driver: Optional[str] = Field(
+        None, description="TLA; default = the session's fastest lap.", examples=["VER"]
+    )
+    rotation: Optional[float] = Field(
+        None, ge=0, lt=360, description="Override auto-detected rotation, in degrees."
+    )
+    min_turn_deg: float = Field(
+        25.0, ge=5, le=90, description="Minimum total heading change for a corner to be kept."
+    )
+    dry_run: bool = Field(True, description="Preview only; nothing is written.")
+    overwrite: bool = Field(False, description="Replace an existing stored layout for this circuit/year.")
+
+
+class CircuitDeriveCorner(BaseModel):
+    """One detected corner — the ``corners`` entries of ``derive_and_store``'s stats."""
+
+    number: int
+    length_m: float = Field(description="Arc-length position of the apex along the lap, in metres.")
+    turn_deg: float = Field(description="Total heading change through the corner, in degrees.")
+    direction: str = Field(description='"left" or "right".')
+    min_speed_kmh: Optional[float] = Field(
+        None, description="Set only when CarData speed was available and the apex was snapped to it."
+    )
+
+
+class CircuitDeriveStats(BaseModel):
+    """Diagnostics from one ``derive_and_store`` call, minus the ``corners`` list
+    (returned separately at the top level of :class:`CircuitDeriveResponse`)."""
+
+    lap_length_m: float
+    n_points: int
+    n_corners: int
+    closure_gap_m: float = Field(description="Start/end gap of the traced lap, in metres.")
+    samples: int = Field(description="Deduplicated position samples used to build the outline.")
+    speed_available: bool
+    snapped: int = Field(description="Corners whose apex was moved onto a local speed minimum.")
+    rotation: float
+    auto_rotation: bool = Field(description="True unless the caller passed an explicit rotation.")
+    source_driver: str = Field(description="TLA of the lap the outline was traced from.")
+    source_lap_time_s: float
+    candidates_tried: int = Field(description="Laps attempted before one produced a closed outline.")
+    rejected: List[str] = Field(description="One diagnostic string per rejected candidate lap.")
+
+
+class CircuitDeriveResponse(BaseModel):
+    """``POST /api/admin/circuits/derive``.
+
+    ``layout`` (the full ``CircuitLayout``) is deliberately not modelled here —
+    the router strips it from the response to keep this payload reviewable.
+    """
+
+    year: int
+    circuit_id: str
+    circuit_name: str
+    session: str = Field(description='e.g. "2026/Spanish Grand Prix/Q".')
+    dry_run: bool
+    written: bool
+    path: Optional[str] = Field(None, description="Set only when written=true.")
+    existing_source: Optional[str] = Field(
+        None, description="Source of a previously stored layout for this circuit/year, if any."
+    )
+    rotation: float
+    stats: CircuitDeriveStats
+    corners: List[CircuitDeriveCorner]

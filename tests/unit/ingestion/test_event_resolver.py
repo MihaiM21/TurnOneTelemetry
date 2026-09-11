@@ -133,3 +133,58 @@ def test_convenience_resolve_event(monkeypatch):
     monkeypatch.setattr(mod, "get_season_events", lambda year: SAMPLE_EVENTS)
     info = mod.resolve_event(2025, "AUS")
     assert info.name == "Australian Grand Prix"
+
+
+# ----------------------------------------------------------------------
+# Two rounds in the same country (2026: Barcelona and Madrid are both
+# "Spain") -- a plain country match must not silently pick one.
+# ----------------------------------------------------------------------
+
+SPAIN_EVENTS = [
+    {
+        "round": 1,
+        "grandPrix": "Gran Premio de Barcelona-Catalunya",
+        "circuit": "Circuit de Barcelona-Catalunya",
+        "country": "Spain",
+        "location": "Barcelona",
+    },
+    {
+        "round": 2,
+        "grandPrix": "Spanish Grand Prix",
+        "circuit": "Madring",
+        "country": "Spain",
+        "location": "Madrid",
+        "circuitKey": 153,
+    },
+]
+
+
+@pytest.fixture
+def spain_resolver(monkeypatch):
+    from src.ingestion import event_resolver as mod
+
+    monkeypatch.setattr(mod, "get_season_events", lambda year: SPAIN_EVENTS)
+    return mod.EventResolver(2026)
+
+
+def test_country_only_match_is_ambiguous_lists_both(spain_resolver):
+    with pytest.raises(SessionNotFoundError) as exc_info:
+        spain_resolver.resolve("Spain")
+    assert set(exc_info.value.suggestions) == {
+        "Gran Premio de Barcelona-Catalunya", "Spanish Grand Prix",
+    }
+
+
+def test_exact_grand_prix_name_still_resolves(spain_resolver):
+    info = spain_resolver.resolve("Spanish Grand Prix")
+    assert info.name == "Spanish Grand Prix"
+
+
+def test_resolve_via_location_field(spain_resolver):
+    info = spain_resolver.resolve("Madrid")
+    assert info.name == "Spanish Grand Prix"
+
+
+def test_event_info_circuit_key_populated_from_circuit_key(spain_resolver):
+    info = spain_resolver.resolve("Spanish Grand Prix")
+    assert info.circuit_key == 153

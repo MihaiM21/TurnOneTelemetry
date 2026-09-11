@@ -250,9 +250,15 @@ class Settings(BaseSettings):
     enable_v2_stream_prewarm: bool = True
 
     # Circuits Sync (fallback only - our stored circuit data is the source of truth;
-    # this only adds circuits/years we don't have yet, never overwrites existing data)
+    # this only adds circuits/years we don't have yet and replaces telemetry-derived
+    # layouts once multiviewer publishes the circuit; it never overwrites a
+    # multiviewer layout)
     enable_circuits_sync: bool = True
     circuits_sync_interval_seconds: int = 2_592_000  # 30 days
+    # When the background processor finishes a session whose livetiming
+    # Circuit.Key has no stored layout (a brand-new circuit), trace one from the
+    # session's fastest lap and store it (disk + MongoDB mirror).
+    auto_derive_circuits: bool = True
 
     # Backup System (MongoDB + SQLite + optional volumes -> S3-compatible storage)
     backup_enabled: bool = False

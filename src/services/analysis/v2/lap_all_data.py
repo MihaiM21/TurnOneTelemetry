@@ -28,6 +28,7 @@ from src.core.logging import get_logger
 from src.repositories.plots import store_data_dict_to_mongo
 from src.services.analysis.base import cached_or_generate
 from src.services.analysis.v2._helpers import (
+    CAR_DATA_CHANNELS,
     compute_distance,
     extract_position_for_lap,
     extract_telemetry_for_lap,
@@ -41,10 +42,13 @@ logger = get_logger(__name__)
 
 DATA_TYPE = "lap_all_data"
 
-# CarData channel keys pulled for the full picture (see CHANNEL_NAMES in
-# _helpers). '47' (DRS) is not in CHANNEL_NAMES, so it lands under the raw key
-# '47' — we normalize the telemetry row keys below regardless.
-_CHANNELS = ["2", "3", "4", "5", "45", "47"]
+# CarData channel keys pulled for the full picture. CHANNEL_NAMES (the
+# _helpers default naming) mislabels channel '3' as RPM (it's actually Gear)
+# and '45' as Gear (it's actually DRS), and has no entry at all for the real
+# RPM channel '0' — so this module requests raw_names=True and maps through
+# CAR_DATA_CHANNELS, the corrected table, instead.
+_CHANNELS = list(CAR_DATA_CHANNELS)
+_CHANNEL_TO_FIELD = dict(CAR_DATA_CHANNELS)
 
 
 def _data_type(tla: str, lap: int) -> str:
@@ -103,7 +107,7 @@ def _build_telemetry_rows(store: SessionDataStore, car_num: str,
     """Full per-sample telemetry rows with distance + X/Y/Z merged on."""
     df_tel = extract_telemetry_for_lap(
         store.base_url, store.client, car_num, start_t, end_t,
-        channels=_CHANNELS, store=store,
+        channels=_CHANNELS, store=store, raw_names=True,
     )
     df_pos = extract_position_for_lap(
         store.base_url, store.client, car_num, start_t, end_t, store=store,
@@ -126,17 +130,25 @@ def _build_telemetry_rows(store: SessionDataStore, car_num: str,
         rows.append({
             "time": float(r.get("Time", 0.0)),
             "distance": float(r.get("Distance", 0.0)),
-            "speed": _opt_float(r.get("Speed")),
-            "rpm": _opt_float(r.get("RPM")),
-            "throttle": _opt_float(r.get("Throttle")),
-            "brake": _opt_float(r.get("Brake")),
-            "gear": _opt_int(r.get("Gear")),
-            "drs": _opt_int(r.get("47")),
+            "speed": _opt_float(r.get(_channel_col("speed"))),
+            "rpm": _opt_float(r.get(_channel_col("rpm"))),
+            "throttle": _opt_float(r.get(_channel_col("throttle"))),
+            "brake": _opt_float(r.get(_channel_col("brake"))),
+            "gear": _opt_int(r.get(_channel_col("gear"))),
+            "drs": _opt_int(r.get(_channel_col("drs"))),
             "x": _opt_float(r.get("X")),
             "y": _opt_float(r.get("Y")),
             "z": _opt_float(r.get("Z")),
         })
     return rows
+
+
+def _channel_col(field: str) -> Optional[str]:
+    """Raw CarData column key (e.g. '0') for a field name (e.g. 'rpm')."""
+    for channel, name in _CHANNEL_TO_FIELD.items():
+        if name == field:
+            return channel
+    return None
 
 
 def _opt_float(v) -> Optional[float]:

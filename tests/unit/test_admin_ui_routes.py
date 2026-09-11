@@ -78,7 +78,8 @@ def offline_inventory(monkeypatch):
 # Authentication
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("path", ["/admin", "/admin/plots", "/admin/jobs",
-                                  "/admin/cache", "/admin/data", "/admin/ops"])
+                                  "/admin/cache", "/admin/data", "/admin/ops",
+                                  "/admin/circuits"])
 def test_pages_redirect_when_not_signed_in(client, monkeypatch, path):
     monkeypatch.setattr(admin_ui, "enforce_ip_allowlist", lambda request: None)
     response = client.get(path, follow_redirects=False)
