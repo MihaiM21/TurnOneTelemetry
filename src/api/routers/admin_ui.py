@@ -584,6 +584,16 @@ async def admin_plots_job_cancel(request: Request, job_id: str, csrf_token: str 
     return apply_no_index(JSONResponse({"job_id": job_id, "cancel_requested": True}))
 
 
+@router.post("/admin/plots/jobs/{job_id}/force-stop", include_in_schema=False)
+async def admin_plots_job_force_stop(request: Request, job_id: str, csrf_token: str = Form(...)):
+    if not _is_admin_session(request):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    verify_csrf(request, csrf_token)
+    if not await run_in_threadpool(plot_inventory.force_stop_job, job_id):
+        raise HTTPException(status_code=409, detail="Job is not stale")
+    return apply_no_index(JSONResponse({"job_id": job_id, "cancel_requested": True}))
+
+
 # --------------------------------------------------------------------------- #
 # Jobs
 # --------------------------------------------------------------------------- #
@@ -645,6 +655,15 @@ async def admin_job_cancel(request: Request, job_id: str, csrf_token: str = Form
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
     verify_csrf(request, csrf_token)
     await run_in_threadpool(plot_inventory.cancel_job, job_id)
+    return apply_no_index(RedirectResponse(f"/admin/jobs/{job_id}", status_code=302))
+
+
+@router.post("/admin/jobs/{job_id}/force-stop", include_in_schema=False)
+async def admin_job_force_stop(request: Request, job_id: str, csrf_token: str = Form(...)):
+    if not _is_admin_session(request):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    verify_csrf(request, csrf_token)
+    await run_in_threadpool(plot_inventory.force_stop_job, job_id)
     return apply_no_index(RedirectResponse(f"/admin/jobs/{job_id}", status_code=302))
 
 

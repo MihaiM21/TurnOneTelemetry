@@ -868,6 +868,41 @@ async def admin_plots_job_cancel(
     return {"job_id": job_id, "cancel_requested": True}
 
 
+@router.post(
+    '/api/admin/plots/jobs/{job_id}/force-stop',
+    tags=["Admin"],
+    summary="Force-stop a stale backfill job",
+    operation_id="admin_plots_job_force_stop",
+    responses={
+        200: {"model": JobCancelResponse},
+        404: _err("No job with that id, in memory or in MongoDB."),
+        409: _err("Job is not stale — cancel it instead, or wait for its heartbeat to expire."),
+        **ADMIN_ERROR_RESPONSES,
+    },
+)
+@apply_tiered_limit("standard")
+async def admin_plots_job_force_stop(
+    request: Request,
+    job_id: str,
+    api_key: str = Depends(require_admin_key),
+):
+    """Unconditionally mark a stale job as cancelled.
+
+    ``.../cancel`` only sets a flag the owning worker polls — useless once
+    that worker has died, which is exactly when a job shows ``stale`` (no
+    heartbeat for 5+ minutes). This writes the terminal state directly, so it
+    refuses anything that isn't already stale: forcing a live job would just
+    be overwritten by its next progress flush.
+    """
+    job = await run_in_threadpool(plot_inventory.get_job_dict, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    stopped = await run_in_threadpool(plot_inventory.force_stop_job, job_id)
+    if not stopped:
+        raise HTTPException(status_code=409, detail=f"Job is not stale (status: {job['status']})")
+    return {"job_id": job_id, "cancel_requested": True}
+
+
 # ============================================================================
 # USER / API-KEY MANAGEMENT
 # ============================================================================

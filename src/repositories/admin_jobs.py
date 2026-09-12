@@ -182,6 +182,37 @@ def request_cancel(job_id: str) -> bool:
         return False
 
 
+def force_stop(job_id: str) -> bool:
+    """Unconditionally mark a stale job cancelled.
+
+    ``request_cancel`` is cooperative — it only sets a flag the owning worker
+    polls. Once a job's heartbeat has expired (see ``_is_stale``), that worker
+    is presumed dead and will never poll again, so the flag alone leaves the
+    job stuck showing "stale" forever. This bypasses the flag and writes the
+    terminal state directly.
+
+    Restricted to jobs that are actually stale: forcing a live job would just
+    be overwritten by its next progress flush, silently reverting to
+    "running" and hiding that the force did nothing.
+    """
+    try:
+        doc = _collection().find_one({"_id": job_id})
+    except PyMongoError as exc:
+        logger.warning("admin_jobs: could not read job %s for force-stop: %s", job_id, exc)
+        return False
+    if doc is None or not _is_stale(doc):
+        return False
+    try:
+        result = _collection().update_one(
+            {"_id": job_id, "status": {"$in": [STATUS_QUEUED, STATUS_RUNNING]}},
+            {"$set": {"status": STATUS_CANCELLED, "finished_at": _now(), "cancel_requested": True}},
+        )
+        return result.matched_count > 0
+    except PyMongoError as exc:
+        logger.warning("admin_jobs: could not force-stop job %s: %s", job_id, exc)
+        return False
+
+
 def is_cancelled(job_id: str) -> bool:
     """Whether cancellation has been requested. Fails open to False so a Mongo
     blip cannot spuriously abort a long-running backfill.

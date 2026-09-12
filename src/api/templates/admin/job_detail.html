@@ -28,6 +28,13 @@
     <button class="danger" type="submit">Cancel job</button>
   </form>
   <span class="muted small" style="margin-left:10px">This page auto-refreshes while the job runs.</span>
+  {% elif job.status == 'stale' %}
+  <form class="inline" method="post" action="/admin/jobs/{{ job.job_id }}/force-stop"
+        data-confirm="Force-stop this job? Its worker hasn't reported in over 5 minutes and is presumed dead. Work already generated is kept.">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button class="danger" type="submit">Force stop</button>
+  </form>
+  <span class="muted small" style="margin-left:10px">No heartbeat for over 5 minutes — the owning process is presumed dead.</span>
   {% endif %}
 </section>
 
