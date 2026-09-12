@@ -863,6 +863,21 @@ def cancel_job(job_id: str) -> bool:
     return flagged
 
 
+def force_stop_job(job_id: str) -> bool:
+    """Mark a stale job cancelled without waiting for a worker to notice.
+
+    Only succeeds once the job's heartbeat has already expired — i.e. its
+    owning process is presumed dead. A job this process still owns should be
+    stopped with ``cancel_job`` instead; forcing it here would race the
+    in-memory job's own writes back to Mongo.
+    """
+    stopped = admin_jobs.force_stop(job_id)
+    if stopped:
+        with _JOBS_LOCK:
+            _JOBS.pop(job_id, None)
+    return stopped
+
+
 # In-process cancel signal, so a cancel served by the owning worker takes effect
 # immediately rather than waiting for the Mongo round-trip.
 _CANCELLED: Set[str] = set()
