@@ -296,6 +296,7 @@ def create_app() -> FastAPI:
     from src.api.routers.admin_circuits import router as admin_circuits_router
     from src.api.routers.admin_data import router as admin_data_router
     from src.api.routers.admin_export import router as admin_export_router
+    from src.api.routers.admin_social import router as admin_social_router
     from src.api.routers.admin_storage import router as admin_storage_router
     from src.api.routers.admin_ui import router as admin_ui_router
     from src.api.routers.backup_admin import router as backup_admin_router
@@ -706,6 +707,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_data_router)
     app.include_router(admin_storage_router)
     app.include_router(admin_export_router)
+    app.include_router(admin_social_router)
     app.include_router(admin_circuits_router)
     app.include_router(admin_ui_router)
     app.include_router(backup_admin_router)

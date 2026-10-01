@@ -209,6 +209,9 @@ class Settings(BaseSettings):
     export_max_years: int = 10
     export_min_free_gb: float = 5.0
 
+    # Social packs (admin-only): per-session folders of social-format charts + zip.
+    social_dir: str = "./outputs/social"
+
     # Logging Settings
     log_level: str = "INFO"
     log_file: str = "logs/api.log"

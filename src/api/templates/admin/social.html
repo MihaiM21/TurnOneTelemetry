@@ -1,0 +1,234 @@
+{% extends "admin/_base.html" %}
+{% set active_page = 'social' %}
+{% block title %}T1API Admin · Social{% endblock %}
+
+{% block content %}
+<section>
+  <div class="spread">
+    <h2 style="margin:0">Social pack</h2>
+    <span class="muted small">{{ social_dir }}</span>
+  </div>
+  <p class="muted small">
+    Renders every chart that applies to one session in the chosen social formats into one folder
+    (<code>{year}/{Event}/{session}/{format}/{chart}.png</code>), plus <code>highlights.json</code>,
+    <code>manifest.json</code> and <code>social_pack.zip</code>. Charts share one set of parsed streams, so
+    a cold session takes a few minutes; a failing chart is listed in the manifest and does not stop the pack.
+    One pack runs at a time.
+  </p>
+</section>
+
+<section>
+  <h2>New pack</h2>
+  <div class="row">
+    <div class="field">
+      <label for="socYear">Year</label>
+      <select id="socYear" style="min-width:90px">
+        {% for y in years %}<option value="{{ y }}">{{ y }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="socGp">Grand Prix (round or name)</label>
+      <input id="socGp" type="text" maxlength="80" placeholder="e.g. 16 or Italian Grand Prix">
+    </div>
+    <div class="field">
+      <label for="socSession">Session</label>
+      <select id="socSession" style="min-width:90px">
+        {% for s in sessions %}<option value="{{ s }}" {% if s == 'R' %}selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="field" style="margin-top:12px">
+    <label>Formats</label>
+    <div>
+      {% for f in formats %}
+      <label class="inline chk"><input type="checkbox" class="soc-format" value="{{ f }}" {% if f in default_formats %}checked{% endif %}><span class="small">{{ f }}</span></label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="field" style="margin-top:12px">
+    <label for="socPairs">Driver pairs (optional, one <code>VER,NOR</code> per line)</label>
+    <textarea id="socPairs" rows="3" maxlength="400" style="width:100%;max-width:420px" placeholder="blank = P1 vs P2 plus each top-3 driver vs their teammate (max 4)"></textarea>
+  </div>
+
+  <label class="chk" style="margin-top:10px;display:inline-block"><input type="checkbox" id="socSeason"> include season teammate battle</label>
+
+  <div class="row" style="margin-top:14px">
+    <button class="primary" type="button" id="socStartBtn">Generate</button>
+  </div>
+
+  <div class="progress-wrap" id="socProgress" style="display:none">
+    <div class="pbar"><div class="pfill" id="spfill"></div><div class="plabel" id="splabel">0%</div></div>
+    <div class="pmeta">
+      <div><span class="k">Status</span> <span class="pstatus" id="spstatus">—</span></div>
+      <div><span class="k">Progress</span> <span id="spcounts">0 / 0</span></div>
+      <div><span class="k">Result</span>
+        <span style="color:var(--good)">✓<span id="spsucc">0</span></span>
+        <span style="color:var(--red)">✗<span id="spfail">0</span></span>
+      </div>
+      <div><span class="k">Written</span> <span id="spbytes">—</span></div>
+    </div>
+    <div class="pcurrent" id="spcurrent"></div>
+    <div class="perrors" id="sperrors" style="display:none"></div>
+    <div class="row" style="margin-top:10px">
+      <button class="ghost" type="button" id="socCancelBtn">Cancel job</button>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Recent packs</h2>
+  {% if jobs %}
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Session</th><th>Status</th><th>Formats</th><th>Pairs</th><th>Progress</th><th>Started</th><th>Pack</th></tr></thead>
+    <tbody>
+      {% for j in jobs %}
+      {% set sc = j.scope or {} %}
+      <tr>
+        <td class="small nowrap">{{ sc.year }} {{ sc.gp }} {{ sc.session }}</td>
+        <td><span class="pstatus {{ j.status }}" style="font-size:11px">{{ j.status }}</span></td>
+        <td class="small">{{ (j.formats or sc.formats or [])|join(', ') }}</td>
+        <td class="small">{% for p in (j.pairs or []) %}{{ p|join('-') }}{% if not loop.last %}, {% endif %}{% else %}<span class="muted">—</span>{% endfor %}</td>
+        <td class="small">{{ j.done }}/{{ j.total }} &middot; ✓{{ j.success }} ✗{{ j.failed }}</td>
+        <td class="muted small nowrap">{{ j.started_at or j.created_at or '—' }}</td>
+        <td class="small nowrap">
+          {% if j.zip_ready %}
+          <a class="cellink" href="/admin/social/jobs/{{ j.job_id }}/download">Download zip</a>
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<p class="muted">No social packs yet.</p>{% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CSRF = {{ csrf_token | tojson }};
+const JOBS = {{ jobs | tojson }};
+
+const $ = (id) => document.getElementById(id);
+
+function checkedValues(cls) {
+  return Array.from(document.querySelectorAll("." + cls + ":checked")).map((el) => el.value);
+}
+
+async function postJSONBody(url, body) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const detail = (payload && (payload.error || payload.detail)) || ("HTTP " + response.status);
+    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+  }
+  return payload;
+}
+
+async function startPack() {
+  const gp = $("socGp").value.trim();
+  if (!gp) { T1.toast("Enter a Grand Prix", "err"); return; }
+  $("socStartBtn").disabled = true;
+  try {
+    const job = await postJSONBody("/admin/social/start", {
+      year: parseInt($("socYear").value, 10),
+      gp: gp,
+      session: $("socSession").value,
+      formats: checkedValues("soc-format"),
+      pairs: $("socPairs").value,
+      include_season: $("socSeason").checked,
+      csrf_token: CSRF,
+    });
+    T1.toast("Social pack " + job.job_id + " started", "ok");
+    attach(job.job_id);
+  } catch (err) {
+    T1.toast(err.message, "err");
+  } finally {
+    $("socStartBtn").disabled = false;
+  }
+}
+
+let activeJob = null;
+let pollTimer = null;
+let pollDelay = 800;
+
+function attach(jobId) {
+  activeJob = jobId;
+  pollDelay = 800;
+  $("socProgress").style.display = "block";
+  poll();
+}
+
+async function poll() {
+  clearTimeout(pollTimer);
+  if (!activeJob) return;
+  try {
+    const response = await fetch("/admin/social/jobs/" + activeJob);
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    const job = await response.json();
+    render(job);
+    if (["completed", "failed", "cancelled"].indexOf(job.status) >= 0) {
+      T1.toast("Social pack " + job.status + " — " + job.success + " ok, " + job.failed + " failed",
+               job.status === "completed" ? "ok" : "err");
+      activeJob = null;
+      setTimeout(() => window.location.reload(), 1500);
+      return;
+    }
+    pollDelay = Math.min(pollDelay * 1.25, 5000);
+    pollTimer = setTimeout(poll, pollDelay);
+  } catch (err) {
+    $("spcurrent").textContent = "Poll error: " + err.message + " (retrying)";
+    pollTimer = setTimeout(poll, 5000);
+  }
+}
+
+function render(job) {
+  const total = job.total || 0;
+  const pct = total ? Math.round((job.done / total) * 100) : (job.status === "completed" ? 100 : 0);
+  $("spfill").style.width = pct + "%";
+  $("splabel").textContent = pct + "%";
+  const el = $("spstatus");
+  el.textContent = job.status;
+  el.className = "pstatus " + job.status;
+  $("spcounts").textContent = job.done + " / " + total;
+  $("spsucc").textContent = job.success;
+  $("spfail").textContent = job.failed;
+  $("spbytes").textContent = T1.humanBytes(job.bytes_written || 0);
+  $("spcurrent").textContent = job.current ? "Rendering: " + job.current : "";
+  if (job.errors && job.errors.length) {
+    $("sperrors").style.display = "block";
+    $("sperrors").textContent = job.errors.join("\n");
+  }
+}
+
+async function cancelPack() {
+  if (!activeJob) return;
+  if (!window.confirm("Cancel this social pack? Charts already rendered are kept.")) return;
+  try {
+    await T1.postJSON("/admin/social/jobs/" + activeJob + "/cancel",
+                      new URLSearchParams({ csrf_token: CSRF }));
+    T1.toast("Cancellation requested", "info");
+  } catch (err) {
+    T1.toast(err.message, "err");
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  $("socStartBtn").addEventListener("click", startPack);
+  $("socCancelBtn").addEventListener("click", cancelPack);
+
+  const running = JOBS.find((j) => ["queued", "running"].indexOf(j.status) >= 0);
+  if (running) {
+    T1.toast("Re-attached to running social pack " + running.job_id, "info");
+    attach(running.job_id);
+  }
+});
+</script>
+{% endblock %}

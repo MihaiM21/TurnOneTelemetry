@@ -82,6 +82,8 @@ jobs:
             src/ingestion/circuits_loader.py \
             src/repositories/circuit_layouts.py \
             src/api/routers/admin_circuits.py \
+            src/api/routers/admin_social.py \
+            src/workers/social_pack.py \
             src/services/analysis/v2/lap_duel.py \
             src/services/analysis/v2/_lap_duel_core.py \
             src/services/analysis/v2/_lap_duel_render.py \

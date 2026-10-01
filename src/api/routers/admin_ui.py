@@ -70,6 +70,7 @@ from src.services.dataset_export.schema import TIERS as EXPORT_TIERS
 from src.domain.models.circuits import CircuitLayout
 from src.workers import dataset_export
 from src.workers import plot_inventory
+from src.workers import social_pack
 
 logger = get_logger(__name__)
 
@@ -1588,3 +1589,89 @@ async def admin_export_manifest(request: Request, export_id: str):
     except dataset_exports.ExportNotFound:
         raise HTTPException(status_code=404, detail="Export not found")
     return apply_no_index(JSONResponse(manifest.to_dict()))
+
+
+
+# --------------------------------------------------------------------------- #
+# Social pack
+# --------------------------------------------------------------------------- #
+class _SocialStartBody(BaseModel):
+    year: int
+    gp: str
+    session: str
+    formats: List[str] = []
+    pairs: str = ""
+    include_season: bool = False
+    csrf_token: str
+
+
+@router.get("/admin/social", include_in_schema=False)
+async def admin_social_page(request: Request):
+    """Social-pack console: render a session's charts in social formats, download the zip."""
+    if not _is_admin_session(request):
+        return apply_no_index(RedirectResponse("/admin/login", status_code=302))
+
+    jobs = await run_in_threadpool(social_pack.list_jobs, 20)
+    current_year = datetime.now(timezone.utc).year
+    return _render(
+        request,
+        "admin/social.html",
+        {
+            "version": settings.app_version,
+            "jobs": jobs,
+            "years": list(range(current_year, 2017, -1)),
+            "sessions": list(social_pack.SESSION_ABBREVS),
+            "formats": list(social_pack.FORMAT_NAMES),
+            "default_formats": list(social_pack.DEFAULT_FORMATS),
+            "social_dir": settings.social_dir,
+        },
+    )
+
+
+@router.post("/admin/social/start", include_in_schema=False)
+async def admin_social_start(request: Request, body: _SocialStartBody):
+    if not _is_admin_session(request):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    verify_csrf(request, body.csrf_token)
+
+    try:
+        job = await run_in_threadpool(
+            social_pack.start_social_job,
+            year=body.year, gp=body.gp, session=body.session,
+            formats=body.formats or None, pairs=social_pack.parse_pairs_text(body.pairs),
+            include_season=body.include_season,
+        )
+    except RuntimeError as exc:
+        return apply_no_index(JSONResponse({"error": str(exc)}, status_code=409))
+    except ValueError as exc:
+        return apply_no_index(JSONResponse({"error": str(exc)}, status_code=400))
+    return apply_no_index(JSONResponse(job.as_dict()))
+
+
+@router.get("/admin/social/jobs/{job_id}", include_in_schema=False)
+async def admin_social_job_status(request: Request, job_id: str):
+    if not _is_admin_session(request):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    job = await run_in_threadpool(social_pack.get_job_dict, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return apply_no_index(JSONResponse(job))
+
+
+@router.post("/admin/social/jobs/{job_id}/cancel", include_in_schema=False)
+async def admin_social_job_cancel(request: Request, job_id: str, csrf_token: str = Form(...)):
+    if not _is_admin_session(request):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    verify_csrf(request, csrf_token)
+    cancelled = await run_in_threadpool(social_pack.cancel_job, job_id)
+    return apply_no_index(JSONResponse({"job_id": job_id, "cancel_requested": bool(cancelled)}))
+
+
+@router.get("/admin/social/jobs/{job_id}/download", include_in_schema=False)
+async def admin_social_job_download(request: Request, job_id: str):
+    if not _is_admin_session(request):
+        return apply_no_index(RedirectResponse("/admin/login", status_code=302))
+    path = await run_in_threadpool(social_pack.pack_download_path, job_id)
+    if path is None:
+        raise HTTPException(status_code=404, detail="Pack not found")
+    return apply_no_index(FileResponse(path, filename=f"social_pack_{job_id}.zip", media_type="application/zip"))

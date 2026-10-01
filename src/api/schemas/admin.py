@@ -1255,3 +1255,71 @@ class ExportDeleteResponse(BaseModel):
 
     export_id: str
     bytes_freed: int
+
+
+# ---------------------------------------------------------------------------
+# Social packs (/api/admin/social/*)
+# ---------------------------------------------------------------------------
+
+class SocialPackRequest(BaseModel):
+    """Body for ``POST /api/admin/social/generate``."""
+
+    year: int = Field(..., ge=2018, le=2030, examples=[2026])
+    gp: str = Field(
+        ..., min_length=1, max_length=80,
+        description="Round number, Event Key or Event Name (e.g. '16' or 'Italian Grand Prix').",
+    )
+    session: str = Field(..., description="Session abbreviation: FP1, FP2, FP3, Q, SQ, S or R.")
+    formats: List[Literal["landscape", "square", "portrait", "story"]] = Field(
+        default=["portrait", "story", "landscape"],
+        min_length=1,
+        description="Social formats to render every chart in.",
+    )
+    pairs: Optional[List[List[str]]] = Field(
+        None,
+        description=(
+            "Driver pairs for the head-to-head charts, e.g. [['VER','NOR']]. Omit to derive "
+            "them: P1 vs P2, plus each top-3 driver vs their teammate (max 4)."
+        ),
+        examples=[[["VER", "NOR"]]],
+    )
+    include_season: bool = Field(False, description="Also render the season teammate-battle chart.")
+
+
+class SocialJobRecord(BaseModel):
+    """One social-pack job -- ``social_pack.SocialJob.as_dict()`` merged over the durable Mongo doc.
+
+    Permissive for the same reason as ``JobRecord``: a job served from a process
+    that never ran it carries only the Mongo fields.
+    """
+
+    job_id: str
+    kind: Optional[str] = None
+    scope: Dict[str, Any] = Field(default_factory=dict)
+    status: str = Field(description="queued | running | completed | failed | cancelled")
+    total: int = 0
+    done: int = 0
+    success: int = 0
+    failed: int = 0
+    skipped: int = 0
+    current: Optional[str] = None
+    pack: Optional[str] = Field(None, description="Pack folder, relative to the social root.")
+    zip_ready: bool = False
+    files: int = 0
+    bytes_written: int = 0
+    formats: List[str] = Field(default_factory=list)
+    pairs: List[List[str]] = Field(default_factory=list)
+    errors: List[str] = Field(default_factory=list)
+    warnings: Optional[List[str]] = None
+    created_at: Optional[str] = None
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+
+    model_config = {"extra": "allow"}
+
+
+class SocialJobsListResponse(BaseModel):
+    """``GET /api/admin/social/jobs``."""
+
+    count: int
+    jobs: List[SocialJobRecord]
