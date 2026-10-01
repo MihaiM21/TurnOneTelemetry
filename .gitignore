@@ -42,8 +42,16 @@ svg_generator.py
 
 # storage parquet files
 *.parquet
+outputs/exports/
+outputs/social/
+Silverstone.svg
 
 #claude
 claude.md
+.claude
+
+
+.pytest_cache/
+
 
 turnonetelementry.egg-info

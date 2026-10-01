@@ -71,6 +71,6 @@ VOLUME ["/app/cache", "/app/outputs", "/app/data", "/app/logs"]
 EXPOSE ${APP_PORT}
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD curl -f http://localhost:${APP_PORT}/api/health || exit 1
+    CMD curl -f http://localhost:${DOCKER_EXPOSED_PORT:-${APP_PORT}}/api/health || exit 1
 
 CMD ["python", "server.py"]
