@@ -17,6 +17,7 @@ from src.core.exceptions import T1APIError
 from src.core.logging import get_logger
 from src.core.security.api_keys import verify_api_key
 from src.core.security.rate_limiting import apply_tiered_limit
+from src.services.plotting.canvas import get_format
 
 logger = get_logger(__name__)
 
@@ -209,6 +210,9 @@ async def get_event_sessions(
 async def teammate_battle_plot_v2(
     request: Request,
     year: int,
+    format: Optional[str] = Query(
+        None, description="landscape|square|portrait|story — social-media canvas; omit for the classic image"
+    ),
     api_key: str = Depends(verify_api_key)
 ):
     """Season-long teammate H2H scorecard: quali/race wins and average quali gap per team.
@@ -218,7 +222,12 @@ async def teammate_battle_plot_v2(
     """
     logger.info(f"Generating teammate battle plot (V2): {year}")
     try:
-        output_path = await run_in_threadpool(TeammateBattlePlot(), year)
+        # Omitted format -> exactly the pre-existing call; an unknown name is a ValueError -> 400.
+        fmt_kwargs = {}
+        if format is not None:
+            get_format(format)
+            fmt_kwargs = {"fmt": format}
+        output_path = await run_in_threadpool(TeammateBattlePlot(), year, **fmt_kwargs)
         _track('teammate-battle', year)
         return FileResponse(output_path, media_type='image/png')
     except T1APIError:

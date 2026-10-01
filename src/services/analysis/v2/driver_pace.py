@@ -2,8 +2,8 @@ from typing import Union
 
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
 
+from src.services.plotting.canvas import add_legacy_watermark
 from src.services.plotting import output as dirOrg
 from src.services.plotting import theme as setup_theme
 from src.services.plotting.colors import get_driver_color, team_colors
@@ -99,11 +99,7 @@ def _render_plot(data_list, y, event_name, e, location, name):
     ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: _format_laptime(v) or f"{v:.1f}"))
     ax.tick_params(axis='x', labelrotation=45)
 
-    try:
-        logo = mpimg.imread('assets/images/logo mic.png')
-        fig.figimage(logo, 575, 575, zorder=3, alpha=.6)
-    except Exception:
-        pass
+    add_legacy_watermark(fig, 575, 575, alpha=0.6, zorder=3)
 
     plt.suptitle(f'Driver pace\n{y} {event_name} {e}')
     setup_theme.add_glow(ax)

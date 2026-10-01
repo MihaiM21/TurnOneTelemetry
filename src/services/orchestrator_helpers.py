@@ -57,20 +57,40 @@ def get_latest_finished_session():
     return latest_session
 
 
+_SESSION_ABBREVIATIONS = {
+    "free practice 1": "FP1",
+    "practice 1": "FP1",
+    "fp1": "FP1",
+    "free practice 2": "FP2",
+    "practice 2": "FP2",
+    "fp2": "FP2",
+    "free practice 3": "FP3",
+    "practice 3": "FP3",
+    "fp3": "FP3",
+    "qualifying": "Q",
+    "q": "Q",
+    "sprint qualifying": "SQ",
+    # 2023 called the sprint's qualifying session a Shootout.
+    "sprint shootout": "SQ",
+    "sq": "SQ",
+    "sprint": "S",
+    "s": "S",
+    "race": "R",
+    "r": "R",
+}
+
+
 def simplify_session_name(session_name):
+    """Map any session spelling to its abbreviation (``FP1``, ``Q``, ``SQ``, ``S``, ``R``).
+
+    The curated schedules say ``Free Practice 1`` while livetiming's Index.json
+    says ``Practice 1`` (and ``Sprint Shootout`` in 2023); both must land on the
+    same abbreviation because it keys caches, partitions and filters. Unknown
+    names pass through unchanged.
     """
-    Simplifies session names to standard abbreviations.
-    """
-    mapping = {
-        "Free Practice 1": "FP1",
-        "Free Practice 2": "FP2",
-        "Free Practice 3": "FP3",
-        "Qualifying": "Q",
-        "Sprint Qualifying": "SQ",
-        "Sprint": "S",
-        "Race": "R"
-    }
-    return mapping.get(session_name, session_name)
+    if not isinstance(session_name, str):
+        return session_name
+    return _SESSION_ABBREVIATIONS.get(session_name.strip().lower(), session_name)
 
 
 def _parse_gmt_offset(raw: str) -> timedelta:

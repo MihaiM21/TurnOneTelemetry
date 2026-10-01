@@ -12,16 +12,16 @@ distance axis — identical math to the V1 sibling.
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
 from typing import Dict, Union
 
+from src.services.plotting.canvas import add_legacy_watermark
 from src.services.plotting import output as dirOrg
 from src.services.plotting import theme as setup_theme
 from src.repositories.plots import store_data_dict_to_mongo, get_plot_data_from_mongo
 from src.services.plotting.colors import get_driver_color
 from src.ingestion.static_client import F1StaticClient
 from src.services.analysis.v2._helpers import (
-    get_all_driver_codes, get_fastest_lap_windows,
+    get_all_driver_codes, resolve_fastest_lap_window,
     extract_telemetry_for_lap, extract_position_for_lap,
     compute_distance, merge_distance_onto_telemetry, build_session_store,
 )
@@ -50,13 +50,11 @@ def _get_driver_telemetry(base_url: str, client: F1StaticClient, driver_tla: str
         logger.warning("Driver %s not found in session", driver_tla)
         return pd.DataFrame(), None
 
-    df_windows = get_fastest_lap_windows(base_url, client, target_driver_num=driver_num, store=store)
-    if df_windows.empty:
+    window = resolve_fastest_lap_window(base_url, client, driver_num, store=store)
+    if window is None:
         logger.warning("No fastest lap found for %s", driver_tla)
         return pd.DataFrame(), None
-
-    row = df_windows.iloc[0]
-    start_t, end_t, lap_time = row['StartTime'], row['EndTime'], float(row['LapTime'])
+    start_t, end_t, lap_time = window
 
     df_tel = extract_telemetry_for_lap(base_url, client, driver_num, start_t, end_t,
                                        channels=['2', '4'], store=store)
@@ -173,11 +171,7 @@ def _generate_plot(data: Dict, location: str, name: str):
     for a in axes.flat:
         a.label_outer()
 
-    try:
-        logo = mpimg.imread('assets/images/logo mic.png')
-        fig.figimage(logo, 575, 575, zorder=3, alpha=.6)
-    except Exception:
-        pass
+    add_legacy_watermark(fig, 575, 575, alpha=0.6, zorder=3)
 
     plt.savefig(f"{location}/{name}")
     plt.close()

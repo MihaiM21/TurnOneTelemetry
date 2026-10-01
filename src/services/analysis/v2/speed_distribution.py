@@ -1,10 +1,10 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
 from typing import Dict, List, Tuple, Optional, Union
 from datetime import datetime
 import json
 
+from src.services.plotting.canvas import add_legacy_watermark
 from src.services.plotting import output as dirOrg
 from src.services.plotting import theme as setup_theme
 from src.repositories.plots import store_data_dict_to_mongo, get_plot_data_from_mongo
@@ -256,11 +256,7 @@ def SpeedDistributionPlot(y: int, identifier: Union[int, str], e: str, driver: O
     title_driver = target_tla if driver else f"Overall: {target_tla}"
     plt.suptitle(f'Speed Distribution (V2 Client) - Fastest Lap ({title_driver})\n{y} {event_name} {e}')
     
-    try:
-        logo = mpimg.imread('assets/images/logo mic.png')
-        fig.figimage(logo, 575, 350, zorder=3, alpha=.6)
-    except (FileNotFoundError, OSError) as exc:
-        logger.debug("Watermark logo unavailable, skipping: %s", exc)
+    add_legacy_watermark(fig, 575, 350, alpha=0.6, zorder=3)
     
     setup_theme.add_glow(ax)
     plt.savefig(f"{location}/{name}")

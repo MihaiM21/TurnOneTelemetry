@@ -149,8 +149,9 @@ def test_build_payload_full_shape(_fake_telemetry):
     }
     assert first["speed"] == 250.0
     assert first["drs"] == 1
-    # Distance accumulates from X/Y deltas: sqrt(30^2+40^2) = 50 at the 2nd sample.
-    assert rows[1]["distance"] == pytest.approx(50.0)
+    # Distance accumulates from X/Y deltas: sqrt(30^2+40^2) = 50 raw units at the
+    # 2nd sample, and X/Y are tenths of a metre, so 5 m.
+    assert rows[1]["distance"] == pytest.approx(5.0)
     assert rows[1]["x"] == 30.0
 
 

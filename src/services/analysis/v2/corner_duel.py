@@ -30,7 +30,6 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Union
 
-import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -45,6 +44,7 @@ from src.services.analysis.v2._helpers import (
     get_fastest_lap_telemetry,
 )
 from src.services.analysis.v2.session_store import SessionDataStore
+from src.services.plotting.canvas import add_legacy_watermark
 from src.services.plotting import output as dirOrg
 from src.services.plotting import theme as setup_theme
 from src.services.plotting.colors import get_driver_color
@@ -353,10 +353,14 @@ class CornerDuelPlot:
         deltas = np.array([p["delta_s"] for p in series])
         corners = payload.get("corners", [])
 
-        fig, (ax_speed, ax_delta, ax_bars) = plt.subplots(
-            3, 1, figsize=(14, 12), height_ratios=[2, 1, 1],
-            sharex=True, layout='constrained',
-        )
+        # Speed and delta share the distance axis; the gain bars are categorical
+        # (one bar per corner) and must not be forced onto that axis.
+        fig = plt.figure(figsize=(14, 12), layout='constrained')
+        gs = fig.add_gridspec(3, 1, height_ratios=[2, 1, 1])
+        ax_speed = fig.add_subplot(gs[0])
+        ax_delta = fig.add_subplot(gs[1], sharex=ax_speed)
+        ax_bars = fig.add_subplot(gs[2])
+        ax_speed.tick_params(labelbottom=False)
 
         speed_series = payload.get("speed_series") or {}
         CornerDuelPlot._render_speed_panel(
@@ -365,13 +369,9 @@ class CornerDuelPlot:
         CornerDuelPlot._render_delta_panel(ax_delta, distances, deltas, tla1, tla2)
         CornerDuelPlot._render_gain_bars(ax_bars, corners, tla1, tla2, color1, color2)
 
-        ax_bars.set_xlabel("Distance (m)")
+        ax_delta.set_xlabel("Distance (m)")
 
-        try:
-            logo = mpimg.imread('assets/images/logo mic.png')
-            fig.figimage(logo, 575, 575, zorder=3, alpha=.5)
-        except Exception:
-            pass
+        add_legacy_watermark(fig, 575, 575, alpha=0.5, zorder=3)
 
         plt.suptitle(f"{tla1} vs {tla2} corner duel\n{y} {event_name} {e}")
         plt.savefig(f"{location}/{name}")

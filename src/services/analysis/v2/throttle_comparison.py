@@ -2,9 +2,9 @@ import json
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
 from typing import Dict, List, Tuple, Optional, Union
 
+from src.services.plotting.canvas import add_legacy_watermark
 from src.services.plotting import output as dirOrg
 from src.services.plotting import theme as setup_theme
 from src.repositories.plots import store_data_dict_to_mongo, get_plot_data_from_mongo
@@ -237,11 +237,7 @@ def _generate_plot(drivers, throttles, colors, y, event, session, loc, name):
     for i, (d, t) in enumerate(zip(drivers, throttles)):
         ax.text(d, t + 0.5, f"{t}%", ha='center', color='white', fontweight='normal', fontsize=10)
         
-    try:
-        logo = mpimg.imread('assets/images/logo mic.png')
-        fig.figimage(logo, 575, 575, zorder=3, alpha=.6)
-    except (FileNotFoundError, OSError) as exc:
-        logger.debug("Watermark logo unavailable, skipping: %s", exc)
+    add_legacy_watermark(fig, 575, 575, alpha=0.6, zorder=3)
     
     plt.suptitle(f'Throttle comparison (V2 Engine)\n{y} {event} {session}')
     setup_theme.add_glow(ax)

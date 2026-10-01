@@ -34,11 +34,13 @@ Only meaningful for Race / Sprint sessions.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Union
+import math
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 
 from src.core.exceptions import DataNotAvailableError
 from src.core.logging import get_logger
@@ -53,9 +55,11 @@ from src.services.analysis.v2._race_helpers import (
     get_track_status_periods,
 )
 from src.services.analysis.v2.session_store import SessionDataStore
+from src.services.plotting import canvas
 from src.services.plotting import output as dirOrg
 from src.services.plotting import theme as setup_theme
-from src.services.plotting.colors import get_compound_color, get_team_color
+from src.services.plotting.canvas import add_legacy_watermark
+from src.services.plotting.colors import get_compound_color, get_driver_color, get_team_color
 
 logger = get_logger(__name__)
 
@@ -340,6 +344,68 @@ def _build_payload(store: SessionDataStore) -> Dict[str, Any]:
     )
 
 
+# ----------------------------------------------------------------------
+# Social-format helpers
+# ----------------------------------------------------------------------
+_SESSION_LABELS = {"R": "Race", "RACE": "Race", "S": "Sprint", "SPRINT": "Sprint"}
+
+# How many finishers get a trace per format (landscape keeps the legacy ten).
+_FORMAT_TOP_N = {"landscape": 10, "square": 8, "portrait": 8, "story": 6}
+
+# Key-moment marker colours by kind (lead change keeps the legacy gold).
+_MOMENT_STYLE = {
+    "lead_change": ("#FFD700", "Lead change"),
+    "retirement": ("#FF5A5A", "Retirement"),
+    "penalty": ("#E9E9E9", "Penalty"),
+}
+
+
+def _session_label(e: str) -> str:
+    return _SESSION_LABELS.get((e or "").strip().upper(), e)
+
+
+def _driver_color(code: str, year: int, fallback: str) -> str:
+    """Year-aware driver colour; the payload's own colour when the driver is unknown."""
+    color = get_driver_color(code, year)
+    if str(color).upper() == "#FFFFFF" and fallback:
+        return fallback
+    return color
+
+
+def _spread_labels(points: List[Tuple[float, float]], min_gap: float, min_dx: float) -> List[float]:
+    """Push label y-positions apart so no two labels closer than ``min_gap`` overlap.
+
+    ``points`` are ``(x, y)`` trace ends; only labels within ``min_dx`` of one
+    another horizontally can collide. Returns adjusted y values in input order.
+    """
+    order = sorted(range(len(points)), key=lambda i: points[i][1])
+    adjusted: Dict[int, float] = {}
+    for idx in order:
+        x, yv = points[idx]
+        pos = yv
+        for prev, prev_y in adjusted.items():
+            if abs(points[prev][0] - x) < min_dx:
+                pos = max(pos, prev_y + min_gap)
+        adjusted[idx] = pos
+    return [adjusted[i] for i in range(len(points))]
+
+
+def _assign_rows(laps: List[float], min_dx: float) -> List[int]:
+    """Stagger markers onto rows so two markers on one row are never closer than ``min_dx``."""
+    row_last: List[float] = []
+    rows: List[int] = []
+    for lap in laps:
+        for r, last in enumerate(row_last):
+            if lap - last >= min_dx:
+                row_last[r] = lap
+                rows.append(r)
+                break
+        else:
+            row_last.append(lap)
+            rows.append(len(row_last) - 1)
+    return rows
+
+
 class RaceStoryData:
     """Callable: ``RaceStoryData()(year, identifier, session) -> dict``."""
 
@@ -359,9 +425,16 @@ class RaceStoryData:
 
 
 class RaceStoryPlot:
-    """Callable: ``RaceStoryPlot()(year, identifier, session) -> png path``."""
+    """Callable: ``RaceStoryPlot()(year, identifier, session, fmt=None) -> png path``.
 
-    def __call__(self, y: int, identifier: Union[int, str], e: str) -> str:
+    ``fmt`` is one of ``canvas.FORMAT_NAMES``: the same payload is recomposed
+    for that social format (file name gains a ``_{fmt}`` suffix, and the key
+    moments become numbered markers only). ``None`` keeps the original render.
+    """
+
+    def __call__(self, y: int, identifier: Union[int, str], e: str, fmt: Optional[str] = None) -> str:
+        if fmt is not None:
+            canvas.get_format(fmt)  # ValueError before any network work
         assert_session_type(
             e, y, identifier, allowed=RACE_SESSIONS, feature="Race story", sessions_label="Race/Sprint",
         )
@@ -376,6 +449,8 @@ class RaceStoryPlot:
         store = SessionDataStore(y, identifier, e)
         event_name = store.event_name
 
+        if fmt is not None:
+            return self._render_formatted(payload, y, event_name, e, fmt)
         return self._render(payload, y, event_name, e)
 
     @staticmethod
@@ -496,16 +571,180 @@ class RaceStoryPlot:
         ]
         ax.legend(handles=legend_handles, loc="lower left", fontsize=9)
 
-        try:
-            logo = mpimg.imread('assets/images/logo mic.png')
-            fig.figimage(logo, 575, 575, zorder=3, alpha=.5)
-        except Exception:
-            pass
+        add_legacy_watermark(fig, 575, 575, alpha=0.5, zorder=3)
 
         plt.suptitle(f"Race story\n{y} {event_name} {e}")
         plt.savefig(f"{location}/{name}")
         plt.close(fig)
         return f"{location}/{name}"
+
+    @staticmethod
+    def _render_formatted(
+        payload: Dict[str, Any],
+        y: int,
+        event_name: str,
+        e: str,
+        fmt_name: str,
+    ) -> str:
+        """Recomposed render for a social format (see :mod:`canvas`).
+
+        Gap-to-leader traces for the top finishers (fewer on tall formats),
+        pit-stop dots coloured by compound and SC/VSC/red-flag shading, as in
+        the legacy chart -- but the key moments become numbered markers in a
+        strip along the top, coloured by kind, with no caption text.
+        """
+        fmt = canvas.get_format(fmt_name)
+        location, name = _init(y, event_name, e)
+        path = f"{location}/{name[:-4]}{canvas.format_suffix(fmt.name)}.png"
+
+        drivers = payload["drivers"][:_FORMAT_TOP_N[fmt.name]]
+        periods = payload.get("track_status_periods") or []
+        moments = [m for m in (payload.get("key_moments") or []) if m.get("lap") is not None]
+        moments.sort(key=lambda m: m["lap"])
+
+        max_lap = max(max((d["last_lap"] or 0) for d in drivers), 1)
+        finite = [p["gap_s"] for d in drivers for p in d["laps"] if p["gap_s"] is not None]
+        gap_max = max(max(finite, default=0.0), 1.0)
+
+        # Legend entries: track status, compounds fitted at the stops, marker kinds.
+        statuses = sorted({p.get("status") for p in periods if p.get("status") in ("YELLOW", "SC", "VSC", "RED")})
+        compounds: List[str] = []
+        for d in drivers:
+            for stop in d.get("pit_stops", []):
+                comp = (stop.get("compound") or "").upper()
+                if comp and comp not in compounds:
+                    compounds.append(comp)
+        kinds = [k for k in _MOMENT_STYLE if any(m["kind"] == k for m in moments)]
+        n_entries = len(statuses) + len(compounds) + len(kinds)
+
+        font_px = fmt.base_fontsize * canvas.DESIGN_DPI / 72.0
+        legend_pt = fmt.base_fontsize * 0.75
+        legend_px = legend_pt * canvas.DESIGN_DPI / 72.0
+        left, _, right, _ = fmt.safe
+        est_width_px = (right - left) * fmt.width_px - 6.2 * font_px
+        entry_px = legend_px * (0.62 * 9 + 5.5)
+        ncol = max(1, min(n_entries or 1, int(est_width_px // entry_px)))
+        legend_rows = math.ceil(n_entries / ncol) if n_entries else 0
+        header = canvas.header_height(fmt)
+        if legend_rows:
+            header += (1.5 * legend_px * legend_rows + 0.6 * font_px) / fmt.height_px
+
+        fig = canvas.new_canvas(fmt)
+        canvas.add_header(fig, fmt, "Race story", f"{y} {event_name}  ·  {_session_label(e)}")
+        canvas.add_footer(fig, fmt)
+        canvas.add_watermark(fig, fmt)
+        gs = canvas.safe_gridspec(fig, fmt, 1, header=header)
+        ax = fig.add_subplot(gs[0])
+
+        width_px = ax.get_position().width * fmt.width_px
+        height_px = ax.get_position().height * fmt.height_px
+
+        # Horizontal room for the end-of-trace codes.
+        label_pt = fmt.base_fontsize * 0.85
+        label_px = label_pt * canvas.DESIGN_DPI / 72.0
+        code_px = 3 * 0.82 * label_px + 12
+        pad_laps = max_lap * code_px / max(width_px - code_px, 1.0)
+        x_right = max_lap + pad_laps
+        laps_per_px = (x_right + 0.5) / max(width_px, 1.0)
+
+        # Vertical room: a marker strip on top, then the gaps (leader at the top).
+        marker_pt = fmt.base_fontsize * 0.75
+        marker_px = 2.05 * marker_pt * canvas.DESIGN_DPI / 72.0
+        rows = _assign_rows([m["lap"] for m in moments], (marker_px + 6) * laps_per_px)
+        n_rows = (max(rows) + 1) if rows else 0
+        strip_px = n_rows * marker_px * 1.12 + (0.3 * marker_px if n_rows else 0.0)
+        y_bottom = gap_max * 1.05
+        data_per_px = y_bottom / max(height_px - strip_px, 1.0)
+        strip = strip_px * data_per_px
+        ax.set_ylim(y_bottom, -strip)
+        # Shade first (an open-ended period runs to the right edge of the laps),
+        # then widen the view to make room for the end labels.
+        ax.set_xlim(-0.5, max_lap + 0.5)
+        setup_theme.add_track_status_shading(ax, periods)
+        ax.set_xlim(-0.5, x_right)
+
+        pit_size = (fmt.base_fontsize * 0.62) ** 2
+        line_w = fmt.base_fontsize * 0.2
+        ends: List[Tuple[float, float]] = []
+        end_meta: List[Tuple[Dict[str, Any], str]] = []
+        seen_teams: Dict[str, int] = {}
+        for rank, d in enumerate(drivers):
+            color = _driver_color(d["driver"], y, d["color"])
+            car_index = seen_teams.get(d["team"], 0)
+            seen_teams[d["team"]] = car_index + 1
+            laps = [p["lap"] for p in d["laps"]]
+            gaps = [float("nan") if p["gap_s"] is None else p["gap_s"] for p in d["laps"]]
+            is_winner = rank == 0
+            ax.plot(laps, gaps, color=color, lw=line_w * (1.5 if is_winner else 1.0),
+                    linestyle="--" if car_index >= 1 else "-", alpha=1.0 if is_winner else 0.9,
+                    zorder=6 if is_winner else 4, solid_capstyle="round")
+            if is_winner:
+                setup_theme.add_glow(ax, linewidth=8, alpha=0.22, passes=3)
+
+            gap_by_lap = {p["lap"]: p["gap_s"] for p in d["laps"]}
+            for stop in d.get("pit_stops", []):
+                gap_at_stop = gap_by_lap.get(stop["lap"])
+                if gap_at_stop is None:
+                    continue
+                ax.scatter([stop["lap"]], [gap_at_stop], color=get_compound_color(stop.get("compound")),
+                           edgecolors="#0d0d0d", linewidths=0.8, s=pit_size, zorder=7)
+
+            valid = [(lp, g) for lp, g in zip(laps, gaps) if not np.isnan(g)]
+            if valid:
+                ends.append((float(valid[-1][0]), float(valid[-1][1])))
+                end_meta.append((d, color))
+
+        ax.hlines(0.0, -0.5, max_lap + 0.5, color=canvas.TEXT, linestyle=":", linewidth=1, alpha=0.6, zorder=1)
+
+        # End-of-trace codes, pushed apart where traces finish close together.
+        if ends:
+            gap_h = 1.12 * label_px * data_per_px
+            adj = _spread_labels(ends, gap_h, min_dx=code_px * laps_per_px)
+            for (x, yv), yl, (d, color) in zip(ends, adj, end_meta):
+                if abs(yl - yv) > 0.25 * gap_h:
+                    ax.plot([x, x + 6 * laps_per_px], [yv, yl], color=color, lw=1.0, alpha=0.7, zorder=3)
+                ax.text(x + 10 * laps_per_px, yl, d["driver"], ha="left", va="center", fontsize=label_pt,
+                        color=color, fontweight="bold" if d is drivers[0] else "semibold", zorder=8)
+
+        # Numbered key-moment markers, staggered onto rows along the top.
+        row_data = marker_px * 1.12 * data_per_px
+        for m, row in zip(moments, rows):
+            color = _MOMENT_STYLE.get(m["kind"], ("#FFD700", ""))[0]
+            yy = -strip + (row + 0.5) * row_data + 0.15 * marker_px * data_per_px
+            ax.plot([m["lap"], m["lap"]], [yy, 0.0], color=color, alpha=0.4, lw=1.0, zorder=2)
+            ax.text(m["lap"], yy, str(m["n"]), ha="center", va="center", fontsize=marker_pt,
+                    color="#0d0d0d", fontweight="bold", zorder=9,
+                    bbox={"boxstyle": "circle,pad=0.3", "fc": color, "ec": "#0d0d0d", "lw": 0.8})
+
+        ax.set_xticks(list(range(0, max_lap + 1, 10 if max_lap > 30 else 5)))
+        ax.set_xlabel("Lap")
+        ax.set_ylabel("Gap to leader (s)")
+        canvas.style_axis(ax, fmt)
+        ax.grid(False, axis="x")
+        ax.set_yticks([t for t in ax.get_yticks() if 0 <= t <= y_bottom])
+
+        if n_entries:
+            handles: List[Any] = []
+            labels: List[str] = []
+            span_handles, span_labels = ax.get_legend_handles_labels()
+            for status in statuses:
+                if status in span_labels:
+                    face = span_handles[span_labels.index(status)].get_facecolor()
+                    handles.append(Patch(facecolor=face, alpha=0.75, edgecolor="none"))
+                    labels.append(status)
+            for comp in compounds:
+                handles.append(Line2D([0], [0], marker="o", ls="", color=get_compound_color(comp),
+                                      markeredgecolor="#0d0d0d", markersize=legend_pt * 0.8))
+                labels.append(comp)
+            for kind in kinds:
+                handles.append(Line2D([0], [0], marker="o", ls="", color=_MOMENT_STYLE[kind][0],
+                                      markeredgecolor="#0d0d0d", markersize=legend_pt * 0.8))
+                labels.append(_MOMENT_STYLE[kind][1])
+            ax.legend(handles, labels, loc="lower left", bbox_to_anchor=(0.0, 1.005), borderaxespad=0.0,
+                      ncol=ncol, frameon=False, fontsize=legend_pt, labelcolor=canvas.TEXT,
+                      columnspacing=1.4, handletextpad=0.5)
+
+        return canvas.save_png(fig, path, fmt)
 
 
 if __name__ == "__main__":

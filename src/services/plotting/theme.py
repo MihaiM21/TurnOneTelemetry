@@ -1,8 +1,32 @@
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as pe
+from matplotlib import font_manager
+
+# Static Montserrat instances (SIL OFL 1.1, see assets/fonts/OFL-Montserrat.txt),
+# cut from the variable font because matplotlib cannot select a weight from a
+# variable font -- it renders the default instance, which for Montserrat is Thin.
+# Before these were bundled every plot silently fell back to DejaVu Sans.
+_FONT_DIR = Path(__file__).resolve().parents[3] / "assets" / "fonts"
+_FONT_FILES = ("Montserrat-Regular.ttf", "Montserrat-SemiBold.ttf", "Montserrat-Bold.ttf")
+_fonts_registered = False
+
+
+def register_fonts() -> None:
+    """Add the bundled fonts to matplotlib's font manager (idempotent)."""
+    global _fonts_registered
+    if _fonts_registered:
+        return
+    for name in _FONT_FILES:
+        path = _FONT_DIR / name
+        if path.exists():
+            font_manager.fontManager.addfont(str(path))
+    _fonts_registered = True
 
 
 def setup_turnone_theme():
+    register_fonts()
     plt.rcParams.update({
         # Background
         "figure.facecolor": "#0d0d0d",

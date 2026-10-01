@@ -59,8 +59,16 @@ class PlotSpec:
     # persist their result explicitly (see ``persist_generated``). Function-style
     # entrypoints already store themselves via ``store_to_mongo=True``.
     persist_result: bool = False
+    # First season the feature is meaningful for (0 == no limit). Energy clipping
+    # measures the 2026 power units, so earlier sessions are "not applicable"
+    # rather than "missing". Only honoured when the caller passes ``year`` to
+    # :meth:`applies` / :func:`specs_for_session`; callers that omit it see the
+    # spec for every season, exactly as before this field existed.
+    min_year: int = 0
 
-    def applies(self, session_type: str) -> bool:
+    def applies(self, session_type: str, year: Optional[int] = None) -> bool:
+        if year is not None and int(year) < self.min_year:
+            return False
         if not self.applies_to:
             return True
         return session_type.strip().upper() in self.applies_to
@@ -196,6 +204,33 @@ def _gen_driver_radar_auto(y: int, ident: Identifier, e: str) -> Any:
     return DriverRadarData()(y, ident, e, None)
 
 
+def _gen_energy_clipping(y: int, ident: Identifier, e: str) -> Any:
+    # Raises DataNotAvailableError (404) before 2026; ``PlotSpec.min_year`` keeps the planner from asking.
+    from src.services.analysis.v2.energy_clipping import EnergyClippingData
+    return EnergyClippingData()(y, ident, e)
+
+
+def _gen_corner_speed_profile(y: int, ident: Identifier, e: str) -> Any:
+    from src.services.analysis.v2.car_characteristics import CornerSpeedProfileData
+    return CornerSpeedProfileData()(y, ident, e)
+
+
+def _gen_efficiency_scatter(y: int, ident: Identifier, e: str) -> Any:
+    from src.services.analysis.v2.car_characteristics import EfficiencyScatterData
+    return EfficiencyScatterData()(y, ident, e)
+
+
+def _gen_field_dominance(y: int, ident: Identifier, e: str) -> Any:
+    # Default variant only: mode="team", no top_n. Other (mode, top_n) combinations are served on request.
+    from src.services.analysis.v2.field_dominance import FieldDominanceData
+    return FieldDominanceData()(y, ident, e, mode="team", top_n=None)
+
+
+def _gen_sector_gap(y: int, ident: Identifier, e: str) -> Any:
+    from src.services.analysis.v2.sector_gap import SectorGapData
+    return SectorGapData()(y, ident, e)
+
+
 # --------------------------------------------------------------------------- #
 # Stored-key accessors. Every key below is produced by the owning module's own
 # builder rather than re-spelled here, so a key format change cannot silently
@@ -237,6 +272,36 @@ def _key_lap_frames(drv: str, lap: int) -> str:
     return _data_type(drv, lap)
 
 
+def _key_energy_clipping() -> str:
+    from src.services.analysis.v2.energy_clipping import DATA_TYPE
+    return DATA_TYPE
+
+
+def _key_energy_clipping_first_year() -> int:
+    from src.services.analysis.v2.energy_clipping import FIRST_YEAR
+    return FIRST_YEAR
+
+
+def _key_corner_speed_profile() -> str:
+    from src.services.analysis.v2.car_characteristics import PROFILE_DATA_TYPE
+    return PROFILE_DATA_TYPE
+
+
+def _key_efficiency_scatter() -> str:
+    from src.services.analysis.v2.car_characteristics import EFFICIENCY_DATA_TYPE
+    return EFFICIENCY_DATA_TYPE
+
+
+def _key_field_dominance(mode: str = "team", top_n: Optional[int] = None) -> str:
+    from src.services.analysis.v2.field_dominance import data_type
+    return data_type(mode, top_n)
+
+
+def _key_sector_gap() -> str:
+    from src.services.analysis.v2.sector_gap import DATA_TYPE
+    return DATA_TYPE
+
+
 # --------------------------------------------------------------------------- #
 # The catalog. Order is the generation order used by the backfill worker.
 # --------------------------------------------------------------------------- #
@@ -274,17 +339,43 @@ V2_SINGLETON_PLOTS: List[PlotSpec] = [
         _key_driver_radar(None), "Driver Radar (auto selection)",
         frozenset(), _gen_driver_radar_auto, persist_result=True,
     ),
+    # ---- Field-wide telemetry charts (class-based: persist_result so the backfill writes Mongo) ----
+    # 2026+ only: the measurement is defined on the 2026 power units (``min_year``).
+    PlotSpec(
+        _key_energy_clipping(), "Energy Clipping (2026+)", frozenset(), _gen_energy_clipping,
+        persist_result=True, min_year=_key_energy_clipping_first_year(),
+    ),
+    PlotSpec(
+        _key_corner_speed_profile(), "Corner Speed Profile", frozenset(), _gen_corner_speed_profile,
+        persist_result=True,
+    ),
+    PlotSpec(
+        _key_efficiency_scatter(), "Efficiency Scatter", frozenset(), _gen_efficiency_scatter,
+        persist_result=True,
+    ),
+    # Default variant (mode="team", no top_n) only; other variants have their own stored keys.
+    PlotSpec(
+        _key_field_dominance("team", None), "Field Dominance (teams)", frozenset(), _gen_field_dominance,
+        persist_result=True,
+    ),
+    PlotSpec(
+        _key_sector_gap(), "Sector Gap to Pole", _QUALI, _gen_sector_gap, persist_result=True,
+    ),
 ]
 
 
-def specs_for_session(session_type: str) -> List[PlotSpec]:
-    """Singleton specs applicable to a normalized session abbreviation."""
-    return [spec for spec in V2_SINGLETON_PLOTS if spec.applies(session_type)]
+def specs_for_session(session_type: str, year: Optional[int] = None) -> List[PlotSpec]:
+    """Singleton specs applicable to a normalized session abbreviation.
+
+    Pass ``year`` to also drop features that do not exist for that season yet
+    (``PlotSpec.min_year``); omit it for the session-only view.
+    """
+    return [spec for spec in V2_SINGLETON_PLOTS if spec.applies(session_type, year)]
 
 
-def expected_data_types(session_type: str) -> List[str]:
+def expected_data_types(session_type: str, year: Optional[int] = None) -> List[str]:
     """Singleton ``data_type`` keys expected for a session (e.g. FP1/Q/R)."""
-    return [spec.data_type for spec in specs_for_session(session_type)]
+    return [spec.data_type for spec in specs_for_session(session_type, year)]
 
 
 # --------------------------------------------------------------------------- #
@@ -426,6 +517,17 @@ def _gen_corner_duel(y: int, ident: Identifier, e: str, d1: str, d2: str) -> Any
     return CornerDuelData()(y, ident, e, d1, d2)
 
 
+def _gen_lap_duel(y: int, ident: Identifier, e: str, d1: str, d2: str) -> Any:
+    # Default variant only: both fastest laps, same session, standard detail.
+    from src.services.analysis.v2.lap_duel import LapDuelData
+    return LapDuelData()(y, ident, e, d1, d2)
+
+
+def _key_lap_duel(d1: str, d2: str) -> str:
+    from src.services.analysis.v2.lap_duel import _data_type
+    return _data_type(d1, d2)
+
+
 def _gen_track_map_gear(y: int, ident: Identifier, e: str, drv: str) -> Any:
     from src.services.analysis.v2.telemetry_track_map import TrackMapData
     return TrackMapData()(y, ident, e, drv, "gear")
@@ -512,6 +614,13 @@ V2_PAIR_PLOTS: List[PairPlotSpec] = [
         "corner_duel", _gen_corner_duel,
         lambda a, b: "corner_duel_" + "_".join(sorted([a.upper(), b.upper()])),
         label="Corner Duel",
+    ),
+    # Ordered: the delta sign depends on argument order, so (A,B) and (B,A) are
+    # different documents. Only the default variant (both fastest laps) is
+    # planned; lap/segment/cross-session variants are generated on request.
+    PairPlotSpec(
+        "lap_duel", _gen_lap_duel, _key_lap_duel,
+        label="Lap Duel", ordered=True,
     ),
 ]
 
