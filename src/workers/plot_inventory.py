@@ -23,7 +23,7 @@ Three capabilities, all driven by the canonical catalog in
 
 Jobs are tracked both in memory (authoritative, cheap) and in MongoDB via
 ``src/repositories/admin_jobs.py`` (durable, cross-process). Progress is flushed
-to Mongo on a throttle — see :class:`_JobWriter` — because a thousands-of-units
+to Mongo on a throttle — see ``src/workers/_job_progress.JobWriter`` — because a thousands-of-units
 job must not cost a Mongo write per unit.
 
 Concurrency note: units are IO-bound (livetiming fetches), but a
@@ -35,7 +35,6 @@ anything else would re-download the same multi-megabyte streams per unit.
 from __future__ import annotations
 
 import threading
-import time
 import unicodedata
 import uuid
 from collections import OrderedDict
@@ -50,6 +49,10 @@ from src.ingestion.event_resolver import resolve_event
 from src.ingestion.reference import get_season_events
 from src.repositories import admin_jobs
 from src.repositories.mongo import MongoDBManager
+from src.workers._job_progress import CANCELLED as _CANCELLED  # noqa: F401 - re-exported for tests
+from src.workers._job_progress import JobWriter
+from src.workers._job_progress import bump_metric as _bump_metric
+from src.workers._job_progress import now as _now
 from src.services.analysis.v2.registry import (
     KIND_CAREER,
     KIND_PER_DRIVER,
@@ -85,11 +88,6 @@ JOB_KIND = "plot_backfill"
 # mis-click rather than an intent. The admin can narrow the scope or raise the
 # cap explicitly.
 MAX_PLAN_UNITS = 50_000
-
-# Progress is flushed to Mongo at most this often, or every N completed units,
-# whichever comes first.
-_FLUSH_INTERVAL_SECONDS = 2.0
-_FLUSH_EVERY_UNITS = 25
 
 MAX_CONCURRENCY = 4
 
@@ -244,6 +242,7 @@ _EXTRA_PREFIXES: Tuple[str, ...] = (
     "throttle_brake_comparison",
     "lap_time_analysis",
     "corner_duel",
+    "lap_duel",
     "driver_radar",
     "speed_distribution",
     "tyre_degradation",
@@ -285,7 +284,7 @@ def compute_inventory(
         if yr not in existing_by_year:
             existing_by_year[yr] = _existing_data_types(yr)
 
-        specs = specs_for_session(session_type)
+        specs = specs_for_session(session_type, year=yr)
         expected = [spec.data_type for spec in specs]
         labels = {spec.data_type: spec.label for spec in specs}
         present = existing_by_year[yr].get((_norm_name(gp_name), session_type), set())
@@ -556,7 +555,7 @@ def build_plan(
         prefix = f"{yr} R{round_nr} {session_type}"
 
         # ---- singletons ----
-        for spec in specs_for_session(session_type):
+        for spec in specs_for_session(session_type, year=yr):
             if not selection.selects(spec.data_type, KIND_SINGLETON):
                 continue
             if not _add(WorkUnit(
@@ -878,87 +877,12 @@ def force_stop_job(job_id: str) -> bool:
     return stopped
 
 
-# In-process cancel signal, so a cancel served by the owning worker takes effect
-# immediately rather than waiting for the Mongo round-trip.
-_CANCELLED: Set[str] = set()
-
-
 # --------------------------------------------------------------------------- #
 # Backfill execution
 # --------------------------------------------------------------------------- #
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-class _JobWriter:
-    """Throttled write-through of job progress to MongoDB.
-
-    A full-catalog backfill is thousands of units. Flushing per unit would cost
-    more than the generation, so state is flushed at most every
-    ``_FLUSH_INTERVAL_SECONDS`` or every ``_FLUSH_EVERY_UNITS`` completions —
-    plus unconditionally on every status transition. Cancellation is polled on
-    the same cadence, which bounds how long a cancel takes to take effect.
-    """
-
-    def __init__(self, job: PlotGenJob) -> None:
-        self.job = job
-        self._last_flush = 0.0
-        self._since_flush = 0
-        self._pending_errors: List[str] = []
-        self._lock = threading.Lock()
-
-    def note_error(self, message: str) -> None:
-        with self._lock:
-            self.job.errors.append(message)
-            self._pending_errors.append(message)
-
-    def tick(self, force: bool = False) -> None:
-        with self._lock:
-            self._since_flush += 1
-            due = (
-                force
-                or self._since_flush >= _FLUSH_EVERY_UNITS
-                or (time.monotonic() - self._last_flush) >= _FLUSH_INTERVAL_SECONDS
-            )
-            if not due:
-                return
-            errors, self._pending_errors = self._pending_errors, []
-            self._since_flush = 0
-            self._last_flush = time.monotonic()
-            job = self.job
-
-        admin_jobs.update_job(
-            job.job_id,
-            status=job.status,
-            total=job.total,
-            done=job.done,
-            success=job.success,
-            failed=job.failed,
-            skipped=job.skipped,
-            current=job.current,
-            per_feature=job.per_feature,
-            warnings=job.warnings,
-            started_at=job.started_at,
-            finished_at=job.finished_at,
-        )
-        if errors:
-            admin_jobs.push_errors(job.job_id, errors)
-
-    def cancelled(self) -> bool:
-        if self.job.job_id in _CANCELLED:
-            return True
-        return admin_jobs.is_cancelled(self.job.job_id)
-
-
-def _bump_metric(success: bool) -> None:
-    try:
-        from src.core.observability.monitoring import (
-            BACKGROUND_JOBS_FAILED,
-            BACKGROUND_JOBS_PROCESSED,
-        )
-        (BACKGROUND_JOBS_PROCESSED if success else BACKGROUND_JOBS_FAILED).inc()
-    except Exception:  # pragma: no cover - metrics are best-effort
-        pass
+def _JobWriter(job: PlotGenJob) -> JobWriter:
+    """Backfill jobs additionally flush the per-feature outcome tally."""
+    return JobWriter(job, extra_fields=("per_feature",))
 
 
 def execute_plan(

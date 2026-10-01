@@ -102,7 +102,7 @@ def test_generate_missing_skips_present_and_counts(offline, monkeypatch):
         return PlotSpec(dt, dt, frozenset(), lambda y, ident, e: calls.append((dt, y, ident, e)) or [1])
 
     fake_specs = [_make_spec("alpha"), _make_spec("beta")]
-    monkeypatch.setattr(plot_inventory, "specs_for_session", lambda s: fake_specs)
+    monkeypatch.setattr(plot_inventory, "specs_for_session", lambda s, year=None: fake_specs)
     # 'alpha' already present for the race session; 'beta' missing.
     monkeypatch.setattr(
         plot_inventory, "_existing_data_types", lambda year: {(_GP_KEY, "R"): {"alpha"}}
@@ -131,7 +131,7 @@ def test_persist_result_specs_are_persisted(offline, monkeypatch):
         PlotSpec("plain", "plain", frozenset(), lambda y, i, e: [1], persist_result=False),
         PlotSpec("classy", "classy", frozenset(), lambda y, i, e: [1], persist_result=True),
     ]
-    monkeypatch.setattr(plot_inventory, "specs_for_session", lambda s: specs)
+    monkeypatch.setattr(plot_inventory, "specs_for_session", lambda s, year=None: specs)
     monkeypatch.setattr(plot_inventory, "_existing_data_types", lambda year: {})
 
     job = plot_inventory.PlotGenJob(job_id="test", scope={})
@@ -155,7 +155,7 @@ def test_parameterized_generates_per_driver_and_all_pairs(offline, monkeypatch):
         plot_inventory, "V2_PAIR_PLOTS",
         [PairPlotSpec("p", lambda y, i, e, a, b: pcalls.append((a, b)) or [1])],
     )
-    monkeypatch.setattr(plot_inventory, "specs_for_session", lambda s: [])  # isolate params
+    monkeypatch.setattr(plot_inventory, "specs_for_session", lambda s, year=None: [])  # isolate params
     monkeypatch.setattr(plot_inventory, "_existing_data_types", lambda year: {})
     monkeypatch.setattr(
         plot_inventory, "persist_generated",
@@ -179,7 +179,7 @@ def test_parameterized_generates_per_driver_and_all_pairs(offline, monkeypatch):
 def test_parameterized_off_by_default(offline, monkeypatch):
     calls = []
     monkeypatch.setattr(plot_inventory, "session_drivers", lambda y, i, e: calls.append(1) or ["X"])
-    monkeypatch.setattr(plot_inventory, "specs_for_session", lambda s: [])
+    monkeypatch.setattr(plot_inventory, "specs_for_session", lambda s, year=None: [])
     monkeypatch.setattr(plot_inventory, "_existing_data_types", lambda year: {})
 
     job = plot_inventory.PlotGenJob(job_id="t", scope={})
@@ -192,7 +192,7 @@ def test_parameterized_off_by_default(offline, monkeypatch):
 def test_generate_missing_force_regenerates(offline, monkeypatch):
     calls = []
     spec = PlotSpec("alpha", "alpha", frozenset(), lambda y, ident, e: calls.append(ident) or [1])
-    monkeypatch.setattr(plot_inventory, "specs_for_session", lambda s: [spec])
+    monkeypatch.setattr(plot_inventory, "specs_for_session", lambda s, year=None: [spec])
     monkeypatch.setattr(
         plot_inventory, "_existing_data_types", lambda year: {(_GP_KEY, "R"): {"alpha"}}
     )
@@ -210,7 +210,7 @@ def test_generate_missing_records_generator_errors(offline, monkeypatch):
         raise RuntimeError("kaboom")
 
     spec = PlotSpec("alpha", "alpha", frozenset(), _boom)
-    monkeypatch.setattr(plot_inventory, "specs_for_session", lambda s: [spec])
+    monkeypatch.setattr(plot_inventory, "specs_for_session", lambda s, year=None: [spec])
     monkeypatch.setattr(plot_inventory, "_existing_data_types", lambda year: {})
 
     job = plot_inventory.PlotGenJob(job_id="test", scope={})
@@ -246,7 +246,7 @@ def planner(offline, monkeypatch):
     monkeypatch.setattr(plot_inventory, "session_drivers", lambda y, i, e: ["AAA", "BBB", "CCC"])
     monkeypatch.setattr(
         plot_inventory, "specs_for_session",
-        lambda s: [PlotSpec("solo", "Solo", frozenset(), lambda y, i, e: [1])],
+        lambda s, year=None: [PlotSpec("solo", "Solo", frozenset(), lambda y, i, e: [1])],
     )
     monkeypatch.setattr(
         plot_inventory, "V2_PER_DRIVER_PLOTS",
@@ -302,7 +302,7 @@ def test_ordered_pair_features_plan_both_directions(offline, monkeypatch):
     so a backfill that only emits one ordering leaves the reverse a permanent miss.
     """
     monkeypatch.setattr(plot_inventory, "session_drivers", lambda y, i, e: ["AAA", "BBB"])
-    monkeypatch.setattr(plot_inventory, "specs_for_session", lambda s: [])
+    monkeypatch.setattr(plot_inventory, "specs_for_session", lambda s, year=None: [])
     monkeypatch.setattr(plot_inventory, "V2_PER_DRIVER_PLOTS", [])
     monkeypatch.setattr(plot_inventory, "V2_SEASON_PLOTS", [])
     monkeypatch.setattr(plot_inventory, "V2_CAREER_PLOTS", [])
@@ -319,7 +319,7 @@ def test_ordered_pair_features_plan_both_directions(offline, monkeypatch):
 def test_per_driver_applies_to_filters_by_session(offline, monkeypatch):
     """A race-only per-driver feature must not be planned for practice."""
     monkeypatch.setattr(plot_inventory, "session_drivers", lambda y, i, e: ["AAA"])
-    monkeypatch.setattr(plot_inventory, "specs_for_session", lambda s: [])
+    monkeypatch.setattr(plot_inventory, "specs_for_session", lambda s, year=None: [])
     monkeypatch.setattr(plot_inventory, "V2_PAIR_PLOTS", [])
     monkeypatch.setattr(plot_inventory, "V2_SEASON_PLOTS", [])
     monkeypatch.setattr(plot_inventory, "V2_CAREER_PLOTS", [])
@@ -338,7 +338,7 @@ def test_lap_feature_requires_an_explicit_range(offline, monkeypatch):
     from src.services.analysis.v2.registry import DriverLapPlotSpec
 
     monkeypatch.setattr(plot_inventory, "session_drivers", lambda y, i, e: ["AAA"])
-    monkeypatch.setattr(plot_inventory, "specs_for_session", lambda s: [])
+    monkeypatch.setattr(plot_inventory, "specs_for_session", lambda s, year=None: [])
     monkeypatch.setattr(plot_inventory, "V2_PER_DRIVER_PLOTS", [])
     monkeypatch.setattr(plot_inventory, "V2_PAIR_PLOTS", [])
     monkeypatch.setattr(plot_inventory, "V2_SEASON_PLOTS", [])
@@ -457,3 +457,17 @@ def test_extra_stored_keys_are_grouped_not_listed(offline, monkeypatch):
     assert sess["extra_count"] == len(extras)
     # Sample is bounded so the payload stays small.
     assert all(len(g["sample"]) <= 6 for g in sess["extra_groups"])
+
+
+def test_simplify_session_name_handles_livetiming_spellings():
+    from src.services.orchestrator_helpers import simplify_session_name
+
+    # Curated schedules say "Free Practice 1", livetiming's Index.json says
+    # "Practice 1" (and "Sprint Shootout" in 2023); all must key the same.
+    assert simplify_session_name("Practice 1") == "FP1"
+    assert simplify_session_name("Free Practice 3") == "FP3"
+    assert simplify_session_name("Sprint Shootout") == "SQ"
+    assert simplify_session_name("Sprint Qualifying") == "SQ"
+    assert simplify_session_name("race") == "R"
+    assert simplify_session_name("Day 1") == "Day 1"
+    assert simplify_session_name(None) is None

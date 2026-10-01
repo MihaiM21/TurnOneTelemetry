@@ -14,7 +14,7 @@ a cancel channel (the worker polls ``cancel_requested``).
 **Write volume matters.** A full-catalog backfill is thousands of units; writing
 once per unit would put more load on Mongo than the generation itself. Callers
 keep authoritative state in memory and flush here on a throttle — see
-``plot_inventory._JobWriter``. Every function fails open: losing a progress
+``src.workers._job_progress.JobWriter``. Every function fails open: losing a progress
 write must never abort a running job.
 """
 from __future__ import annotations
