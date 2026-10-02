@@ -330,7 +330,9 @@ def add_driver_plate(
     # when the plate is too short for them (it used to spill over its top edge).
     big, small = fmt.base_fontsize * 1.45, fmt.base_fontsize * 0.9
     pt_px = DESIGN_DPI / 72.0
-    big_px, small_px = big * 1.12 * pt_px, (small * 1.3 * pt_px if sub else 0.0)
+    # Line boxes are measured generously: glyph metrics differ across platforms
+    # (Linux CI renders the same fonts a few px taller), and the two lines must not touch.
+    big_px, small_px = big * 1.3 * pt_px, (small * 1.45 * pt_px if sub else 0.0)
     rect_px = rect[3] * fmt.height_px
     k = min(1.0, 0.96 * rect_px / (big_px + small_px))
     big, small, big_px, small_px = big * k, small * k, big_px * k, small_px * k
