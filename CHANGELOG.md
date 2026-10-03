@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v1.8.0 (2026-10-03)
+
+### Bug Fixes
+
+- Pipeline tests coverage
+  ([`b82f828`](https://github.com/MihaiM21/TurnOneTelemetry/commit/b82f828019635c6feefc8da3ad56f8a90bb71bf2))
+
+### Features
+
+- ML dataset export with admin console
+  ([`1369fae`](https://github.com/MihaiM21/TurnOneTelemetry/commit/1369fae49ebc1e38f7848eaf3480d5daadaed423))
+
+- Social pack generator with admin console
+  ([`7799555`](https://github.com/MihaiM21/TurnOneTelemetry/commit/7799555327fe6253e736f28104e337e493403a6f))
+
+- Social-format canvas and 2026 chart set
+  ([`2a4fed9`](https://github.com/MihaiM21/TurnOneTelemetry/commit/2a4fed9ee56125ffbdb8de43acbd38160cbf3073))
+
+
 ## v1.7.0 (2026-09-11)
 
 ### Bug Fixes
