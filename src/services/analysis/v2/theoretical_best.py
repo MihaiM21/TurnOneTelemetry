@@ -30,17 +30,20 @@ Only meaningful for Qualifying / Sprint Qualifying sessions (single-lap pace).
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
-import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter, MultipleLocator
 
 from src.core.exceptions import DataNotAvailableError
 from src.core.logging import get_logger
 from src.services.analysis.base import cached_or_generate
 from src.services.analysis.v2._helpers import assert_session_type
 from src.services.analysis.v2._race_helpers import extract_best_sectors, extract_lap_times
+from src.services.analysis.v2.qualifying_results import legible_color
 from src.services.analysis.v2.session_store import SessionDataStore
+from src.services.plotting import canvas as cv
+from src.services.plotting.canvas import add_legacy_watermark
 from src.services.plotting import output as dirOrg
 from src.services.plotting import theme as setup_theme
 from src.services.plotting.colors import get_team_color
@@ -61,6 +64,115 @@ def _init(y: int, event_name: str, session_name: str):
     location = f"outputs/plots/{y}/{event_folder}/{session_name}"
     name = f"Theoretical best {y} {event_name} {session_name}.png"
     return location, name
+
+
+# Rows shown per format. A story is watched on a phone, so it keeps the front
+# of the order; the other formats show the whole grid.
+_MAX_ROWS = {"story": 15}
+
+_SESSION_LONG = {
+    "Q": "Qualifying", "QUALIFYING": "Qualifying", "SQ": "Sprint Qualifying",
+    "SPRINT QUALIFYING": "Sprint Qualifying", "SPRINT SHOOTOUT": "Sprint Shootout",
+}
+
+
+def _session_long(code: str) -> str:
+    return _SESSION_LONG.get(str(code).strip().upper(), str(code))
+
+
+def _fmt_lap_axis(value: float, _pos=None) -> str:
+    minutes = int(value // 60)
+    return f"{minutes}:{value - 60 * minutes:04.1f}"
+
+
+def _tick_step(span: float, max_ticks: int = 6) -> float:
+    for step in (0.1, 0.2, 0.5, 1.0, 2.0, 5.0):
+        if span / step <= max_ticks:
+            return step
+    return 10.0
+
+
+def _row_color(row: Dict[str, Any], y: int) -> str:
+    color = get_team_color(row.get("team", "Unknown"), y)
+    return color if color != "#FFFFFF" or not row.get("color") else row["color"]
+
+
+def _render_formatted(
+    payload: List[Dict[str, Any]], fmt: str, y: int, event_name: str, e: str,
+) -> str:
+    """Social-format dumbbell: ranked by theoretical best, time left on the table as a number.
+
+    Hollow marker = best sectors combined, filled = actual best lap; the number
+    at the right is the actual lap minus the theoretical one.
+    """
+    canvas_fmt = cv.get_format(fmt)
+    location, name = _init(y, event_name, e)
+
+    rows = payload[:_MAX_ROWS.get(canvas_fmt.name, len(payload))]
+    n = len(rows)
+    colors = [_row_color(r, y) for r in rows]
+    base = canvas_fmt.base_fontsize
+
+    fig = cv.new_canvas(canvas_fmt)
+    cv.add_header(fig, canvas_fmt, "Theoretical best lap", f"{y} {event_name}  ·  {_session_long(e)}")
+    cv.add_footer(fig, canvas_fmt)
+    cv.add_watermark(fig, canvas_fmt)
+
+    # A little extra header room for the "LEFT ON TABLE" column title.
+    gs = cv.safe_gridspec(fig, canvas_fmt, 1, 2, header=cv.header_height(canvas_fmt) + 0.012,
+                          width_ratios=[4.0 if canvas_fmt.is_vertical else 7.5, 1.0], wspace=0.03)
+    ax = fig.add_subplot(gs[0, 0])
+    ax_num = fig.add_subplot(gs[0, 1], sharey=ax)
+    ax_num.set_axis_off()
+
+    marker_area = (base * 1.1) ** 2
+    for i, (row, color) in enumerate(zip(rows, colors)):
+        ax.plot([row["theoretical_s"], row["actual_s"]], [i, i], color="#666666", lw=2.4, zorder=1,
+                solid_capstyle="round")
+        ax.scatter([row["theoretical_s"]], [i], s=marker_area, facecolors="none", edgecolors=color,
+                   linewidths=2.4, zorder=3)
+        ax.scatter([row["actual_s"]], [i], s=marker_area, facecolors=color, edgecolors=cv.FACE,
+                   linewidths=1.0, zorder=4)
+        ax_num.text(1.0, i, f"+{row['delta_s']:.3f}", ha="right", va="center", fontsize=base,
+                    fontweight="bold", color=cv.TEXT)
+
+    lo = min(r["theoretical_s"] for r in rows)
+    hi = max(r["actual_s"] for r in rows)
+    # Pad by the marker radius (in pixels) so the end markers clear the axis frame.
+    axes_px = ax.get_position().width * canvas_fmt.width_px
+    pad = max((hi - lo), 0.1) * (0.9 * marker_area ** 0.5 * cv.DESIGN_DPI / 72.0) / max(axes_px, 1.0)
+    ax.set_xlim(lo - pad, hi + pad)
+    ax.set_ylim(n - 0.5, -0.5)
+    # Tick labels ("1:43.5") must not touch: allow as many as the axis width holds.
+    label_px = 6 * base * 0.85 * cv.DESIGN_DPI / 72.0 * 0.62 + 24
+    ax.xaxis.set_major_locator(MultipleLocator(_tick_step(hi - lo + 2 * pad, max(2, int(axes_px / label_px)))))
+    ax.xaxis.set_major_formatter(FuncFormatter(_fmt_lap_axis))
+    ax_num.set_xlim(0, 1)
+
+    ax.set_yticks(range(n))
+    ax.set_yticklabels([r["driver"] for r in rows], fontweight="bold")
+    for tick, color in zip(ax.get_yticklabels(), colors):
+        tick.set_color(legible_color(color))
+    ax.set_xlabel("Lap time")
+    cv.style_axis(ax, canvas_fmt)
+    ax.grid(False, axis="y")
+    ax.set_axisbelow(True)
+    ax.tick_params(axis="y", length=0)
+
+    ax_num.text(1.0, 1.012, "LEFT ON TABLE", transform=ax_num.transAxes, ha="right", va="bottom",
+                fontsize=base * 0.75, fontweight="semibold", color=cv.MUTED)
+
+    theo_proxy = plt.Line2D([0], [0], marker="o", color="none", markerfacecolor="none",
+                            markeredgecolor=cv.TEXT, markeredgewidth=2, markersize=base * 0.8,
+                            label="Best sectors")
+    actual_proxy = plt.Line2D([0], [0], marker="o", color="none", markerfacecolor=cv.TEXT,
+                              markeredgecolor=cv.FACE, markersize=base * 0.8, label="Actual lap")
+    ax.legend(handles=[theo_proxy, actual_proxy], loc="upper right", fontsize=base * 0.8,
+              facecolor="#141414", edgecolor="#2a2a2a", labelcolor=cv.TEXT)
+
+    stem = name[:-4] if name.lower().endswith(".png") else name
+    path = f"{location}/{stem}{cv.format_suffix(canvas_fmt.name)}.png"
+    return cv.save_png(fig, path, canvas_fmt)
 
 
 # ----------------------------------------------------------------------
@@ -145,9 +257,15 @@ class TheoreticalBestData:
 
 
 class TheoreticalBestPlot:
-    """Callable: ``TheoreticalBestPlot()(year, identifier, session) -> png path``."""
+    """Callable: ``TheoreticalBestPlot()(year, identifier, session, fmt=None) -> png path``.
 
-    def __call__(self, y: int, identifier: Union[int, str], e: str) -> str:
+    ``fmt`` (a name from ``canvas.FORMAT_NAMES``) renders the social layout to a
+    file with the format suffix; ``None`` keeps the legacy figure and file name.
+    """
+
+    def __call__(self, y: int, identifier: Union[int, str], e: str, fmt: Optional[str] = None) -> str:
+        if fmt is not None:
+            cv.get_format(fmt)  # fail fast on a bad name, before any data work
         assert_session_type(
             e, y, identifier, allowed=_VALID_SESSIONS, feature="Theoretical best lap", sessions_label="Qualifying",
         )
@@ -162,6 +280,8 @@ class TheoreticalBestPlot:
         store = SessionDataStore(y, identifier, e)
         event_name = store.event_name
 
+        if fmt is not None:
+            return _render_formatted(payload, fmt, y, event_name, e)
         return self._render(payload, y, event_name, e)
 
     @staticmethod
@@ -230,11 +350,7 @@ class TheoreticalBestPlot:
         )
         ax.legend(handles=[theo_proxy, actual_proxy], loc="lower right", fontsize=9)
 
-        try:
-            logo = mpimg.imread('assets/images/logo mic.png')
-            fig.figimage(logo, 575, 575, zorder=3, alpha=.5)
-        except Exception:
-            pass
+        add_legacy_watermark(fig, 575, 575, alpha=0.5, zorder=3)
 
         plt.suptitle(f"Theoretical best lap\n{y} {event_name} {e}")
         plt.savefig(f"{location}/{name}")
@@ -250,7 +366,7 @@ if __name__ == "__main__":
         if data:
             fastest = data[0]
             logger.info("Fastest theoretical: %s theo=%s actual=%s delta=%s",
-                       fastest['driver'], fastest['theoretical_s'], fastest['actual_s'], fastest['delta_s'])
+                        fastest['driver'], fastest['theoretical_s'], fastest['actual_s'], fastest['delta_s'])
         plot_path = TheoreticalBestPlot()(2024, 1, "Q")
         logger.info("Plot: %s", plot_path)
     except Exception as ex:

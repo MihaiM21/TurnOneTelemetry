@@ -82,6 +82,23 @@ jobs:
             src/ingestion/circuits_loader.py \
             src/repositories/circuit_layouts.py \
             src/api/routers/admin_circuits.py \
+            src/api/routers/admin_social.py \
+            src/workers/social_pack.py \
+            src/services/analysis/v2/lap_duel.py \
+            src/services/analysis/v2/_lap_duel_core.py \
+            src/services/analysis/v2/_lap_duel_render.py \
+            src/services/analysis/v2/energy_clipping.py \
+            src/services/analysis/v2/_clipping_core.py \
+            src/services/analysis/v2/_clipping_render.py \
+            src/services/analysis/v2/_field_laps.py \
+            src/services/analysis/v2/car_characteristics.py \
+            src/services/analysis/v2/_car_characteristics_render.py \
+            src/services/analysis/v2/field_dominance.py \
+            src/services/analysis/v2/sector_gap.py \
+            src/services/analysis/v2/_field_render.py \
+            src/services/analysis/v2/position_changes.py \
+            src/services/plotting/canvas.py \
+            src/services/plotting/colors.py \
             tests/unit/api/
 
       # ADVISORY, for now. The repo still carries ~1200 whitespace-class

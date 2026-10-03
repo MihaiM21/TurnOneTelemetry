@@ -707,6 +707,139 @@ class CornerDuelResponse(BaseModel):
     session_info: SessionInfo
 
 
+class LapDuelSide(BaseModel):
+    """One side of a Lap Duel — from ``lap_duel._side_payload``.
+
+    The core (``driverCode``, ``lapTime``, ``speed``, ``throttle``, ``brake``) matches the Remotion
+    ``telemetry-compare`` schema. Every series has one value per entry of the response's ``distance`` array.
+    """
+
+    driverCode: str
+    team: Optional[str] = None
+    color: str = Field(description="Hex colour; side b is lightened when both drivers share a team colour")
+    racingNumber: Optional[str] = None
+    lapTime: str = Field(description="Formatted lap time, e.g. '1:42.526'")
+    lap_time_s: float
+    lap_number: Optional[int] = Field(default=None, description="Null when the lap has no matching lap number")
+    segment: Optional[str] = Field(default=None, description="Q1|Q2|Q3 when the lap was picked by qualifying part")
+    selection: str = Field(description="How the lap was chosen: 'fastest', 'lap' or 'segment'")
+    year: int
+    event_name: str
+    session: str
+    length_m: float = Field(description="This lap's own integrated distance (the shared axis uses side a's)")
+    speed: List[float] = Field(description="km/h")
+    throttle: List[float] = Field(description="0..1")
+    brake: List[int] = Field(description="0 or 1")
+    gear: List[int]
+    rpm: List[int]
+    drs: List[int] = Field(description="Raw DRS channel value (>= 10 means open)")
+
+
+class LapDuelCorner(BaseModel):
+    number: int
+    distance_m: float
+
+
+class LapDuelApex(BaseModel):
+    distance_m: float
+    min_speed_a: float
+    min_speed_b: float
+    braking_point_a_m: Optional[float] = None
+    braking_point_b_m: Optional[float] = None
+    corner: Optional[int] = Field(default=None, description="Nearest circuit corner within 120 m, else null")
+
+
+class LapDuelSection(BaseModel):
+    """A stretch of the lap (one corner, a merged chicane, or a straight) and who gained through it."""
+
+    start_m: float
+    end_m: float
+    corners: List[int]
+    delta_change_s: float = Field(description="Change in delta across the section; negative = b gained on a")
+    label: str = Field(description="'T5', 'T8-T12' or 'straight'")
+    gainer: str = Field(description="'a' or 'b'")
+
+
+class LapDuelTrack(BaseModel):
+    """Downsampled racing line of side a; ``faster`` is per point ('a' or 'b'). Null when there is no position data."""
+
+    x: List[float] = Field(description="Raw position units (tenths of a metre)")
+    y: List[float]
+    faster: List[str]
+    rotation: Optional[float] = Field(default=None, description="Degrees to rotate so the pit straight is horizontal")
+
+
+class LapDuelSwing(BaseModel):
+    where: str
+    start_m: float
+    end_m: float
+    gainer: str = Field(description="Driver TLA")
+    seconds: float
+
+
+class LapDuelBrakingDelta(BaseModel):
+    corner: Optional[int] = None
+    distance_m: float
+    later_braker: str = Field(description="Driver TLA")
+    metres: float
+
+
+class LapDuelHighlights(BaseModel):
+    """Numbers worth quoting in a post; none of it is drawn as text on the plot."""
+
+    gap_s: float = Field(description="lap_time_b - lap_time_a; positive = driver2 slower")
+    faster: str = Field(description="Driver TLA")
+    biggest_swings: List[LapDuelSwing]
+    top_speed_kmh: Dict[str, float] = Field(description="{driver_tla: km/h}")
+    top_speed_at_m: Dict[str, float] = Field(description="{driver_tla: metres}")
+    slowest_apex: Optional[LapDuelApex] = None
+    full_throttle_pct: Dict[str, float] = Field(description="{driver_tla: % of the lap at >= 98% throttle}")
+    braking_deltas_m: List[LapDuelBrakingDelta]
+
+
+class LapDuelAccelerationSide(BaseModel):
+    long_g: List[Optional[float]]
+    lat_g: List[Optional[float]] = Field(description="Left turns positive; null values when there is no position data")
+
+
+class LapDuelAccelerations(BaseModel):
+    """Only present with ``detail=full``; derived from ~4 Hz telemetry, clamped to +-6 g. Indicative only."""
+
+    a: LapDuelAccelerationSide
+    b: LapDuelAccelerationSide
+    note: str
+
+
+class LapDuelMeta(BaseModel):
+    delta_convention: str
+    distance_basis: str
+    source: str
+
+
+class LapDuelResponse(BaseModel):
+    """Lap Duel: two laps on one distance grid — from ``lap_duel.py``. Any session.
+
+    ``delta = t_b - t_a``; positive means side b (driver2) is behind side a (driver1). All series, ``distance``
+    and ``delta`` have the same length. ``accelerations`` appears only when ``detail=full``.
+    """
+
+    a: LapDuelSide
+    b: LapDuelSide
+    distance: List[float] = Field(description="Metres of lap a; both laps are aligned by lap fraction")
+    delta: List[float] = Field(description="Seconds, t_b - t_a; the last value is the lap-time difference")
+    corners: List[LapDuelCorner]
+    apexes: List[LapDuelApex]
+    sections: List[LapDuelSection]
+    track: Optional[LapDuelTrack] = None
+    highlights: LapDuelHighlights
+    detail: str = Field(description="'standard' or 'full'")
+    same_session: bool
+    same_team: bool
+    session_info: SessionInfo
+    meta: LapDuelMeta
+    accelerations: Optional[LapDuelAccelerations] = None
+
+
 class DriverRadarEntry(BaseModel):
     tla: str
     team: str
@@ -724,3 +857,243 @@ class DriverRadarResponse(BaseModel):
     axes: List[str] = Field(description="Axis display names, in the order `values`/`raw` are aligned to")
     drivers: List[DriverRadarEntry]
     hero: bool = Field(description="True when exactly one driver is charted")
+
+
+# ---------------------------------------------------------------------------
+# Energy clipping (2026+ power units)
+# ---------------------------------------------------------------------------
+
+class EnergyClippingZone(BaseModel):
+    """One stretch where speed fell at full throttle — from ``_clipping_core.detect_clipping``."""
+
+    start_m: float
+    end_m: float
+    length_m: float
+    speed_in_kmh: float = Field(description="Speed when it started falling")
+    speed_out_kmh: float = Field(description="Lowest speed before the driver lifted or braked")
+    kmh_lost: float
+    time_lost_s: float = Field(description="Time over the zone versus holding the entry speed")
+    start_fraction: float = Field(description="start_m / lap length; maps the zone onto the shared track outline")
+    end_fraction: float
+
+
+class EnergyClippingTrace(BaseModel):
+    """Downsampled (500 point) speed trace on the driver's own distance axis."""
+
+    distance: List[float] = Field(description="Metres")
+    speed: List[float] = Field(description="km/h")
+
+
+class EnergyClippingDriver(BaseModel):
+    driver: str
+    team: Optional[str] = None
+    color: str
+    lap_time_s: float
+    lapTime: str = Field(description="Formatted lap time, e.g. '1:42.526'")
+    length_m: float
+    clip_m: float = Field(description="Total metres spent clipping")
+    kmh_lost_max: float = Field(description="Largest single-zone speed loss")
+    time_lost_s: float = Field(description="Total estimated time lost to clipping")
+    zones: List[EnergyClippingZone]
+    trace: EnergyClippingTrace
+
+
+class EnergyClippingTrack(BaseModel):
+    """Pole lap's racing line, downsampled; zones from any driver map onto it by lap fraction."""
+
+    x: List[float] = Field(description="Raw position units (tenths of a metre)")
+    y: List[float]
+    fraction: List[float]
+    rotation: float = Field(description="Degrees to rotate so the pit straight is horizontal")
+
+
+class EnergyClippingDrop(BaseModel):
+    driver: str
+    kmh: float
+    start_m: float
+    end_m: float
+    speed_in_kmh: float
+    speed_out_kmh: float
+
+
+class EnergyClippingHighlights(BaseModel):
+    most_time_lost: Dict[str, Any] = Field(description="{driver, seconds}")
+    least_time_lost: Dict[str, Any] = Field(description="{driver, seconds}")
+    field_median_time_lost_s: float
+    field_median_clip_m: float
+    biggest_single_drop: Optional[EnergyClippingDrop] = None
+    pole_lap: Dict[str, Any] = Field(description="{driver, time_lost_s}")
+
+
+class EnergyClippingMethod(BaseModel):
+    definition: str
+    min_zone_m: float
+    min_loss_kmh: float
+    brake_guard_m: float
+    time_lost: str
+    estimated: bool = Field(description="Always true: a conservative estimate, see the endpoint description")
+
+
+class EnergyClippingResponse(BaseModel):
+    """Energy clipping per driver on their fastest clean lap — from ``energy_clipping.py``. 2026+ only.
+
+    ``drivers`` is sorted by ``time_lost_s`` descending. Requests for a season before 2026 are rejected
+    with 404 because the earlier hybrid rules make the measurement meaningless.
+    """
+
+    drivers: List[EnergyClippingDriver]
+    reference_driver: str = Field(description="Pole-lap driver whose racing line is ``track``")
+    track: Optional[EnergyClippingTrack] = None
+    highlights: EnergyClippingHighlights
+    method: EnergyClippingMethod
+    session_info: SessionInfo
+
+
+# ---------------------------------------------------------------------------
+# Car characteristics (corner speed profile, efficiency scatter)
+# ---------------------------------------------------------------------------
+
+class CarCharacteristicsCorner(BaseModel):
+    number: int
+    distance_m: float = Field(description="On the pole lap's distance frame")
+    median_apex_kmh: float = Field(description="Field-median apex speed, which decides the class")
+    class_: str = Field(alias="class", description="slow | medium | fast")
+    merged: List[int] = Field(description="Corner numbers folded into this one (chicanes)")
+
+    model_config = {"populate_by_name": True}
+
+
+class CornerSpeedTeam(BaseModel):
+    team: str
+    short: str
+    driver: Optional[str] = None
+    color: Optional[str] = None
+    avg_kmh: float = Field(description="Mean apex speed over the class's corners")
+    delta_kmh: float = Field(description="Gap to the class best: 0 for the best, negative otherwise")
+
+
+class CornerSpeedClass(BaseModel):
+    corners: List[int] = Field(description="Corner numbers in this class")
+    teams: List[CornerSpeedTeam] = Field(description="Fastest first; empty when the circuit has no such corners")
+
+
+class CornerSpeedProfileResponse(BaseModel):
+    """Mean apex speed per corner class for every team's best lap — from ``car_characteristics.py``. Any session.
+
+    Classes come from the field-median apex speed at each corner: slow < 120 km/h, fast > 200 km/h, medium in
+    between; flat-out kinks (> 280 km/h) are dropped. Apex speed is the minimum speed within 50 m of the corner.
+    """
+
+    classes: Dict[str, CornerSpeedClass] = Field(description="Keyed slow | medium | fast")
+    corners: List[CarCharacteristicsCorner]
+    highlights: Dict[str, Any] = Field(description="{best_per_class, biggest_spread}")
+    rules: Dict[str, Any] = Field(description="Class thresholds, apex window, merge gap and skipped corners")
+    reference: Dict[str, Any] = Field(description="{driver, team, lap_time_s, length_m} of the pole lap")
+    session_info: SessionInfo
+
+
+class EfficiencyTeam(BaseModel):
+    team: str
+    short: str
+    driver: Optional[str] = None
+    color: Optional[str] = None
+    top_speed_kmh: float
+    avg_apex_kmh: float = Field(description="Mean apex speed over the same classified corners as the profile")
+    lap_time_s: float
+
+
+class EfficiencyScatterResponse(BaseModel):
+    """Top speed against mean apex speed per team (drag versus downforce) — from ``car_characteristics.py``."""
+
+    teams: List[EfficiencyTeam]
+    field_median: Dict[str, float] = Field(description="{x: top speed, y: apex speed}")
+    highlights: Dict[str, Any] = Field(description="{top_speed, apex, most_efficient}")
+    corners: List[int] = Field(description="Corner numbers the apex averages use")
+    reference: Dict[str, Any] = Field(description="{driver, team, lap_time_s, length_m} of the pole lap")
+    session_info: SessionInfo
+
+
+# ---------------------------------------------------------------------------
+# Field dominance map
+# ---------------------------------------------------------------------------
+
+class FieldDominanceMinisector(BaseModel):
+    index: int
+    start_fraction: float
+    end_fraction: float
+    owner: str = Field(description="Team name (mode=team) or driver TLA (mode=driver)")
+    owner_color: str
+    margin_s: float = Field(description="Time the runner-up lost in this minisector")
+
+
+class FieldDominanceCandidate(BaseModel):
+    name: str
+    code: str = Field(description="Short label: three-letter team code or driver TLA")
+    color: str
+    count: int = Field(description="Minisectors owned")
+    driver: str
+    team: str
+    lap_time_s: Optional[float] = Field(default=None, description="Only on ``candidates``")
+
+
+class FieldDominanceTrack(BaseModel):
+    x: List[float] = Field(description="Raw position units (tenths of a metre)")
+    y: List[float]
+    fraction: List[float]
+    rotation: float = Field(description="Degrees to rotate so the pit straight is horizontal")
+
+
+class FieldDominanceResponse(BaseModel):
+    """Who owns each part of the lap — from ``field_dominance.py``. Any session.
+
+    The lap is cut into 25 equal minisectors on the pole lap's racing line; the candidate with the least time
+    spent in one owns it. ``mode=team`` ranks each team's faster driver, ``mode=driver`` every driver; ``top_n``
+    keeps only the fastest N candidates.
+    """
+
+    mode: str = Field(description="team | driver")
+    top_n: Optional[int] = None
+    minisector_count: int
+    minisectors: List[FieldDominanceMinisector]
+    track: Optional[FieldDominanceTrack] = None
+    owners: List[FieldDominanceCandidate] = Field(description="Candidates owning at least one minisector, most first")
+    candidates: List[FieldDominanceCandidate] = Field(description="Every candidate, fastest lap first")
+    highlights: Dict[str, Any] = Field(description="{pole, most_owned, biggest_margin, closest_margin, owner_count}")
+    method: Dict[str, Any]
+    session_info: SessionInfo
+
+
+# ---------------------------------------------------------------------------
+# Sector gap to pole (qualifying)
+# ---------------------------------------------------------------------------
+
+class SectorGapDriver(BaseModel):
+    position: int
+    driver: str
+    color: str
+    lap_time_s: float
+    gap_s: float = Field(description="Lap-time gap to pole")
+    sectors: List[float] = Field(description="[S1, S2, S3] seconds on this driver's fastest lap")
+    sector_gaps_s: List[float] = Field(description="[S1, S2, S3] minus pole's; negative = faster than pole")
+
+
+class SectorGapPole(BaseModel):
+    driver: str
+    color: str
+    lap_time_s: float
+    sectors: List[float]
+
+
+class SectorGapResponse(BaseModel):
+    """Gap to pole split into S1 / S2 / S3 for P2..P10 — from ``sector_gap.py``. Q and SQ only.
+
+    Sectors are those timed on each driver's own fastest lap, so the three segments add up to the lap-time gap.
+    Drivers whose lap could not be matched to a sector triple are listed in ``unmatched``.
+    """
+
+    pole: SectorGapPole
+    drivers: List[SectorGapDriver]
+    unmatched: List[str]
+    highlights: Dict[str, Any] = Field(description="{sector_leaders, faster_than_pole, largest_sector_gap}")
+    method: Dict[str, Any]
+    session_info: SessionInfo

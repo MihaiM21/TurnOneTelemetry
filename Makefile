@@ -1,10 +1,20 @@
+# Use the project venv rather than whatever `python` resolves to on PATH.
+ifeq ($(OS),Windows_NT)
+PY := .venv/Scripts/python.exe
+else
+PY := .venv/bin/python
+endif
+
 .PHONY: help install test test-unit test-integration test-fast test-cov lint clean build run deploy deploy-dev backup backup-list backup-verify restore
 
 help:
 	@echo "F1 Telemetry API - Available Commands"
 	@echo ""
 	@echo "  make install    Install dependencies"
-	@echo "  make test       Run tests"
+	@echo "  make test       Run all tests (with coverage gate)"
+	@echo "  make test-unit  Unit tests only, no coverage gate"
+	@echo "  make test-integration  Integration tests only"
+	@echo "  make test-fast  Skip slow/live tests, parallel"
 	@echo "  make lint       Check code quality"
 	@echo "  make clean      Clean generated files"
 	@echo "  make build      Build Docker image"
@@ -20,23 +30,23 @@ install:
 	pip install -e ".[dev]"
 
 test:
-	pytest tests/ -v
+	$(PY) -m pytest tests/ -v
 
 # Fast targets bypass the coverage gate (and don't require pytest-cov to be installed).
 test-unit:
-	pytest tests/unit -v -o addopts=
+	$(PY) -m pytest tests/unit -v -o addopts=
 
 test-integration:
-	pytest tests/integration -v -o addopts=
+	$(PY) -m pytest tests/integration -v -o addopts=
 
 test-fast:
-	pytest -m "not slow" -n auto -o addopts=
+	$(PY) -m pytest -m "not slow" -n auto -o addopts=
 
 test-cov:
-	pytest --cov-report=html
+	$(PY) -m pytest --cov-report=html
 
 lint:
-	flake8 src/ server.py --max-line-length=120
+	$(PY) -m flake8 src/ server.py --max-line-length=120
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
@@ -56,8 +66,10 @@ run:
 deploy:
 	docker-compose up -d
 
+# NOTE: docker-compose.dev.yml does not exist in this repo; the dev stack is
+# the same compose file with a build override.
 deploy-dev:
-	docker-compose -f docker-compose.dev.yml up --build
+	docker-compose up -d --build
 
 # ── Backup / Restore ────────────────────────────────────────────────────
 # Manual one-off backup (uses the same config as the scheduled run).

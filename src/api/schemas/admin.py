@@ -17,7 +17,7 @@ the docstring on each for why.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -1143,3 +1143,183 @@ class CircuitDeriveResponse(BaseModel):
     rotation: float
     stats: CircuitDeriveStats
     corners: List[CircuitDeriveCorner]
+
+
+# ---------------------------------------------------------------------------
+# Dataset export (/api/admin/export/*)
+# ---------------------------------------------------------------------------
+
+class ExportRequest(BaseModel):
+    """Body for ``POST /api/admin/export/estimate`` and ``.../jobs``."""
+
+    years: List[int] = Field(..., min_length=1, examples=[[2024, 2025]])
+    gp: Optional[str] = Field(
+        None, description="Round number, Event Key, or Event Name; all events if omitted."
+    )
+    session: Optional[str] = Field(None, description="Session name/abbrev (e.g. R, Q, FP1).")
+    session_types: Optional[List[str]] = Field(
+        None, description="Restrict to these session abbreviations, e.g. ['Q', 'R'].",
+    )
+    tiers: List[Literal["tables", "telemetry", "raw", "corpus"]] = Field(
+        default=["tables", "corpus"],
+        description="Which export tiers to include. telemetry/raw decode hundreds of MB per session.",
+    )
+    export_id: Optional[str] = Field(
+        None,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+        description="Reuse/resume an existing export id; a fresh one is generated if omitted.",
+    )
+    resume: bool = Field(True, description="Skip sessions/tiers already recorded done in the manifest.")
+    concurrency: int = Field(1, ge=1, le=4, description="Parallel sessions; capped lower for heavy tiers.")
+
+
+class ExportEstimateResponse(BaseModel):
+    """``POST /api/admin/export/estimate`` — ``dataset_export.estimate_export_plan``."""
+
+    export_id: str
+    tiers: List[str]
+    sessions: int
+    already_done: int
+    units_by_tier: Dict[str, int]
+    cached_sessions: int
+    cold_sessions: int
+    est_bytes: int
+    est_seconds: int
+    free_bytes: Optional[int] = None
+    warnings: List[str]
+    scope: Dict[str, Any]
+
+
+class ExportJobStartResponse(BaseModel):
+    """``POST /api/admin/export/jobs`` and ``.../archive`` — ``ExportJob.as_dict()``
+    at creation time (freshly queued, so counters are still zero).
+
+    Permissive: an archive job's dict shares only a subset of an export job's
+    fields, so anything beyond the common core is optional/extra.
+    """
+
+    job_id: str
+    kind: str
+    export_id: str
+    status: str = Field(description="queued | running | completed | failed | cancelled")
+    total: int
+    scope: Dict[str, Any]
+    tiers: List[str] = Field(default_factory=list)
+
+    model_config = {"extra": "allow"}
+
+
+class ExportSummary(BaseModel):
+    """One export directory's summary — mirrors ``exports.ExportSummary``."""
+
+    export_id: str
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    schema_version: Optional[str] = None
+    tiers: List[str] = Field(default_factory=list)
+    scope: Dict[str, Any] = Field(default_factory=dict)
+    sessions_total: int = 0
+    sessions_done: int = 0
+    sessions_failed: int = 0
+    bytes: int = 0
+    rows_by_table: Dict[str, int] = Field(default_factory=dict)
+    archive: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ExportListResponse(BaseModel):
+    """``GET /api/admin/export/exports``."""
+
+    count: int
+    exports: List[ExportSummary]
+
+
+class ExportFileEntry(BaseModel):
+    """One file recorded in an export manifest — ``writer.FileStat``."""
+
+    path: str
+    rows: int
+    bytes: int
+    sha256: str
+
+
+class ExportFilesResponse(BaseModel):
+    """``GET /api/admin/export/exports/{export_id}/files``."""
+
+    export_id: str
+    count: int
+    files: List[ExportFileEntry]
+
+
+class ExportDeleteResponse(BaseModel):
+    """``DELETE /api/admin/export/exports/{export_id}`` (destructive)."""
+
+    export_id: str
+    bytes_freed: int
+
+
+# ---------------------------------------------------------------------------
+# Social packs (/api/admin/social/*)
+# ---------------------------------------------------------------------------
+
+class SocialPackRequest(BaseModel):
+    """Body for ``POST /api/admin/social/generate``."""
+
+    year: int = Field(..., ge=2018, le=2030, examples=[2026])
+    gp: str = Field(
+        ..., min_length=1, max_length=80,
+        description="Round number, Event Key or Event Name (e.g. '16' or 'Italian Grand Prix').",
+    )
+    session: str = Field(..., description="Session abbreviation: FP1, FP2, FP3, Q, SQ, S or R.")
+    formats: List[Literal["landscape", "square", "portrait", "story"]] = Field(
+        default=["portrait", "story", "landscape"],
+        min_length=1,
+        description="Social formats to render every chart in.",
+    )
+    pairs: Optional[List[List[str]]] = Field(
+        None,
+        description=(
+            "Driver pairs for the head-to-head charts, e.g. [['VER','NOR']]. Omit to derive "
+            "them: P1 vs P2, plus each top-3 driver vs their teammate (max 4)."
+        ),
+        examples=[[["VER", "NOR"]]],
+    )
+    include_season: bool = Field(False, description="Also render the season teammate-battle chart.")
+
+
+class SocialJobRecord(BaseModel):
+    """One social-pack job -- ``social_pack.SocialJob.as_dict()`` merged over the durable Mongo doc.
+
+    Permissive for the same reason as ``JobRecord``: a job served from a process
+    that never ran it carries only the Mongo fields.
+    """
+
+    job_id: str
+    kind: Optional[str] = None
+    scope: Dict[str, Any] = Field(default_factory=dict)
+    status: str = Field(description="queued | running | completed | failed | cancelled")
+    total: int = 0
+    done: int = 0
+    success: int = 0
+    failed: int = 0
+    skipped: int = 0
+    current: Optional[str] = None
+    pack: Optional[str] = Field(None, description="Pack folder, relative to the social root.")
+    zip_ready: bool = False
+    files: int = 0
+    bytes_written: int = 0
+    formats: List[str] = Field(default_factory=list)
+    pairs: List[List[str]] = Field(default_factory=list)
+    errors: List[str] = Field(default_factory=list)
+    warnings: Optional[List[str]] = None
+    created_at: Optional[str] = None
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+
+    model_config = {"extra": "allow"}
+
+
+class SocialJobsListResponse(BaseModel):
+    """``GET /api/admin/social/jobs``."""
+
+    count: int
+    jobs: List[SocialJobRecord]

@@ -34,7 +34,6 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Union
 
-import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 
 from src.core.exceptions import DataNotAvailableError
@@ -43,6 +42,7 @@ from src.services.analysis.base import cached_or_generate
 from src.services.analysis.v2._helpers import assert_session_type, parse_f1_time
 from src.services.analysis.v2._race_helpers import extract_lap_times
 from src.services.analysis.v2.session_store import SessionDataStore
+from src.services.plotting.canvas import add_legacy_watermark
 from src.services.plotting import colors as colors_module
 from src.services.plotting import output as dirOrg
 from src.services.plotting import theme as setup_theme
@@ -333,11 +333,7 @@ class TrackEvolutionPlot:
             ax2.tick_params(axis="y", colors="#FF8C00")
             ax2.grid(False)
 
-        try:
-            logo = mpimg.imread('assets/images/logo mic.png')
-            fig.figimage(logo, 575, 575, zorder=3, alpha=.5)
-        except Exception:
-            pass
+        add_legacy_watermark(fig, 575, 575, alpha=0.5, zorder=3)
 
         plt.suptitle(f"Track evolution\n{y} {event_name} {e}")
         plt.savefig(f"{location}/{name}")

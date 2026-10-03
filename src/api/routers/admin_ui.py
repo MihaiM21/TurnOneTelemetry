@@ -10,15 +10,17 @@ Hardened against scrapers and brute-force probes via ``src.api.admin_security``
 from __future__ import annotations
 
 import re
+import shutil
 from datetime import datetime, timezone
 from urllib.parse import quote_plus
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Path as PathParam, Query, Request, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 
 from src.api.admin_security import (
     apply_no_index,
@@ -62,8 +64,13 @@ from src.services.storage_cleanup import (
     storage_totals,
 )
 from src.services.analysis.v2 import registry
+from src.services.dataset_export import exports as dataset_exports
+from src.services.dataset_export import manifest as export_manifest_mod
+from src.services.dataset_export.schema import TIERS as EXPORT_TIERS
 from src.domain.models.circuits import CircuitLayout
+from src.workers import dataset_export
 from src.workers import plot_inventory
+from src.workers import social_pack
 
 logger = get_logger(__name__)
 
@@ -1379,3 +1386,292 @@ async def admin_circuits_download(
     if path is None:
         raise HTTPException(status_code=404, detail="Circuit layout not found")
     return apply_no_index(FileResponse(path, media_type="application/json", filename=path.name))
+
+
+# --------------------------------------------------------------------------- #
+# Dataset export
+# --------------------------------------------------------------------------- #
+class _ExportEstimateBody(BaseModel):
+    years: List[int] = []
+    gp: str = ""
+    session_types: List[str] = []
+    tiers: List[str] = []
+    export_id: str = ""
+    resume: bool = True
+    csrf_token: str
+
+
+class _ExportStartBody(_ExportEstimateBody):
+    concurrency: Optional[int] = None
+
+
+def _export_plan_kwargs(body: "_ExportEstimateBody") -> Dict[str, Any]:
+    return {
+        "years": body.years,
+        "identifier": (body.gp or "").strip() or None,
+        "session_types": [s.strip().upper() for s in body.session_types if s.strip()] or None,
+        "tiers": [t.strip() for t in body.tiers if t.strip()] or None,
+        "export_id": (body.export_id or "").strip() or None,
+        "resume": body.resume,
+    }
+
+
+@router.get("/admin/export", include_in_schema=False)
+async def admin_export_page(request: Request, files: str = Query("", max_length=80)):
+    """Dataset-export console: kick off new exports, watch progress, manage archives."""
+    if not _is_admin_session(request):
+        return apply_no_index(RedirectResponse("/admin/login", status_code=302))
+
+    exports_list = await run_in_threadpool(dataset_exports.list_exports)
+    jobs = await run_in_threadpool(dataset_export.list_jobs, 20)
+    current_year = datetime.now(timezone.utc).year
+    free_bytes = None
+    try:
+        free_bytes = (await run_in_threadpool(shutil.disk_usage, dataset_exports.export_root())).free
+    except OSError as exc:
+        logger.warning("Could not read free disk space for exports: %s", exc)
+
+    files_for = (files or "").strip()
+    export_files = None
+    if files_for:
+        try:
+            export_files = await run_in_threadpool(dataset_exports.list_export_files, files_for)
+        except dataset_exports.ExportNotFound:
+            export_files = []
+
+    return _render(
+        request,
+        "admin/export.html",
+        {
+            "version": settings.app_version,
+            "exports": [e.to_dict() for e in exports_list],
+            "jobs": jobs,
+            "years": list(range(current_year, 2017, -1)),
+            "tiers": list(EXPORT_TIERS),
+            "session_types": _SESSION_CHOICES,
+            "export_dir": settings.export_dir,
+            "free_bytes": free_bytes,
+            "files_for": files_for,
+            "export_files": export_files,
+        },
+    )
+
+
+@router.post("/admin/export/estimate", include_in_schema=False)
+async def admin_export_estimate(request: Request, body: _ExportEstimateBody):
+    if not _is_admin_session(request):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    verify_csrf(request, body.csrf_token)
+
+    try:
+        kwargs = _export_plan_kwargs(body)
+        # An empty export id is fine for an estimate: fabricate one so the
+        # plan builder (which validates it) has something to check resume
+        # state against, without ever creating a directory for it.
+        kwargs["export_id"] = kwargs["export_id"] or "estimate_preview"
+        plan = await run_in_threadpool(dataset_export.build_export_plan, **kwargs)
+        summary = await run_in_threadpool(dataset_export.estimate_export_plan, plan)
+    except (ValueError, dataset_exports.ExportNotFound) as exc:
+        return apply_no_index(JSONResponse({"error": str(exc)}, status_code=400))
+    except export_manifest_mod.SchemaMismatch as exc:
+        return apply_no_index(JSONResponse({"error": str(exc)}, status_code=409))
+    return apply_no_index(JSONResponse(summary))
+
+
+@router.post("/admin/export/start", include_in_schema=False)
+async def admin_export_start(request: Request, body: _ExportStartBody):
+    if not _is_admin_session(request):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    verify_csrf(request, body.csrf_token)
+
+    try:
+        kwargs = _export_plan_kwargs(body)
+        job = await run_in_threadpool(
+            dataset_export.start_export_job, concurrency=body.concurrency, **kwargs
+        )
+    except RuntimeError as exc:
+        return apply_no_index(JSONResponse({"error": str(exc)}, status_code=409))
+    except (ValueError, dataset_exports.ExportNotFound) as exc:
+        return apply_no_index(JSONResponse({"error": str(exc)}, status_code=400))
+    except export_manifest_mod.SchemaMismatch as exc:
+        return apply_no_index(JSONResponse({"error": str(exc)}, status_code=409))
+    return apply_no_index(JSONResponse(job.as_dict()))
+
+
+@router.get("/admin/export/jobs/{job_id}", include_in_schema=False)
+async def admin_export_job_status(request: Request, job_id: str):
+    if not _is_admin_session(request):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    job = await run_in_threadpool(dataset_export.get_job_dict, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return apply_no_index(JSONResponse(job))
+
+
+@router.post("/admin/export/jobs/{job_id}/cancel", include_in_schema=False)
+async def admin_export_job_cancel(request: Request, job_id: str, csrf_token: str = Form(...)):
+    if not _is_admin_session(request):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    verify_csrf(request, csrf_token)
+    cancelled = await run_in_threadpool(dataset_export.cancel_job, job_id)
+    return apply_no_index(JSONResponse({"job_id": job_id, "cancel_requested": bool(cancelled)}))
+
+
+@router.post("/admin/export/{export_id}/archive", include_in_schema=False)
+async def admin_export_archive(request: Request, export_id: str, csrf_token: str = Form(...)):
+    if not _is_admin_session(request):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    verify_csrf(request, csrf_token)
+    try:
+        await run_in_threadpool(dataset_export.start_archive_job, export_id)
+    except RuntimeError as exc:
+        return apply_no_index(RedirectResponse(
+            f"/admin/export?error={quote_plus(str(exc))}", status_code=302
+        ))
+    return apply_no_index(RedirectResponse("/admin/export", status_code=302))
+
+
+@router.post("/admin/export/{export_id}/delete", include_in_schema=False)
+async def admin_export_delete(
+    request: Request,
+    export_id: str,
+    confirm: str = Form(""),
+    csrf_token: str = Form(...),
+):
+    if not _is_admin_session(request):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    verify_csrf(request, csrf_token)
+
+    if confirm.strip() != export_id:
+        raise HTTPException(status_code=400, detail="Typed confirmation does not match the export id")
+
+    try:
+        await run_in_threadpool(
+            dataset_exports.delete_export, export_id, in_use=dataset_export.export_in_use
+        )
+    except dataset_exports.ExportNotFound:
+        raise HTTPException(status_code=404, detail="Export not found")
+    except dataset_exports.ExportBusy as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+    logger.warning("Admin UI deleted export %s", export_id)
+    return apply_no_index(RedirectResponse("/admin/export", status_code=302))
+
+
+@router.get("/admin/export/{export_id}/files/{path:path}", include_in_schema=False)
+async def admin_export_download_file(request: Request, export_id: str, path: str):
+    if not _is_admin_session(request):
+        return apply_no_index(RedirectResponse("/admin/login", status_code=302))
+    try:
+        resolved = await run_in_threadpool(dataset_exports.resolve_export_file, export_id, path)
+    except dataset_exports.ExportNotFound:
+        raise HTTPException(status_code=404, detail="File not found")
+    return apply_no_index(FileResponse(resolved, filename=resolved.name, media_type="application/octet-stream"))
+
+
+@router.get("/admin/export/{export_id}/archive", include_in_schema=False)
+async def admin_export_download_archive(request: Request, export_id: str):
+    if not _is_admin_session(request):
+        return apply_no_index(RedirectResponse("/admin/login", status_code=302))
+    status_payload = await run_in_threadpool(dataset_exports.archive_status, export_id)
+    if status_payload["status"] != "ready":
+        raise HTTPException(status_code=404, detail="Archive is not ready")
+    path = dataset_exports.archive_path(export_id)
+    return apply_no_index(FileResponse(path, filename=path.name, media_type="application/zip"))
+
+
+@router.get("/admin/export/{export_id}/manifest", include_in_schema=False)
+async def admin_export_manifest(request: Request, export_id: str):
+    if not _is_admin_session(request):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    try:
+        manifest = await run_in_threadpool(dataset_exports.load_manifest, export_id)
+    except dataset_exports.ExportNotFound:
+        raise HTTPException(status_code=404, detail="Export not found")
+    return apply_no_index(JSONResponse(manifest.to_dict()))
+
+
+
+# --------------------------------------------------------------------------- #
+# Social pack
+# --------------------------------------------------------------------------- #
+class _SocialStartBody(BaseModel):
+    year: int
+    gp: str
+    session: str
+    formats: List[str] = []
+    pairs: str = ""
+    include_season: bool = False
+    csrf_token: str
+
+
+@router.get("/admin/social", include_in_schema=False)
+async def admin_social_page(request: Request):
+    """Social-pack console: render a session's charts in social formats, download the zip."""
+    if not _is_admin_session(request):
+        return apply_no_index(RedirectResponse("/admin/login", status_code=302))
+
+    jobs = await run_in_threadpool(social_pack.list_jobs, 20)
+    current_year = datetime.now(timezone.utc).year
+    return _render(
+        request,
+        "admin/social.html",
+        {
+            "version": settings.app_version,
+            "jobs": jobs,
+            "years": list(range(current_year, 2017, -1)),
+            "sessions": list(social_pack.SESSION_ABBREVS),
+            "formats": list(social_pack.FORMAT_NAMES),
+            "default_formats": list(social_pack.DEFAULT_FORMATS),
+            "social_dir": settings.social_dir,
+        },
+    )
+
+
+@router.post("/admin/social/start", include_in_schema=False)
+async def admin_social_start(request: Request, body: _SocialStartBody):
+    if not _is_admin_session(request):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    verify_csrf(request, body.csrf_token)
+
+    try:
+        job = await run_in_threadpool(
+            social_pack.start_social_job,
+            year=body.year, gp=body.gp, session=body.session,
+            formats=body.formats or None, pairs=social_pack.parse_pairs_text(body.pairs),
+            include_season=body.include_season,
+        )
+    except RuntimeError as exc:
+        return apply_no_index(JSONResponse({"error": str(exc)}, status_code=409))
+    except ValueError as exc:
+        return apply_no_index(JSONResponse({"error": str(exc)}, status_code=400))
+    return apply_no_index(JSONResponse(job.as_dict()))
+
+
+@router.get("/admin/social/jobs/{job_id}", include_in_schema=False)
+async def admin_social_job_status(request: Request, job_id: str):
+    if not _is_admin_session(request):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    job = await run_in_threadpool(social_pack.get_job_dict, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return apply_no_index(JSONResponse(job))
+
+
+@router.post("/admin/social/jobs/{job_id}/cancel", include_in_schema=False)
+async def admin_social_job_cancel(request: Request, job_id: str, csrf_token: str = Form(...)):
+    if not _is_admin_session(request):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    verify_csrf(request, csrf_token)
+    cancelled = await run_in_threadpool(social_pack.cancel_job, job_id)
+    return apply_no_index(JSONResponse({"job_id": job_id, "cancel_requested": bool(cancelled)}))
+
+
+@router.get("/admin/social/jobs/{job_id}/download", include_in_schema=False)
+async def admin_social_job_download(request: Request, job_id: str):
+    if not _is_admin_session(request):
+        return apply_no_index(RedirectResponse("/admin/login", status_code=302))
+    path = await run_in_threadpool(social_pack.pack_download_path, job_id)
+    if path is None:
+        raise HTTPException(status_code=404, detail="Pack not found")
+    return apply_no_index(FileResponse(path, filename=f"social_pack_{job_id}.zip", media_type="application/zip"))

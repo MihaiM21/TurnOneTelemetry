@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, HTTPException, Depends, Query
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.concurrency import run_in_threadpool
 from typing import Optional, Union
-from src.api.deps import guard_session_params
+from src.api.deps import guard_session_params, validate_driver, validate_gp, validate_session
 from src.core.logging import get_logger
 from src.core.security.api_keys import verify_api_key
 from src.core.security.rate_limiting import apply_tiered_limit
@@ -35,7 +35,13 @@ from src.api.schemas.analysis import (
     TrackMapResponse,
     LapAllDataResponse,
     CornerDuelResponse,
+    LapDuelResponse,
     DriverRadarResponse,
+    EnergyClippingResponse,
+    CornerSpeedProfileResponse,
+    EfficiencyScatterResponse,
+    FieldDominanceResponse,
+    SectorGapResponse,
 )
 
 # Importing Turn One Core files
@@ -62,7 +68,21 @@ from src.services.analysis.v2.race_story import RaceStoryPlot, RaceStoryData
 from src.services.analysis.v2.telemetry_track_map import TrackMapPlot, TrackMapData
 from src.services.analysis.v2.lap_all_data import LapAllData
 from src.services.analysis.v2.corner_duel import CornerDuelPlot, CornerDuelData
+from src.services.analysis.v2.lap_duel import LapDuelPlot, LapDuelData
 from src.services.analysis.v2.driver_radar import DriverRadarPlot, DriverRadarData
+from src.services.analysis.v2.energy_clipping import (
+    FIRST_YEAR as ENERGY_CLIPPING_FIRST_YEAR,
+    EnergyClippingPlot,
+    EnergyClippingData,
+)
+from src.services.analysis.v2.car_characteristics import (
+    CornerSpeedProfilePlot,
+    CornerSpeedProfileData,
+    EfficiencyScatterPlot,
+    EfficiencyScatterData,
+)
+from src.services.analysis.v2.field_dominance import FieldDominancePlot, FieldDominanceData
+from src.services.analysis.v2.sector_gap import SESSIONS as SECTOR_GAP_SESSIONS, SectorGapPlot, SectorGapData
 
 # V1 siblings for transparent fallback when livetiming lacks data.
 from src.services.analysis.v1.top_speed import TopSpeedPlot as V1_TopSpeedPlot, TopSpeedData as V1_TopSpeedData
@@ -75,6 +95,7 @@ from src.services.analysis.v1.lap_time_analysis import LapTimeAnalysisPlot as V1
 from src.services.analysis.v1.tyre_stint_usage import TyreStintUsagePlot as V1_TyreStintUsagePlot, TyreStintUsageData as V1_TyreStintUsageData
 from src.services.analysis.base import with_fallback
 from src.core.exceptions import T1APIError
+from src.services.plotting.canvas import get_format
 
 logger = get_logger(__name__)
 
@@ -89,6 +110,23 @@ def _track(event_name, *args):
 
 #: Documentation-only shape for every ``-plot`` endpoint: a PNG body, no JSON schema.
 _PNG_RESPONSE = {"content": {"image/png": {}}, "description": "PNG plot."}
+
+#: Description of the optional ``format`` query parameter on social-media capable plots.
+_FORMAT_DESC = "landscape|square|portrait|story — social-media canvas; omit for the classic image"
+
+
+def _fmt_kwargs(format: Optional[str]) -> dict:
+    """``{"fmt": format}`` when a canvas was requested, else ``{}``.
+
+    Passing nothing (rather than ``fmt=None``) when ``format`` is omitted keeps the service call exactly what
+    it was before the parameter existed. An unknown name raises ``ValueError`` here (``canvas.get_format``),
+    which the app-level handler turns into a 400 -- validated at the edge so endpoints that catch a bare
+    ``Exception`` around the service call cannot turn it into a 500.
+    """
+    if format is None:
+        return {}
+    get_format(format)
+    return {"fmt": format}
 
 router = APIRouter(
     prefix="/api/v2",
@@ -150,7 +188,8 @@ async def get_dashboard_data_v2(request: Request, api_key: str = Depends(verify_
     operation_id="v2_top_speed_telemetry_plot",
     description=(
         "PNG plot of each team's maximum speed for the session, computed from CarData "
-        "telemetry. Falls back to V1/FastF1 if livetiming data is unavailable."
+        "telemetry. Falls back to V1/FastF1 if livetiming data is unavailable (the fallback image is always "
+        "the classic one, whatever `format` asks for)."
     ),
     responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
 )
@@ -160,15 +199,17 @@ async def top_speed_telemetry_plot(
     year: int = Query(2025, ge=2018, le=2030),
     gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
     session: str = Query('Q'),
+    format: Optional[str] = Query(None, description=_FORMAT_DESC),
     api_key: str = Depends(verify_api_key)
 ):
     logger.info(f"Generating top speed plot: Y{year} GP{gp} {session}")
+    fmt_kwargs = _fmt_kwargs(format)
     try:
         # V2 only supports integer round numbers for V1 fallback; skip if string.
         v1_secondary = (lambda: V1_TopSpeedPlot(year, gp, session)) if isinstance(gp, int) else None
         output_path = await run_in_threadpool(
             with_fallback,
-            lambda: TopSpeedPlot_Telemetry(year, gp, session),
+            lambda: TopSpeedPlot_Telemetry(year, gp, session, **fmt_kwargs),
             v1_secondary,
             primary_source="livetiming", secondary_source="fastf1",
             year=year, gp=gp, session=session, data_type="top_speed",
@@ -231,11 +272,13 @@ async def top_speed_st_plot(
     year: int = Query(2025, ge=2018, le=2030),
     gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
     session: str = Query('Q'),
+    format: Optional[str] = Query(None, description=_FORMAT_DESC),
     api_key: str = Depends(verify_api_key)
 ):
+    fmt_kwargs = _fmt_kwargs(format)  # outside the try: a bad format is a 400, not the 500 below
     try:
         logger.info(f"Generating top speed plot: Y{year} GP{gp} {session}")
-        output_path = await run_in_threadpool(TopSpeedPlot_SpeedTrap, year, gp, session)
+        output_path = await run_in_threadpool(TopSpeedPlot_SpeedTrap, year, gp, session, **fmt_kwargs)
 
         _track('top-speed', year, gp, session)
 
@@ -468,15 +511,20 @@ async def qualifying_results_plot(
     year: int = Query(2025, ge=2018, le=2030),
     gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
     session: str = Query('Q'),
+    format: Optional[str] = Query(None, description=_FORMAT_DESC),
     api_key: str = Depends(verify_api_key)
 ):
-    """Generate PNG plot of qualifying results sorted by lap time delta. Falls back to V1 if livetiming lacks data."""
+    """Generate PNG plot of qualifying results sorted by lap time delta. Falls back to V1 if livetiming lacks data.
+
+    The V1 fallback image is always the classic one, whatever `format` asks for.
+    """
     logger.info(f"Generating qualifying results plot: Y{year} GP{gp} {session}")
+    fmt_kwargs = _fmt_kwargs(format)
     try:
         v1_secondary = (lambda: V1_QualiResults(year, gp, session)) if isinstance(gp, int) else None
         output_path = await run_in_threadpool(
             with_fallback,
-            lambda: QualiResultsPlot(year, gp, session),
+            lambda: QualiResultsPlot(year, gp, session, **fmt_kwargs),
             v1_secondary,
             primary_source="livetiming", secondary_source="fastf1",
             year=year, gp=gp, session=session, data_type="qualifying_results",
@@ -602,12 +650,14 @@ async def track_comparison_plot(
     session: str = Query('Q'),
     d1: str = Query(..., description="First driver TLA (e.g., VER)"),
     d2: str = Query(..., description="Second driver TLA (e.g., NOR)"),
+    format: Optional[str] = Query(None, description=_FORMAT_DESC),
     api_key: str = Depends(verify_api_key)
 ):
     """Generate color-coded track map showing which driver is faster in each minisector"""
+    fmt_kwargs = _fmt_kwargs(format)  # outside the try: a bad format is a 400, not the 500 below
     try:
         logger.info(f"Generating track comparison plot: Y{year} GP{gp} {session} {d1} vs {d2}")
-        output_path = await run_in_threadpool(TrackComparisonPlot, year, gp, session, d1, d2)
+        output_path = await run_in_threadpool(TrackComparisonPlot, year, gp, session, d1, d2, **fmt_kwargs)
         if not output_path:
             raise HTTPException(status_code=404, detail="No position data available for this session/drivers")
         return FileResponse(output_path, media_type="image/png")
@@ -940,12 +990,13 @@ async def position_changes_plot_v2(
     year: int = Query(2025, ge=2018, le=2030),
     gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
     session: str = Query('R'),
+    format: Optional[str] = Query(None, description=_FORMAT_DESC),
     api_key: str = Depends(verify_api_key)
 ):
     """Classic position chart: per-driver race position across laps. Race/Sprint only."""
     logger.info(f"Generating position changes plot (V2): Y{year} GP{gp} {session}")
     try:
-        output_path = await run_in_threadpool(PositionChangesPlot(), year, gp, session)
+        output_path = await run_in_threadpool(PositionChangesPlot(), year, gp, session, **_fmt_kwargs(format))
         _track('position-changes', year, gp, session)
         return FileResponse(output_path, media_type='image/png')
     except T1APIError:
@@ -1118,12 +1169,13 @@ async def pit_strategy_plot_v2(
     year: int = Query(2025, ge=2018, le=2030),
     gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
     session: str = Query('R'),
+    format: Optional[str] = Query(None, description=_FORMAT_DESC),
     api_key: str = Depends(verify_api_key)
 ):
     """Pit strategy & undercut plot: stop timeline + undercut gains. Race/Sprint only."""
     logger.info(f"Generating pit strategy plot (V2): Y{year} GP{gp} {session}")
     try:
-        output_path = await run_in_threadpool(PitStrategyPlot(), year, gp, session)
+        output_path = await run_in_threadpool(PitStrategyPlot(), year, gp, session, **_fmt_kwargs(format))
         _track('pit-strategy', year, gp, session)
         return FileResponse(output_path, media_type='image/png')
     except T1APIError:
@@ -1332,12 +1384,13 @@ async def theoretical_best_plot_v2(
     year: int = Query(2025, ge=2018, le=2030),
     gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
     session: str = Query('Q'),
+    format: Optional[str] = Query(None, description=_FORMAT_DESC),
     api_key: str = Depends(verify_api_key)
 ):
     """Theoretical best lap dumbbell chart: best sectors combined vs actual best lap. Qualifying only."""
     logger.info(f"Generating theoretical best plot (V2): Y{year} GP{gp} {session}")
     try:
-        output_path = await run_in_threadpool(TheoreticalBestPlot(), year, gp, session)
+        output_path = await run_in_threadpool(TheoreticalBestPlot(), year, gp, session, **_fmt_kwargs(format))
         _track('theoretical-best', year, gp, session)
         return FileResponse(output_path, media_type='image/png')
     except T1APIError:
@@ -1384,12 +1437,13 @@ async def race_story_plot_v2(
     year: int = Query(2025, ge=2018, le=2030),
     gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
     session: str = Query('R'),
+    format: Optional[str] = Query(None, description=_FORMAT_DESC),
     api_key: str = Depends(verify_api_key)
 ):
     """Race story timeline: gap-to-leader traces, pit stops, and annotated key moments. Race/Sprint only."""
     logger.info(f"Generating race story plot (V2): Y{year} GP{gp} {session}")
     try:
-        output_path = await run_in_threadpool(RaceStoryPlot(), year, gp, session)
+        output_path = await run_in_threadpool(RaceStoryPlot(), year, gp, session, **_fmt_kwargs(format))
         _track('race-story', year, gp, session)
         return FileResponse(output_path, media_type='image/png')
     except T1APIError:
@@ -1564,6 +1618,128 @@ async def corner_duel_data_v2(
         raise
 
 
+_LAP_DUEL_DOC = """
+Each side is one lap, chosen one of four ways (independently per side):
+
+- **fastest** (default): the driver's fastest clean lap in the session.
+- **lap=N**: that exact lap number, e.g. a race battle or a driver against themselves.
+- **segment=Q1|Q2|Q3**: the driver's best lap completed inside that part of qualifying.
+- **another session**: side B may live in a different session via `year2`/`gp2`/`session2`
+  (2025 pole vs 2026 pole, qualifying vs race pace). Unset `year2`/`gp2`/`session2` default to side A's.
+
+Both laps are placed on one distance grid by lap fraction, so cross-year laps line up corner for corner
+and the delta ends at exactly the lap-time difference. **Delta convention: `delta = t_b - t_a`;
+positive means driver2 is behind driver1.** `detail=full` adds derived longitudinal/lateral g
+(`accelerations`), computed from ~4 Hz telemetry and indicative only. Both sides naming the same lap,
+an unknown `segment`, `detail` or `format` are rejected with 400.
+"""
+
+_LAP_DUEL_PLOT_DESC = ("Two laps overlaid on one distance axis (speed, cumulative delta, throttle, brake, gear, "
+                       "optional g-forces), a track map showing who gained where, and the biggest time swings. "
+                       "Any session.\n\n" + _LAP_DUEL_DOC)
+_LAP_DUEL_DATA_DESC = ("Both laps resampled onto one distance grid (speed, throttle 0..1, brake 0/1, gear, rpm, DRS), "
+                       "the cumulative delta, corners, apexes, per-section time gains, a downsampled track line "
+                       "and quotable highlights. Any session.\n\n" + _LAP_DUEL_DOC)
+
+
+def _lap_duel_params(gp2, session2):
+    """Validate the optional side-B addressing the router-level guard does not see."""
+    return (validate_gp(gp2) if gp2 is not None and str(gp2).strip() != "" else None,
+            validate_session(session2) if session2 is not None and session2.strip() != "" else None)
+
+
+@router.get(
+    '/lap-duel-plot',
+    tags=["API v2", "Telemetry"],
+    summary="Lap duel plot",
+    operation_id="v2_lap_duel_plot",
+    description=_LAP_DUEL_PLOT_DESC,
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
+@apply_tiered_limit("standard")
+async def lap_duel_plot_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('Q'),
+    driver1: str = Query(..., description="First driver TLA (e.g., VER)"),
+    driver2: str = Query(..., description="Second driver TLA (e.g., NOR)"),
+    lap1: Optional[int] = Query(None, ge=1, description="Lap number for driver1 (default: fastest lap)"),
+    lap2: Optional[int] = Query(None, ge=1, description="Lap number for driver2 (default: fastest lap)"),
+    segment1: Optional[str] = Query(None, description="Qualifying part for driver1's best lap: Q1|Q2|Q3"),
+    segment2: Optional[str] = Query(None, description="Qualifying part for driver2's best lap: Q1|Q2|Q3"),
+    year2: Optional[int] = Query(None, ge=2018, le=2030, description="Season for driver2's lap (default: year)"),
+    gp2: Optional[Union[int, str]] = Query(None, description="Event for driver2's lap (default: gp)"),
+    session2: Optional[str] = Query(None, description="Session for driver2's lap (default: session)"),
+    detail: str = Query("standard", description="standard | full (adds long/lat g panels)"),
+    format: Optional[str] = Query(None, description="Canvas: landscape (default) | square | portrait | story"),
+    hero: bool = Query(False, description="Include driver headshots on the driver plates"),
+    api_key: str = Depends(verify_api_key)
+):
+    """Lap Duel plot: two laps on one distance axis with a track map of who gained where. Any session.
+
+    See the endpoint description for the four lap-selection modes and the delta convention.
+    """
+    logger.info(f"Generating lap duel plot (V2): Y{year} GP{gp} {session} {driver1} vs {driver2}")
+    gp2, session2 = _lap_duel_params(gp2, session2)
+    session = validate_session(session)
+    try:
+        output_path = await run_in_threadpool(
+            LapDuelPlot(), year, gp, session, driver1, driver2, lap1, lap2, segment1, segment2,
+            year2, gp2, session2, detail, format, hero,
+        )
+        _track('lap-duel', year, gp, session)
+        return FileResponse(output_path, media_type='image/png')
+    except T1APIError:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Plot not found")
+
+
+@router.get(
+    '/lap-duel-data',
+    tags=["API v2", "Telemetry"],
+    summary="Lap duel data",
+    operation_id="v2_lap_duel_data",
+    description=_LAP_DUEL_DATA_DESC,
+    responses={200: {"model": LapDuelResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
+@apply_tiered_limit("data")
+async def lap_duel_data_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('Q'),
+    driver1: str = Query(..., description="First driver TLA (e.g., VER)"),
+    driver2: str = Query(..., description="Second driver TLA (e.g., NOR)"),
+    lap1: Optional[int] = Query(None, ge=1, description="Lap number for driver1 (default: fastest lap)"),
+    lap2: Optional[int] = Query(None, ge=1, description="Lap number for driver2 (default: fastest lap)"),
+    segment1: Optional[str] = Query(None, description="Qualifying part for driver1's best lap: Q1|Q2|Q3"),
+    segment2: Optional[str] = Query(None, description="Qualifying part for driver2's best lap: Q1|Q2|Q3"),
+    year2: Optional[int] = Query(None, ge=2018, le=2030, description="Season for driver2's lap (default: year)"),
+    gp2: Optional[Union[int, str]] = Query(None, description="Event for driver2's lap (default: gp)"),
+    session2: Optional[str] = Query(None, description="Session for driver2's lap (default: session)"),
+    detail: str = Query("standard", description="standard | full (adds derived long/lat g)"),
+    api_key: str = Depends(verify_api_key)
+):
+    """JSON Lap Duel: both laps on one distance grid, cumulative delta, sections and highlights. Any session.
+
+    See the endpoint description for the four lap-selection modes and the delta convention.
+    """
+    logger.info(f"Fetching lap duel data (V2): Y{year} GP{gp} {session} {driver1} vs {driver2}")
+    gp2, session2 = _lap_duel_params(gp2, session2)
+    session = validate_session(session)
+    try:
+        result = await run_in_threadpool(
+            LapDuelData(), year, gp, session, driver1, driver2, lap1, lap2, segment1, segment2,
+            year2, gp2, session2, detail,
+        )
+        _track('lap-duel', year, gp, session)
+        return result
+    except T1APIError:
+        raise
+
+
 @router.get(
     '/driver-radar-plot',
     tags=["API v2", "Telemetry"],
@@ -1614,6 +1790,382 @@ async def driver_radar_data_v2(
     try:
         result = await run_in_threadpool(DriverRadarData(), year, gp, session, drivers)
         _track('driver-radar', year, gp, session)
+        return result
+    except T1APIError:
+        raise
+
+
+# ---------------------------------------------------------------------------
+# Field-wide telemetry charts: energy clipping, car characteristics, field dominance
+# ---------------------------------------------------------------------------
+_ENERGY_CLIPPING_DOC = """
+**2026+ only**: requests for an earlier season are rejected with 404, because the pre-2026 hybrid rules make
+the measurement meaningless (a 2025 lap reads zero).
+
+For every driver's fastest clean lap this finds the stretches where speed **falls while the driver is flat out**
+(throttle >= 98 %, brake off, sustained for >= 40 m and >= 3 km/h): the car has run out of deployable electrical
+energy, or is harvesting on the straight. Drag alone cannot slow a car at full throttle, so a normal drag-limited
+plateau is never flagged. That also makes the result deliberately conservative, hence **estimated**: clipping that
+merely flattens the speed curve is not counted. `time_lost_s` is the time over the zone compared with holding
+the zone's entry speed.
+"""
+
+
+def _require_energy_clipping_year(year: int) -> None:
+    """404 for seasons before the 2026 power units.
+
+    The service refuses these with ``DataNotAvailableError``, which the app maps to a *retryable* 503; a
+    season that can never have the measurement deserves a plain 404 instead.
+    """
+    if year < ENERGY_CLIPPING_FIRST_YEAR:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Energy clipping is measured for the {ENERGY_CLIPPING_FIRST_YEAR}+ power units only",
+        )
+
+
+def _require_sector_gap_session(session: str) -> None:
+    """404 for sessions that are not Q / SQ (a permanent condition, not the retryable 503 the service maps to)."""
+    if session not in SECTOR_GAP_SESSIONS:
+        raise HTTPException(
+            status_code=404, detail=f"sector gap exists for {' and '.join(SECTOR_GAP_SESSIONS)} sessions only"
+        )
+
+
+_CORNER_SPEED_DOC = """
+Corners are classed by the field-median apex speed there (slow < 120 km/h, medium 120-200, fast > 200; flat-out
+kinks above 280 km/h are dropped and chicanes collapse to their slowest piece). Each team's best lap contributes
+its minimum speed within 50 m of every corner, averaged per class; `delta_kmh` is the gap to the class best.
+"""
+
+
+@router.get(
+    '/energy-clipping-plot',
+    tags=["API v2", "Telemetry"],
+    summary="Energy clipping plot",
+    operation_id="v2_energy_clipping_plot",
+    description=(
+        "Per-driver estimated energy-clipping time loss with the speed trace and clipping zones on a track map. "
+        "`driver` picks whose zones are highlighted (default: the pole lap).\n\n" + _ENERGY_CLIPPING_DOC
+    ),
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
+@apply_tiered_limit("standard")
+async def energy_clipping_plot_v2(
+    request: Request,
+    year: int = Query(2026, ge=2018, le=2030, description="Season; 2026 or later (earlier years return 404)"),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('Q'),
+    driver: Optional[str] = Query(None, description="Driver TLA whose zones are highlighted (default: pole lap)"),
+    format: Optional[str] = Query(None, description=_FORMAT_DESC),
+    api_key: str = Depends(verify_api_key)
+):
+    """Energy clipping plot: where each car's speed falls at full throttle. 2026+ power units only."""
+    logger.info(f"Generating energy clipping plot (V2): Y{year} GP{gp} {session} driver={driver}")
+    session = validate_session(session)
+    driver = validate_driver(driver)
+    _require_energy_clipping_year(year)
+    try:
+        output_path = await run_in_threadpool(EnergyClippingPlot(), year, gp, session, driver, format)
+        _track('energy-clipping', year, gp, session)
+        return FileResponse(output_path, media_type='image/png')
+    except T1APIError:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Plot not found")
+
+
+@router.get(
+    '/energy-clipping-data',
+    tags=["API v2", "Telemetry"],
+    summary="Energy clipping data",
+    operation_id="v2_energy_clipping_data",
+    description=(
+        "Per-driver leaderboard (`time_lost_s`, `clip_m`, `kmh_lost_max`, the individual zones), each driver's "
+        "downsampled speed trace and the pole lap's racing line so zones can be drawn on a map.\n\n"
+        + _ENERGY_CLIPPING_DOC
+    ),
+    responses={200: {"model": EnergyClippingResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
+@apply_tiered_limit("data")
+async def energy_clipping_data_v2(
+    request: Request,
+    year: int = Query(2026, ge=2018, le=2030, description="Season; 2026 or later (earlier years return 404)"),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('Q'),
+    api_key: str = Depends(verify_api_key)
+):
+    """JSON estimated energy-clipping analysis per driver. 2026+ power units only."""
+    logger.info(f"Fetching energy clipping data (V2): Y{year} GP{gp} {session}")
+    session = validate_session(session)
+    _require_energy_clipping_year(year)
+    try:
+        result = await run_in_threadpool(EnergyClippingData(), year, gp, session)
+        _track('energy-clipping', year, gp, session)
+        return result
+    except T1APIError:
+        raise
+
+
+@router.get(
+    '/corner-speed-profile-plot',
+    tags=["API v2", "Telemetry"],
+    summary="Corner speed profile plot",
+    operation_id="v2_corner_speed_profile_plot",
+    description=(
+        "How fast every team takes the slow, medium and fast corners of the circuit (mean apex speed per "
+        "class, gap to the class best). Any session.\n\n" + _CORNER_SPEED_DOC
+    ),
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
+@apply_tiered_limit("standard")
+async def corner_speed_profile_plot_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('Q'),
+    format: Optional[str] = Query(None, description=_FORMAT_DESC),
+    api_key: str = Depends(verify_api_key)
+):
+    """Corner speed profile plot: team apex speeds by corner class. Any session."""
+    logger.info(f"Generating corner speed profile plot (V2): Y{year} GP{gp} {session}")
+    session = validate_session(session)
+    try:
+        output_path = await run_in_threadpool(CornerSpeedProfilePlot(), year, gp, session, format)
+        _track('corner-speed-profile', year, gp, session)
+        return FileResponse(output_path, media_type='image/png')
+    except T1APIError:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Plot not found")
+
+
+@router.get(
+    '/corner-speed-profile-data',
+    tags=["API v2", "Telemetry"],
+    summary="Corner speed profile data",
+    operation_id="v2_corner_speed_profile_data",
+    description=(
+        "Per corner class (slow / medium / fast): the corner numbers and every team's mean apex speed and gap "
+        "to the class best, plus the classified corner list. Any session.\n\n" + _CORNER_SPEED_DOC
+    ),
+    responses={200: {"model": CornerSpeedProfileResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
+@apply_tiered_limit("data")
+async def corner_speed_profile_data_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('Q'),
+    api_key: str = Depends(verify_api_key)
+):
+    """JSON corner speed profile: mean apex speed per team and corner class. Any session."""
+    logger.info(f"Fetching corner speed profile data (V2): Y{year} GP{gp} {session}")
+    session = validate_session(session)
+    try:
+        result = await run_in_threadpool(CornerSpeedProfileData(), year, gp, session)
+        _track('corner-speed-profile', year, gp, session)
+        return result
+    except T1APIError:
+        raise
+
+
+@router.get(
+    '/efficiency-scatter-plot',
+    tags=["API v2", "Telemetry"],
+    summary="Efficiency scatter plot",
+    operation_id="v2_efficiency_scatter_plot",
+    description=(
+        "Top speed against mean corner apex speed for every team's best lap: the drag-versus-downforce "
+        "picture. Any session.\n\n" + _CORNER_SPEED_DOC
+    ),
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
+@apply_tiered_limit("standard")
+async def efficiency_scatter_plot_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('Q'),
+    format: Optional[str] = Query(None, description=_FORMAT_DESC),
+    api_key: str = Depends(verify_api_key)
+):
+    """Efficiency scatter plot: top speed vs mean apex speed per team. Any session."""
+    logger.info(f"Generating efficiency scatter plot (V2): Y{year} GP{gp} {session}")
+    session = validate_session(session)
+    try:
+        output_path = await run_in_threadpool(EfficiencyScatterPlot(), year, gp, session, format)
+        _track('efficiency-scatter', year, gp, session)
+        return FileResponse(output_path, media_type='image/png')
+    except T1APIError:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Plot not found")
+
+
+@router.get(
+    '/efficiency-scatter-data',
+    tags=["API v2", "Telemetry"],
+    summary="Efficiency scatter data",
+    operation_id="v2_efficiency_scatter_data",
+    description=(
+        "Per team: top speed, mean apex speed (over the same classified corners as the corner speed profile) "
+        "and lap time, plus the field median and highlights. Any session.\n\n" + _CORNER_SPEED_DOC
+    ),
+    responses={200: {"model": EfficiencyScatterResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
+@apply_tiered_limit("data")
+async def efficiency_scatter_data_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('Q'),
+    api_key: str = Depends(verify_api_key)
+):
+    """JSON efficiency scatter: top speed vs mean apex speed per team. Any session."""
+    logger.info(f"Fetching efficiency scatter data (V2): Y{year} GP{gp} {session}")
+    session = validate_session(session)
+    try:
+        result = await run_in_threadpool(EfficiencyScatterData(), year, gp, session)
+        _track('efficiency-scatter', year, gp, session)
+        return result
+    except T1APIError:
+        raise
+
+
+_FIELD_DOMINANCE_DOC = """
+Every driver's fastest clean lap is cut into 25 equal minisectors on the pole lap's racing line; the candidate
+with the least time spent in a minisector owns it, and `margin_s` is how much the runner-up lost there.
+`mode=team` (default) ranks each team's faster driver, `mode=driver` ranks every driver; `top_n` (2-10) keeps only
+the fastest N candidates. An unknown `mode`, `format`, or a `top_n` outside 2-10 is rejected.
+"""
+
+
+@router.get(
+    '/field-dominance-plot',
+    tags=["API v2", "Telemetry"],
+    summary="Field dominance map plot",
+    operation_id="v2_field_dominance_plot",
+    description="Track map coloured by who owns each part of the lap, with an owner tally. Any session.\n\n"
+                + _FIELD_DOMINANCE_DOC,
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
+@apply_tiered_limit("standard")
+async def field_dominance_plot_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('Q'),
+    mode: str = Query("team", description="team | driver"),
+    top_n: Optional[int] = Query(None, ge=2, le=10, description="Keep only the fastest N candidates (2-10)"),
+    format: Optional[str] = Query(None, description=_FORMAT_DESC),
+    api_key: str = Depends(verify_api_key)
+):
+    """Field dominance map: who owns each minisector of the lap. Any session."""
+    logger.info(f"Generating field dominance plot (V2): Y{year} GP{gp} {session} mode={mode} top_n={top_n}")
+    session = validate_session(session)
+    try:
+        output_path = await run_in_threadpool(FieldDominancePlot(), year, gp, session, mode, top_n, format)
+        _track('field-dominance', year, gp, session)
+        return FileResponse(output_path, media_type='image/png')
+    except T1APIError:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Plot not found")
+
+
+@router.get(
+    '/field-dominance-data',
+    tags=["API v2", "Telemetry"],
+    summary="Field dominance map data",
+    operation_id="v2_field_dominance_data",
+    description="Per-minisector owner and margin, owner tally, candidates and the pole lap's track line. "
+                "Any session.\n\n" + _FIELD_DOMINANCE_DOC,
+    responses={200: {"model": FieldDominanceResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
+@apply_tiered_limit("data")
+async def field_dominance_data_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('Q'),
+    mode: str = Query("team", description="team | driver"),
+    top_n: Optional[int] = Query(None, ge=2, le=10, description="Keep only the fastest N candidates (2-10)"),
+    api_key: str = Depends(verify_api_key)
+):
+    """JSON field dominance: minisector owners and margins. Any session."""
+    logger.info(f"Fetching field dominance data (V2): Y{year} GP{gp} {session} mode={mode} top_n={top_n}")
+    session = validate_session(session)
+    try:
+        result = await run_in_threadpool(FieldDominanceData(), year, gp, session, mode, top_n)
+        _track('field-dominance', year, gp, session)
+        return result
+    except T1APIError:
+        raise
+
+
+_SECTOR_GAP_DOC = """
+**Qualifying and Sprint Qualifying only** (`session=Q|SQ`; anything else is rejected with 404). For P2..P10 of
+the classification, the gap to pole split into S1 / S2 / S3, all measured on each driver's own fastest lap so
+the three segments add up to the lap-time gap. A negative segment means the driver beat pole in that sector.
+Drivers whose lap cannot be matched to a sector triple are listed in `unmatched`.
+"""
+
+
+@router.get(
+    '/sector-gap-plot',
+    tags=["API v2", "Qualifying"],
+    summary="Sector gap to pole plot",
+    operation_id="v2_sector_gap_plot",
+    description="Stacked S1 / S2 / S3 gap to pole for the top ten qualifiers.\n\n" + _SECTOR_GAP_DOC,
+    responses={200: _PNG_RESPONSE, **ANALYSIS_ERROR_RESPONSES},
+)
+@apply_tiered_limit("standard")
+async def sector_gap_plot_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('Q', description="Q or SQ"),
+    format: Optional[str] = Query(None, description=_FORMAT_DESC),
+    api_key: str = Depends(verify_api_key)
+):
+    """Sector gap to pole plot. Qualifying / Sprint Qualifying only."""
+    logger.info(f"Generating sector gap plot (V2): Y{year} GP{gp} {session}")
+    session = validate_session(session)
+    _require_sector_gap_session(session)
+    try:
+        output_path = await run_in_threadpool(SectorGapPlot(), year, gp, session, format)
+        _track('sector-gap', year, gp, session)
+        return FileResponse(output_path, media_type='image/png')
+    except T1APIError:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Plot not found")
+
+
+@router.get(
+    '/sector-gap-data',
+    tags=["API v2", "Qualifying"],
+    summary="Sector gap to pole data",
+    operation_id="v2_sector_gap_data",
+    description="Pole's sectors and, per driver P2..P10, lap gap and per-sector gaps to pole.\n\n" + _SECTOR_GAP_DOC,
+    responses={200: {"model": SectorGapResponse}, **ANALYSIS_ERROR_RESPONSES},
+)
+@apply_tiered_limit("data")
+async def sector_gap_data_v2(
+    request: Request,
+    year: int = Query(2025, ge=2018, le=2030),
+    gp: Union[int, str] = Query(1, description="Round number, Event Key, or Official Name"),
+    session: str = Query('Q', description="Q or SQ"),
+    api_key: str = Depends(verify_api_key)
+):
+    """JSON sector gap to pole. Qualifying / Sprint Qualifying only."""
+    logger.info(f"Fetching sector gap data (V2): Y{year} GP{gp} {session}")
+    session = validate_session(session)
+    _require_sector_gap_session(session)
+    try:
+        result = await run_in_threadpool(SectorGapData(), year, gp, session)
+        _track('sector-gap', year, gp, session)
         return result
     except T1APIError:
         raise

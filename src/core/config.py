@@ -202,6 +202,16 @@ class Settings(BaseSettings):
     fastf1_cache_enabled: bool = True
     fastf1_cache_dir: str = "./cache"
 
+    # Dataset export (admin-only). export_dir must live under a docker-mounted volume
+    export_dir: str = "./outputs/exports"
+    export_concurrency: int = 1
+    export_max_concurrency: int = 2
+    export_max_years: int = 10
+    export_min_free_gb: float = 5.0
+
+    # Social packs (admin-only): per-session folders of social-format charts + zip.
+    social_dir: str = "./outputs/social"
+
     # Logging Settings
     log_level: str = "INFO"
     log_file: str = "logs/api.log"

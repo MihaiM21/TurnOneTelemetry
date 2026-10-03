@@ -1,12 +1,16 @@
+import re
+
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
 from typing import Dict, List, Tuple, Optional, Union
 from collections import defaultdict
 
+from src.services.plotting import canvas as cv
+from src.services.plotting.canvas import add_legacy_watermark
 from src.services.plotting import output as dirOrg
 from src.services.plotting import theme as setup_theme
-from src.services.plotting.colors import team_colors, teams
+from src.services.plotting.colors import team_colors, teams, get_team_color
 from src.repositories.plots import store_plot_data_to_mongo, get_plot_data_from_mongo
 from src.ingestion.static_client import F1StaticClient
 from src.services.analysis.v2._helpers import build_session_store
@@ -37,6 +41,16 @@ def _init(y: int, event_name: str, session_name: str, data_source: str) -> Tuple
     name = f'Top speed comparison {data_source} {y} {event_name} {session_name}.png'
     name_json = name.replace("png", "json")
     return location, name, name_json
+
+
+def _speed_column(df: pd.DataFrame) -> pd.Series:
+    """The speed column of a cached document.
+
+    ``TopSpeedData_*`` stores ``Top Speed (km/h)`` while the ``TopSpeedPlot_*``
+    functions store ``Speed`` under the same ``data_type``, so a cache hit may
+    carry either spelling.
+    """
+    return df['Top Speed (km/h)'] if 'Top Speed (km/h)' in df.columns else df['Speed']
 
 
 # ============================================================================
@@ -158,11 +172,17 @@ def _generate_plot(
     session_name: str,
     location: str,
     name: str,
-    data_source: str
+    data_source: str,
+    fmt: Optional[str] = None,
 ):
     """
     Generate and save the bar plot
     """
+    if fmt:
+        _render_formatted(teams_list, speeds_list, colors_list, year, event_name, session_name,
+                          location, name, data_source, fmt)
+        return
+
     fig, ax = plt.subplots(figsize=(13, 13), layout='constrained')
     ax.bar(teams_list, speeds_list, color=colors_list)
     
@@ -180,11 +200,7 @@ def _generate_plot(
                 color='white', fontsize=16, fontweight="bold")
     
     # Add watermark
-    try:
-        logo = mpimg.imread('assets/images/logo mic.png')
-        fig.figimage(logo, 575, 575, zorder=3, alpha=.6)
-    except Exception:
-        pass
+    add_legacy_watermark(fig, 575, 575, alpha=0.6, zorder=3)
     
     # Set title
     plt.suptitle(f'Top speed comparison ({data_source})\n{year} {event_name} {session_name}')
@@ -196,9 +212,107 @@ def _generate_plot(
 
 
 # ============================================================================
+# SOCIAL FORMATS (fmt=...)
+# ============================================================================
+_SESSION_LONG = {"Q": "Qualifying", "R": "Race", "S": "Sprint", "SQ": "Sprint Qualifying",
+                 "FP1": "Practice 1", "FP2": "Practice 2", "FP3": "Practice 3"}
+_STORY_ROWS = 12
+
+
+def _formatted_name(name: str, fmt_name: str) -> str:
+    """The legacy file name with the format suffix inserted before ``.png``."""
+    return f"{name[:-len('.png')]}{cv.format_suffix(fmt_name)}.png"
+
+
+def _team_color(team: str, given: str, year: int) -> str:
+    """Year-aware livery colour, falling back to the colour already on the data."""
+    color = get_team_color(team, year)
+    if color.upper() != "#FFFFFF":
+        return color
+    if given and given.upper() != "#FFFFFF":
+        return given
+    # Official names such as "Haas F1 Team" carry no livery colour on file.
+    for known, known_color in team_colors.items():
+        if known.lower() in team.lower():
+            return known_color
+    return color
+
+
+def _readable_event(event_name: str) -> str:
+    """Cached documents keep the folder spelling (``AzerbaijanGrandPrix``); space it out."""
+    if " " in event_name:
+        return event_name
+    return re.sub(r"(?<=[a-z])(?=[A-Z])", " ", event_name)
+
+
+def _render_formatted(
+    teams_list: List[str], speeds_list: List[float], colors_list: List[str],
+    year: int, event_name: str, session_name: str,
+    location: str, name: str, data_source: str, fmt_name: str,
+) -> str:
+    """Horizontal ranking, fastest on top, value at the end of each bar."""
+    fmt = cv.get_format(fmt_name)
+    rows = sorted(zip(teams_list, speeds_list, colors_list), key=lambda r: r[1], reverse=True)
+    if fmt.name == "story":
+        rows = rows[:_STORY_ROWS]
+    if not rows:
+        return ""
+    names = [r[0] for r in rows]
+    speeds = [float(r[1]) for r in rows]
+    colors = [_team_color(r[0], r[2], year) for r in rows]
+
+    fig = cv.new_canvas(fmt)
+    session_long = _SESSION_LONG.get(session_name, session_name)
+    cv.add_header(fig, fmt, f"Top speed  ·  {data_source}", f"{year} {_readable_event(event_name)}  ·  {session_long}")
+    cv.add_footer(fig, fmt)
+    cv.add_watermark(fig, fmt)
+
+    gs = cv.safe_gridspec(fig, fmt, 1, 1)
+    ax = fig.add_subplot(gs[0])
+    ax.set_facecolor(cv.FACE)
+    ypos = np.arange(len(rows))
+    ax.barh(ypos, speeds, height=0.68, color=colors, zorder=3)
+    ax.set_yticks(ypos)
+    ax.set_yticklabels(names)
+    ax.invert_yaxis()
+
+    lo, hi = min(speeds), max(speeds)
+    span = max(hi - lo, 1.0)
+    # The axis starts below the slowest bar so it still has length; the bars
+    # are labelled with their values, so no x axis is drawn.
+    ax.set_xlim(lo - max(10.0, 0.6 * span), hi + 0.22 * max(span, 20.0))
+    ax.set_ylim(len(rows) - 0.4, -0.6)
+    size = fmt.base_fontsize * (1.2 if fmt.is_vertical else 1.1)
+    for i, speed in enumerate(speeds):
+        text = f"{speed:.0f}"
+        ax.text(speed + 0.02 * (ax.get_xlim()[1] - ax.get_xlim()[0]), i, text, ha="left", va="center",
+                fontsize=size, fontweight="bold", color=cv.TEXT, zorder=4)
+    ax.text(0.995, 1.0, "km/h", transform=ax.transAxes, ha="right", va="bottom",
+            fontsize=fmt.base_fontsize * 0.8, color=cv.MUTED)
+
+    cv.style_axis(ax, fmt)
+    ax.grid(False)
+    ax.set_xticks([])
+    ax.tick_params(axis="y", length=0, labelsize=fmt.base_fontsize * (1.0 if fmt.is_vertical else 0.95))
+    for spine in ("left", "bottom"):
+        ax.spines[spine].set_visible(False)
+
+    # Room for the longest team name, measured rather than guessed.
+    renderer = fig.canvas.get_renderer()
+    widest = max(t.get_window_extent(renderer).width for t in ax.get_yticklabels())
+    # No x axis is drawn, so the plot may run down to the footer band.
+    safe_left, safe_bottom, _, safe_top = fmt.safe
+    gs.update(left=safe_left + (widest + 0.7 * fmt.base_fontsize * cv.DESIGN_DPI / 72.0) / fmt.width_px,
+              bottom=safe_bottom + 0.075 * (safe_top - safe_bottom))
+
+    return cv.save_png(fig, f"{location}/{_formatted_name(name, fmt_name)}", fmt)
+
+
+# ============================================================================
 # TELEMETRY FUNCTIONS
 # ============================================================================
-def TopSpeedPlot_Telemetry(y: int, identifier: Union[int, str], e: str, store_to_mongo: bool = True) -> str:
+def TopSpeedPlot_Telemetry(y: int, identifier: Union[int, str], e: str, store_to_mongo: bool = True,
+                           fmt: Optional[str] = None) -> str:
     """
     Generate top speed plot from telemetry data (CarData)
 
@@ -210,6 +324,9 @@ def TopSpeedPlot_Telemetry(y: int, identifier: Union[int, str], e: str, store_to
     Returns:
         Path to the generated plot
     """
+    if fmt:
+        cv.get_format(fmt)  # ValueError before any cache or network access
+
     # Check MongoDB cache first (v2 collection)
     cached_result = get_plot_data_from_mongo(y, identifier, e, 'top_speed_telemetry', version='v2')
     if cached_result:
@@ -228,16 +345,16 @@ def TopSpeedPlot_Telemetry(y: int, identifier: Union[int, str], e: str, store_to
         # Convert cached data to DataFrame
         df = pd.DataFrame(cached_data)
         teams_list = df['Team'].tolist()
-        speeds_list = df['Top Speed (km/h)'].tolist()
+        speeds_list = _speed_column(df).tolist()
         colors_list = df['Color'].tolist()
 
         _generate_plot(
             teams_list, speeds_list, colors_list,
             y, event_name, e,
-            location, name, "Telemetry"
+            location, name, "Telemetry", fmt=fmt
         )
 
-        return location + "/" + name
+        return location + "/" + (_formatted_name(name, fmt) if fmt else name)
 
     # If not in cache, generate new data
     client = F1StaticClient()
@@ -299,19 +416,19 @@ def TopSpeedPlot_Telemetry(y: int, identifier: Union[int, str], e: str, store_to
             version='v2'
         )
         logger.info("Telemetry data cached to MongoDB (v2 collection)")
-    except Exception as e:
-        logger.warning("Failed to store to MongoDB: %s", e)
+    except Exception as exc:
+        logger.warning("Failed to store to MongoDB: %s", exc)
 
     # Generate plot
     _generate_plot(
         teams_list, speeds_list, colors_list,
         y, event_name, e,
-        location, name, "Telemetry"
+        location, name, "Telemetry", fmt=fmt
     )
 
     logger.info("Telemetry plot saved to: %s/%s", location, name)
 
-    return location + "/" + name
+    return location + "/" + (_formatted_name(name, fmt) if fmt else name)
 
 
 def TopSpeedData_Telemetry(y: int, identifier: Union[int, str], e: str, store_to_mongo: bool = True) -> list:
@@ -396,7 +513,7 @@ def TopSpeedData_Telemetry(y: int, identifier: Union[int, str], e: str, store_to
 # ============================================================================
 # SPEED TRAP FUNCTIONS
 # ============================================================================
-def TopSpeedPlot_SpeedTrap(y: int, identifier: Union[int, str], e: str) -> str:
+def TopSpeedPlot_SpeedTrap(y: int, identifier: Union[int, str], e: str, fmt: Optional[str] = None) -> str:
     """
     Generate top speed plot from Speed Trap data (TimingData)
 
@@ -408,6 +525,9 @@ def TopSpeedPlot_SpeedTrap(y: int, identifier: Union[int, str], e: str) -> str:
     Returns:
         Path to the generated plot
     """
+    if fmt:
+        cv.get_format(fmt)  # ValueError before any cache or network access
+
     # Check MongoDB cache first (v2 collection)
     cached_result = get_plot_data_from_mongo(y, identifier, e, 'top_speed_speedtrap', version='v2')
     if cached_result:
@@ -426,16 +546,16 @@ def TopSpeedPlot_SpeedTrap(y: int, identifier: Union[int, str], e: str) -> str:
         # Convert cached data to DataFrame
         df = pd.DataFrame(cached_data)
         teams_list = df['Team'].tolist()
-        speeds_list = df['Top Speed (km/h)'].tolist()
+        speeds_list = _speed_column(df).tolist()
         colors_list = df['Color'].tolist()
 
         _generate_plot(
             teams_list, speeds_list, colors_list,
             y, event_name, e,
-            location, name, "Speed Trap"
+            location, name, "Speed Trap", fmt=fmt
         )
 
-        return location + "/" + name
+        return location + "/" + (_formatted_name(name, fmt) if fmt else name)
 
     # If not in cache, generate new data
     client = F1StaticClient()
@@ -496,19 +616,19 @@ def TopSpeedPlot_SpeedTrap(y: int, identifier: Union[int, str], e: str) -> str:
             version='v2'
         )
         logger.info("Speed Trap data cached to MongoDB (v2 collection)")
-    except Exception as e:
-        logger.warning("Failed to store to MongoDB: %s", e)
+    except Exception as exc:
+        logger.warning("Failed to store to MongoDB: %s", exc)
 
     # Generate plot
     _generate_plot(
         teams_list, speeds_list, colors_list,
         y, event_name, e,
-        location, name, "Speed Trap"
+        location, name, "Speed Trap", fmt=fmt
     )
 
     logger.info("Speed Trap plot saved to: %s/%s", location, name)
 
-    return location + "/" + name
+    return location + "/" + (_formatted_name(name, fmt) if fmt else name)
 
 
 def TopSpeedData_SpeedTrap(y: int, identifier: Union[int, str], e: str, store_to_mongo: bool = True) -> list:

@@ -5,7 +5,7 @@ from contextvars import ContextVar
 import pandas as pd
 import numpy as np
 from datetime import datetime
-from typing import Any, Collection, Dict, List, Optional
+from typing import Any, Collection, Dict, List, Optional, Tuple
 
 from src.core.exceptions import DataNotAvailableError
 from src.core.logging import get_logger
@@ -108,6 +108,9 @@ CAR_DATA_CHANNELS = {
     '5': 'brake',
     '45': 'drs',
 }
+
+# Position X/Y/Z arrive in tenths of a metre.
+XY_UNITS_PER_METRE = 10.0
 
 
 def parse_f1_time(time_str) -> float:
@@ -690,13 +693,18 @@ def extract_position_for_lap(base_url: str, client: F1StaticClient,
 
 
 def compute_distance(df_pos: pd.DataFrame) -> pd.DataFrame:
-    """Add Distance (m) column to position DataFrame using Euclidean X/Y deltas."""
+    """Add Distance (m) column to position DataFrame using Euclidean X/Y deltas.
+
+    X/Y are in tenths of a metre, so the summed step length is divided by
+    :data:`XY_UNITS_PER_METRE`. Before 2026-09 it was not, and every distance
+    axis built on this helper was ten times too long while labelled metres.
+    """
     if df_pos.empty:
         return df_pos
     df = df_pos.copy()
     dx = df['X'].diff().fillna(0)
     dy = df['Y'].diff().fillna(0)
-    df['Distance'] = np.sqrt(dx**2 + dy**2).cumsum()
+    df['Distance'] = np.sqrt(dx**2 + dy**2).cumsum() / XY_UNITS_PER_METRE
     return df
 
 
@@ -716,9 +724,36 @@ def merge_distance_onto_telemetry(df_tel: pd.DataFrame, df_pos: pd.DataFrame) ->
     return merged
 
 
+def resolve_fastest_lap_window(base_url: str, client: F1StaticClient, driver_num: str,
+                               store: Optional[Any] = None) -> Optional[Tuple[float, float, float]]:
+    """``(start_t, end_t, lap_time)`` of a driver's fastest lap, or ``None``.
+
+    Prefers the fastest *clean* lap (no pit in/out, green track status) when
+    ``store`` exposes the race-derived accessors, falling back to the raw
+    minimum-``LastLapTime`` scan. Every fastest-lap comparison should go through
+    here so two features never disagree about which lap is "the fastest".
+    """
+    if store is not None and hasattr(store, "lap_times") and hasattr(store, "track_status_periods"):
+        try:
+            from src.services.analysis.v2._race_helpers import get_clean_fastest_lap_window
+            window = get_clean_fastest_lap_window(store, driver_num)
+        except Exception as exc:
+            logger.debug("Clean fastest-lap selection unavailable for %s: %s", driver_num, exc)
+            window = None
+        if window is not None:
+            return float(window['StartTime']), float(window['EndTime']), float(window['LapTime'])
+
+    df_windows = get_fastest_lap_windows(base_url, client, target_driver_num=driver_num, store=store)
+    if df_windows.empty:
+        return None
+    row = df_windows.iloc[0]
+    return float(row['StartTime']), float(row['EndTime']), float(row['LapTime'])
+
+
 def get_fastest_lap_telemetry(base_url: str, client: F1StaticClient, driver_num: str,
                                channels: Optional[List[str]] = None,
-                               store: Optional[Any] = None) -> pd.DataFrame:
+                               store: Optional[Any] = None,
+                               raw_names: bool = False) -> pd.DataFrame:
     """Fastest-lap telemetry for one driver, with Distance + X/Y merged on.
 
     Composes the existing single-purpose helpers:
@@ -742,31 +777,21 @@ def get_fastest_lap_telemetry(base_url: str, client: F1StaticClient, driver_num:
     minimum-``LastLapTime`` scan -- a race has far more chances than
     practice/qualifying for an anomalous lap (red flag, VSC/SC, pit-affected)
     to falsely win on time and hand back a near-empty telemetry window.
+
+    ``raw_names=True`` keeps the feed's numeric channel keys as column names
+    (map them with :data:`CAR_DATA_CHANNELS`); the default goes through the
+    mislabelled :data:`CHANNEL_NAMES`.
     """
     if channels is None:
         channels = ['2']
 
-    window = None
-    if store is not None and hasattr(store, "lap_times") and hasattr(store, "track_status_periods"):
-        try:
-            from src.services.analysis.v2._race_helpers import get_clean_fastest_lap_window
-            window = get_clean_fastest_lap_window(store, driver_num)
-        except Exception as exc:
-            logger.debug("Clean fastest-lap selection unavailable for %s: %s", driver_num, exc)
-
-    if window is not None:
-        start_t, end_t = window['StartTime'], window['EndTime']
-        lap_time = window['LapTime']
-    else:
-        df_windows = get_fastest_lap_windows(base_url, client, target_driver_num=driver_num, store=store)
-        if df_windows.empty:
-            return pd.DataFrame()
-        row = df_windows.iloc[0]
-        start_t, end_t = row['StartTime'], row['EndTime']
-        lap_time = row['LapTime']
+    window = resolve_fastest_lap_window(base_url, client, driver_num, store=store)
+    if window is None:
+        return pd.DataFrame()
+    start_t, end_t, lap_time = window
 
     df_tel = extract_telemetry_for_lap(base_url, client, driver_num, start_t, end_t,
-                                       channels=channels, store=store)
+                                       channels=channels, store=store, raw_names=raw_names)
     if df_tel.empty:
         return pd.DataFrame()
 
@@ -922,10 +947,15 @@ def get_circuit_info_for_session(store: Any) -> Optional[Dict[str, Any]]:
             if not isinstance(c, dict):
                 continue
             pos = c.get('position') or {}
+            length = c.get('length')
             corners.append({
                 "number": c.get('number'),
                 "x": pos.get('x'),
                 "y": pos.get('y'),
+                # Distance along the lap from the timing line, in metres (the
+                # JSON stores tenths of a metre, like Position.z).
+                "distance_m": (float(length) / XY_UNITS_PER_METRE
+                               if isinstance(length, (int, float)) else None),
             })
         outline = circuit.get('track_outline') or {}
         return {

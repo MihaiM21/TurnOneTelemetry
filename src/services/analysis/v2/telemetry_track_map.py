@@ -19,7 +19,6 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Union
 
-import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.collections import LineCollection
@@ -36,6 +35,7 @@ from src.services.analysis.v2._helpers import (
     get_fastest_lap_telemetry,
 )
 from src.services.analysis.v2.session_store import SessionDataStore
+from src.services.plotting.canvas import add_legacy_watermark
 from src.services.plotting import output as dirOrg
 from src.services.plotting import theme as setup_theme
 
@@ -44,7 +44,9 @@ logger = get_logger(__name__)
 DATA_TYPE = "track_map"
 
 _VALID_COLOR_BY = {"speed", "gear"}
-_CHANNELS = {"Speed": "2", "Brake": "5", "Gear": "45"}
+# Requested by raw feed key and renamed here: _helpers.CHANNEL_NAMES labels
+# channel 45 (DRS) as Gear, which made every gear-coloured map one flat colour.
+_CHANNELS = {"Speed": "2", "Brake": "5", "Gear": "3"}
 _BRAKE_THRESHOLD = 0.0  # Brake channel varies 0-100 or boolean by year -> ">0".
 _MAX_MAP_POINTS = 800
 
@@ -230,7 +232,9 @@ def _build_payload(
     driver_num = _resolve_driver_num(driver_codes, tla, year, identifier, session)
 
     channels = list(_CHANNELS.values())
-    df = get_fastest_lap_telemetry(base_url, client, driver_num, channels=channels, store=store)
+    df = get_fastest_lap_telemetry(base_url, client, driver_num, channels=channels, store=store,
+                                   raw_names=True)
+    df = df.rename(columns={key: name for name, key in _CHANNELS.items()})
     if df.empty:
         raise DataNotAvailableError(
             year=year, gp=identifier, session=session, source="livetiming",
@@ -353,11 +357,7 @@ class TrackMapPlot:
         cbar = fig.colorbar(lc, ax=ax, orientation="horizontal", fraction=0.04, pad=0.02)
         cbar.set_label(colorbar_label)
 
-        try:
-            logo = mpimg.imread('assets/images/logo mic.png')
-            fig.figimage(logo, 575, 575, zorder=4, alpha=.5)
-        except Exception:
-            pass
+        add_legacy_watermark(fig, 575, 575, alpha=0.5, zorder=4)
 
         lap_str = format_lap_time(payload.get("lap_time_s", 0.0))
         plt.suptitle(f"{tla} fastest lap — {lap_str}\n{y} {event_name} {e}")

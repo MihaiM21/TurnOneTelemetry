@@ -1,0 +1,372 @@
+{% extends "admin/_base.html" %}
+{% set active_page = 'export' %}
+{% block title %}T1API Admin · Export{% endblock %}
+
+{#
+  Bytes are formatted server-side for the parts of the page that must stay
+  readable with scripting disabled (the exports table); the live progress
+  card is JS-driven like plots.html's, since it only exists once a job runs.
+#}
+{%- macro hbytes(n) -%}
+{%- if not n -%}0 B
+{%- elif n >= 1073741824 -%}{{ '%.1f'|format(n / 1073741824) }} GB
+{%- elif n >= 1048576 -%}{{ '%.1f'|format(n / 1048576) }} MB
+{%- elif n >= 1024 -%}{{ '%.1f'|format(n / 1024) }} KB
+{%- else -%}{{ n }} B
+{%- endif -%}
+{%- endmacro -%}
+
+{% block content %}
+<section>
+  <div class="spread">
+    <h2 style="margin:0">Dataset export</h2>
+    <span class="muted small">{{ export_dir }} &middot; {{ hbytes(free_bytes) }} free</span>
+  </div>
+  <p class="muted small">
+    Exports render training-ready tables, telemetry, raw streams and a text corpus to disk.
+    A season with every tier is roughly 1 GB on disk (a race weekend session is ~12 MB), but
+    decoding is slow: about a minute per cold session, so a full season is a few hours.
+  </p>
+</section>
+
+<section>
+  <h2>New export</h2>
+  <div class="field">
+    <label>Years</label>
+    <div>
+      {% for y in years %}
+      <label class="inline chk"><input type="checkbox" class="exp-year" value="{{ y }}" {% if loop.first %}checked{% endif %}><span class="small">{{ y }}</span></label>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="row" style="margin-top:12px">
+    <div class="field">
+      <label for="expGp">Grand Prix (optional)</label>
+      <input id="expGp" type="text" maxlength="80" placeholder="all rounds">
+    </div>
+    <div class="field">
+      <label for="expId">Export id</label>
+      <input id="expId" type="text" maxlength="64" placeholder="auto">
+    </div>
+    <div class="field">
+      <label for="expConcurrency">Concurrency</label>
+      <select id="expConcurrency" style="min-width:80px">
+        {% for c in [1, 2, 3, 4] %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+      </select>
+    </div>
+    <label class="chk" style="align-self:center"><input type="checkbox" id="expResume" checked> resume</label>
+  </div>
+
+  <div class="field" style="margin-top:12px">
+    <label>Session types</label>
+    <div>
+      {% for s in session_types %}
+      <label class="inline chk"><input type="checkbox" class="exp-session" value="{{ s }}" checked><span class="small">{{ s }}</span></label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="field" style="margin-top:12px">
+    <label>Tiers</label>
+    <div>
+      {% for t in tiers %}
+      <label class="inline chk">
+        <input type="checkbox" class="exp-tier" value="{{ t }}" {% if t in ('tables', 'corpus') %}checked{% endif %}>
+        <span class="small">{{ t }}</span>
+        {% if t == 'telemetry' %}<span class="muted small">(decoded car telemetry, large)</span>{% endif %}
+        {% if t == 'raw' %}<span class="muted small">(raw livetiming streams, large)</span>{% endif %}
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:14px">
+    <button class="ghost" type="button" id="expEstBtn">Estimate</button>
+    <button class="primary" type="button" id="expStartBtn">Start</button>
+  </div>
+
+  <div class="estimate" id="expEstimate" style="display:none">
+    <div class="spread">
+      <div>
+        <div class="l muted small" style="text-transform:uppercase;letter-spacing:.15em">Sessions to export</div>
+        <div class="big" id="expEstCount">—</div>
+      </div>
+    </div>
+    <ul id="expEstBreakdown"></ul>
+    <div id="expEstWarnings"></div>
+  </div>
+
+  <div class="progress-wrap" id="expProgress" style="display:none">
+    <div class="pbar"><div class="pfill" id="epfill"></div><div class="plabel" id="eplabel">0%</div></div>
+    <div class="pmeta">
+      <div><span class="k">Status</span> <span class="pstatus" id="epstatus">—</span></div>
+      <div><span class="k">Progress</span> <span id="epcounts">0 / 0</span></div>
+      <div><span class="k">Result</span>
+        <span style="color:var(--good)">✓<span id="epsucc">0</span></span>
+        <span style="color:var(--red)">✗<span id="epfail">0</span></span>
+        <span class="muted">⊘<span id="epskip">0</span></span>
+      </div>
+      <div><span class="k">Bytes written</span> <span id="epbytes">—</span></div>
+    </div>
+    <div class="pcurrent" id="epcurrent"></div>
+    <div class="perrors" id="eperrors" style="display:none"></div>
+    <div class="row" style="margin-top:10px">
+      <button class="ghost" type="button" id="expCancelBtn">Cancel job</button>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Exports</h2>
+  {% if exports %}
+  <div class="tablewrap">
+  <table>
+    <thead>
+      <tr><th>Export</th><th>Created</th><th>Sessions</th><th>Bytes</th><th>Tiers</th><th>Archive</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+      {% for e in exports %}
+      <tr>
+        <td><code>{{ e.export_id }}</code></td>
+        <td class="muted small nowrap">{{ e.created_at or '—' }}</td>
+        <td class="small">{{ e.sessions_done }}/{{ e.sessions_total }}{% if e.sessions_failed %} &middot; {{ e.sessions_failed }} failed{% endif %}</td>
+        <td class="nowrap">{{ hbytes(e.bytes) }}</td>
+        <td class="small">{{ e.tiers|join(', ') }}</td>
+        <td class="small">
+          {% if e.archive.status == 'ready' %}<span class="tag have">ready · {{ hbytes(e.archive.bytes) }}</span>
+          {% elif e.archive.status == 'building' %}<span class="tag warn">building</span>
+          {% else %}<span class="muted">none</span>{% endif %}
+        </td>
+        <td class="small nowrap">
+          <a class="cellink" href="/admin/export/{{ e.export_id }}/manifest">Manifest</a>
+          &middot;
+          <a class="cellink" href="/admin/export?files={{ e.export_id }}#files-{{ e.export_id }}">Files</a>
+          {% if e.archive.status == 'ready' %}
+          &middot; <a class="cellink" href="/admin/export/{{ e.export_id }}/archive">Download zip</a>
+          {% else %}
+          &middot;
+          <form class="inline" method="post" action="/admin/export/{{ e.export_id }}/archive">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="ghost" type="submit" style="padding:2px 8px;font-size:11px">Build archive</button>
+          </form>
+          {% endif %}
+          &middot;
+          <form class="inline" method="post" action="/admin/export/{{ e.export_id }}/delete"
+                onsubmit="return confirm('Permanently delete export {{ e.export_id }}? This cannot be undone.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="text" name="confirm" placeholder="type id to delete" style="min-width:140px;font-size:11px">
+            <button class="danger" type="submit">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% if files_for == e.export_id %}
+      <tr id="files-{{ e.export_id }}">
+        <td colspan="7">
+          <details open>
+            <summary class="small muted">Files ({{ export_files|length if export_files is not none else 0 }})</summary>
+            {% if export_files %}
+            <div class="tablewrap" style="margin-top:8px">
+              <table>
+                <thead><tr><th>Path</th><th>Rows</th><th>Bytes</th></tr></thead>
+                <tbody>
+                  {% for f in export_files %}
+                  <tr>
+                    <td class="small"><a class="cellink" href="/admin/export/{{ e.export_id }}/files/{{ f.path }}">{{ f.path }}</a></td>
+                    <td class="small">{{ f.rows }}</td>
+                    <td class="small nowrap">{{ hbytes(f.bytes) }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% else %}
+            <p class="muted small" style="margin-top:8px">No files recorded yet.</p>
+            {% endif %}
+          </details>
+        </td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<p class="muted">No exports yet.</p>{% endif %}
+</section>
+
+<section>
+  <h2>Recent export jobs</h2>
+  {% if jobs %}
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Kind</th><th>Status</th><th>Export</th><th>Progress</th><th>Started</th></tr></thead>
+    <tbody>
+      {% for j in jobs %}
+      <tr>
+        <td class="small">{{ j.kind }}</td>
+        <td><span class="pstatus {{ j.status }}" style="font-size:11px">{{ j.status }}</span></td>
+        <td class="small"><code>{{ j.export_id }}</code></td>
+        <td class="small">{{ j.done }}/{{ j.total }} &middot; ✓{{ j.success }} ✗{{ j.failed }} ⊘{{ j.skipped }}</td>
+        <td class="muted small nowrap">{{ j.started_at or j.created_at or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<p class="muted">No export jobs yet.</p>{% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CSRF = {{ csrf_token | tojson }};
+const JOBS = {{ jobs | tojson }};
+
+const $ = (id) => document.getElementById(id);
+
+function checkedValues(cls) {
+  return Array.from(document.querySelectorAll("." + cls + ":checked")).map((el) => el.value);
+}
+
+function bodyFromForm(extra) {
+  return Object.assign({
+    years: checkedValues("exp-year").map(Number),
+    gp: $("expGp").value.trim(),
+    session_types: checkedValues("exp-session"),
+    tiers: checkedValues("exp-tier"),
+    export_id: $("expId").value.trim(),
+    resume: $("expResume").checked,
+    csrf_token: CSRF,
+  }, extra || {});
+}
+
+async function postJSONBody(url, body) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const detail = (payload && (payload.error || payload.detail)) || ("HTTP " + response.status);
+    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+  }
+  return payload;
+}
+
+async function runEstimate() {
+  $("expEstimate").style.display = "block";
+  $("expEstCount").textContent = "…";
+  try {
+    const data = await postJSONBody("/admin/export/estimate", bodyFromForm());
+    $("expEstCount").textContent = (data.sessions || 0).toLocaleString();
+    const rows = [];
+    Object.entries(data.units_by_tier || {}).forEach(([tier, n]) => {
+      rows.push('<li><span>' + tier + '</span><span class="n">' + n.toLocaleString() + '</span></li>');
+    });
+    rows.push('<li><span>already done</span><span class="n">' + (data.already_done || 0) + '</span></li>');
+    rows.push('<li><span>cached / cold</span><span class="n">' + (data.cached_sessions || 0) + ' / ' + (data.cold_sessions || 0) + '</span></li>');
+    if (data.est_bytes != null) rows.push('<li><span>est. size</span><span class="n">' + T1.humanBytes(data.est_bytes) + '</span></li>');
+    if (data.free_bytes != null) rows.push('<li><span>free disk</span><span class="n">' + T1.humanBytes(data.free_bytes) + '</span></li>');
+    if (data.est_seconds != null) rows.push('<li><span>est. time</span><span class="n">' + T1.humanDuration(data.est_seconds) + '</span></li>');
+    $("expEstBreakdown").innerHTML = rows.join("");
+    $("expEstWarnings").innerHTML = (data.warnings || [])
+      .map((w) => '<div class="warnbox">' + w + '</div>').join("");
+  } catch (err) {
+    $("expEstCount").textContent = "—";
+    $("expEstWarnings").innerHTML = '<div class="errbox">Estimate failed: ' + err.message + '</div>';
+  }
+}
+
+async function startExport() {
+  $("expStartBtn").disabled = true;
+  try {
+    const job = await postJSONBody("/admin/export/start", bodyFromForm({
+      concurrency: parseInt($("expConcurrency").value, 10),
+    }));
+    T1.toast("Export job " + job.job_id + " started", "ok");
+    attach(job.job_id);
+  } catch (err) {
+    T1.toast(err.message, "err");
+  } finally {
+    $("expStartBtn").disabled = false;
+  }
+}
+
+let activeJob = null;
+let pollTimer = null;
+let pollDelay = 800;
+
+function attach(jobId) {
+  activeJob = jobId;
+  pollDelay = 800;
+  $("expProgress").style.display = "block";
+  poll();
+}
+
+async function poll() {
+  clearTimeout(pollTimer);
+  if (!activeJob) return;
+  try {
+    const response = await fetch("/admin/export/jobs/" + activeJob);
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    const job = await response.json();
+    render(job);
+    if (["completed", "failed", "cancelled"].indexOf(job.status) >= 0) {
+      T1.toast("Export " + job.status + " — " + job.success + " ok, " + job.failed + " failed",
+               job.status === "completed" ? "ok" : "err");
+      activeJob = null;
+      return;
+    }
+    pollDelay = Math.min(pollDelay * 1.25, 5000);
+    pollTimer = setTimeout(poll, pollDelay);
+  } catch (err) {
+    $("epcurrent").textContent = "Poll error: " + err.message + " (retrying)";
+    pollTimer = setTimeout(poll, 5000);
+  }
+}
+
+function render(job) {
+  const total = job.total || 0;
+  const pct = total ? Math.round((job.done / total) * 100) : (job.status === "completed" ? 100 : 0);
+  $("epfill").style.width = pct + "%";
+  $("eplabel").textContent = pct + "%";
+  const el = $("epstatus");
+  el.textContent = job.status;
+  el.className = "pstatus " + job.status;
+  $("epcounts").textContent = job.done + " / " + total;
+  $("epsucc").textContent = job.success;
+  $("epfail").textContent = job.failed;
+  $("epskip").textContent = job.skipped;
+  $("epbytes").textContent = T1.humanBytes(job.bytes_written || 0);
+  $("epcurrent").textContent = job.current ? "Exporting: " + job.current : "";
+  if (job.errors && job.errors.length) {
+    $("eperrors").style.display = "block";
+    $("eperrors").textContent = job.errors.join("\n");
+  }
+}
+
+async function cancelExport() {
+  if (!activeJob) return;
+  if (!window.confirm("Cancel this export job? Work already written is kept.")) return;
+  try {
+    await T1.postJSON("/admin/export/jobs/" + activeJob + "/cancel",
+                      new URLSearchParams({ csrf_token: CSRF }));
+    T1.toast("Cancellation requested", "info");
+  } catch (err) {
+    T1.toast(err.message, "err");
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  $("expEstBtn").addEventListener("click", runEstimate);
+  $("expStartBtn").addEventListener("click", startExport);
+  $("expCancelBtn").addEventListener("click", cancelExport);
+
+  const running = JOBS.find((j) => j.kind === "dataset_export" && ["queued", "running"].indexOf(j.status) >= 0);
+  if (running) {
+    T1.toast("Re-attached to running export " + running.job_id, "info");
+    attach(running.job_id);
+  }
+});
+</script>
+{% endblock %}

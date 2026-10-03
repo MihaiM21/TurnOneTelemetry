@@ -346,3 +346,48 @@ def test_warm_gridfs_serves_car_data_without_redownload(stubbed_store, monkeypat
 
     monkeypatch.setattr(store2.client, "parse_compressed_stream", boom)
     assert store2.car_data() == payload
+
+
+# ----------------------------------------------------------------------
+# Extra (export-only) streams
+# ----------------------------------------------------------------------
+def test_extra_stream_absent_raises_and_is_not_cached(stubbed_store):
+    with pytest.raises(DataNotAvailableError):
+        stubbed_store.extra_stream("lap_count")
+    assert "lap_count" not in stubbed_store._fake_raw
+    assert stubbed_store._call_counts["LapCount.jsonStream"] == 1
+
+
+def test_extra_stream_unknown_name_is_key_error(stubbed_store):
+    with pytest.raises(KeyError):
+        stubbed_store.extra_stream("heartbeat")
+
+
+def test_extra_stream_parses_and_memoizes(stubbed_store, monkeypatch):
+    original = stubbed_store.client.session.get
+
+    def fake_get(url, timeout=None, **kwargs):
+        if url.endswith("SessionStatus.jsonStream"):
+            return _FakeResponse(b'00:00:01.000{"Status": "Started"}\n00:10:00.000{"Status": "Finished"}')
+        return original(url, timeout=timeout, **kwargs)
+
+    monkeypatch.setattr(stubbed_store.client.session, "get", fake_get)
+    entries = stubbed_store.extra_stream("session_status")
+    assert [e["Status"] for e in entries] == ["Started", "Finished"]
+    assert entries[0]["_timestamp"] == "00:00:01.000"
+    assert stubbed_store.extra_stream("session_status") is entries
+    assert set(store_module.EXTRA_STREAMS) >= {"lap_count", "timing_stats", "tyre_stint_series"}
+
+
+def test_forbidden_static_object_maps_to_data_not_available(stubbed_store, monkeypatch):
+    """livetiming answers 403 (not 404) for a stream that does not exist."""
+    original = stubbed_store.client.session.get
+
+    def fake_get(url, timeout=None, **kwargs):
+        if url.endswith("LapCount.jsonStream"):
+            return _FakeResponse(b"forbidden", status_code=403)
+        return original(url, timeout=timeout, **kwargs)
+
+    monkeypatch.setattr(stubbed_store.client.session, "get", fake_get)
+    with pytest.raises(DataNotAvailableError):
+        stubbed_store.extra_stream("lap_count")

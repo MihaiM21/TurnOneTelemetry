@@ -94,6 +94,53 @@ def test_specs_for_session_is_normalized():
     ]
 
 
+def test_field_chart_specs_use_the_owning_modules_keys():
+    from src.services.analysis.v2 import car_characteristics, energy_clipping, field_dominance, sector_gap
+
+    by_key = {spec.data_type: spec for spec in V2_SINGLETON_PLOTS}
+    for key in (
+        energy_clipping.DATA_TYPE,
+        car_characteristics.PROFILE_DATA_TYPE,
+        car_characteristics.EFFICIENCY_DATA_TYPE,
+        field_dominance.data_type("team", None),
+        sector_gap.DATA_TYPE,
+    ):
+        assert key in by_key, key
+        # Class-based features only warm Redis, so the backfill has to write Mongo itself.
+        assert by_key[key].persist_result, key
+    assert field_dominance.data_type("team", None) == "field_dominance_team"
+
+
+def test_field_chart_session_applicability():
+    for session in ("FP1", "Q", "SQ", "R", "S"):
+        types = set(expected_data_types(session, 2026))
+        assert {"energy_clipping", "corner_speed_profile", "efficiency_scatter", "field_dominance_team"} <= types
+    assert "sector_gap" in expected_data_types("Q", 2026)
+    assert "sector_gap" in expected_data_types("SQ", 2026)
+    for session in ("FP1", "R", "S"):
+        assert "sector_gap" not in expected_data_types(session, 2026)
+
+
+def test_energy_clipping_is_not_expected_before_2026():
+    assert "energy_clipping" not in expected_data_types("Q", 2025)
+    assert "energy_clipping" not in expected_data_types("R", 2018)
+    assert "energy_clipping" in expected_data_types("R", 2026)
+    # The other new charts do not depend on the season.
+    assert "corner_speed_profile" in expected_data_types("Q", 2018)
+
+
+def test_year_is_optional_and_omitting_it_keeps_the_session_only_view():
+    assert "energy_clipping" in expected_data_types("Q")
+    spec = next(s for s in V2_SINGLETON_PLOTS if s.data_type == "energy_clipping")
+    assert spec.applies("Q") and spec.applies("Q", None)
+    assert not spec.applies("Q", 2025) and spec.applies("Q", 2026)
+
+
+def test_min_year_defaults_to_no_limit():
+    assert PlotSpec("x", "X", frozenset(), lambda *a: True).applies("R", 2018)
+    assert [s.data_type for s in V2_SINGLETON_PLOTS if s.min_year] == ["energy_clipping"]
+
+
 def test_empty_applies_to_means_all():
     spec = PlotSpec("x", "X", frozenset(), lambda *a: True)
     assert spec.applies("FP1")

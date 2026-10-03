@@ -59,6 +59,24 @@ _STREAM_TTL_SECONDS = 86400
 _SESSION_COMPLETE_AFTER_SECONDS = 4 * 3600
 
 
+# Livetiming streams no analysis feature consumes but the dataset export dumps
+# verbatim. Keyed by the cache-friendly snake_case name; values are file names
+# under the session path. Absent streams (older seasons) surface as
+# DataNotAvailableError from ``extra_stream`` and are never cached.
+EXTRA_STREAMS: Dict[str, str] = {
+    "lap_count": "LapCount.jsonStream",
+    "session_status": "SessionStatus.jsonStream",
+    "timing_stats": "TimingStats.jsonStream",
+    "pit_lane_time_collection": "PitLaneTimeCollection.jsonStream",
+    "tyre_stint_series": "TyreStintSeries.jsonStream",
+    "extrapolated_clock": "ExtrapolatedClock.jsonStream",
+    "team_radio": "TeamRadio.jsonStream",
+    "championship_prediction": "ChampionshipPrediction.jsonStream",
+    "top_three": "TopThree.jsonStream",
+    "session_data": "SessionData.jsonStream",
+}
+
+
 class SessionDataStore:
     """Cached accessor for one session's livetiming streams.
 
@@ -133,10 +151,12 @@ class SessionDataStore:
             raise UpstreamUnavailableError(
                 source="livetiming", reason=f"Failed to fetch {url}: {exc}"
             ) from exc
-        if resp.status_code == 404:
+        # livetiming's static host answers 403, not 404, for an object that does
+        # not exist (e.g. LapCount.jsonStream for a practice session).
+        if resp.status_code in (403, 404):
             raise DataNotAvailableError(
                 year=self.year, gp=self.identifier, session=self.session_name,
-                source="livetiming", reason=f"{filename} not published (404)",
+                source="livetiming", reason=f"{filename} not published ({resp.status_code})",
             )
         if resp.status_code >= 500:
             raise UpstreamUnavailableError(
@@ -162,10 +182,12 @@ class SessionDataStore:
             raise UpstreamUnavailableError(
                 source="livetiming", reason=f"Failed to fetch {url}: {exc}"
             ) from exc
-        if resp.status_code == 404:
+        # livetiming's static host answers 403, not 404, for an object that does
+        # not exist (e.g. LapCount.jsonStream for a practice session).
+        if resp.status_code in (403, 404):
             raise DataNotAvailableError(
                 year=self.year, gp=self.identifier, session=self.session_name,
-                source="livetiming", reason=f"{filename} not published (404)",
+                source="livetiming", reason=f"{filename} not published ({resp.status_code})",
             )
         if resp.status_code >= 500:
             raise UpstreamUnavailableError(
@@ -370,6 +392,15 @@ class SessionDataStore:
             ),
             big=True,
         )
+
+    def extra_stream(self, name: str) -> List[Dict[str, Any]]:
+        """Parsed entries of one of :data:`EXTRA_STREAMS`, by snake_case name.
+
+        Same tiering as the named accessors. Raises ``KeyError`` for an unknown
+        name and :class:`DataNotAvailableError` when the session lacks it.
+        """
+        filename = EXTRA_STREAMS[name]
+        return self._cached(name, lambda: self._fetch_stream(filename))
 
     # ------------------------------------------------------------------
     # Completion detection

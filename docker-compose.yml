@@ -39,7 +39,7 @@ services:
       - BACKUP_RETENTION_MONTHLY=${BACKUP_RETENTION_MONTHLY:-6}
       - BACKUP_INCLUDE_VOLUMES=${BACKUP_INCLUDE_VOLUMES:-false}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      test: ["CMD-SHELL", "curl -f http://localhost:$${DOCKER_EXPOSED_PORT:-5000}/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3

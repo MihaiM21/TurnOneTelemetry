@@ -41,6 +41,7 @@ from src.services.analysis.base import cached_or_generate
 from src.services.analysis.v2._helpers import (
     CAR_DATA_CHANNELS,
     WINDOW_MARGIN_S,
+    XY_UNITS_PER_METRE,
     build_session_store,
     extract_channels_window,
     extract_positions_window,
@@ -65,9 +66,6 @@ BLOCK_SCHEMA_VERSION = 2
 # 3=Gear, 4=Throttle, 5=Brake, 45=DRS, and no channel '47' at all.
 _CHANNELS = list(CAR_DATA_CHANNELS)
 _CHANNEL_TO_FIELD = dict(CAR_DATA_CHANNELS)
-
-# Position X/Y/Z arrive in tenths of a metre.
-XY_UNITS_PER_METRE = 10.0
 
 # Never interpolate across a hole longer than this. A car sitting in the pit box
 # publishes nothing; bridging that would slide it through the pit building.

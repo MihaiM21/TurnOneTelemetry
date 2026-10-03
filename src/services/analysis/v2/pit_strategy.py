@@ -37,7 +37,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Union
 
-import matplotlib.image as mpimg
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 
 from src.core.exceptions import DataNotAvailableError
@@ -50,6 +50,8 @@ from src.services.analysis.v2._race_helpers import (
     get_track_status_periods,
 )
 from src.services.analysis.v2.session_store import SessionDataStore
+from src.services.plotting import canvas as cv
+from src.services.plotting.canvas import add_legacy_watermark
 from src.services.plotting import colors as colors_module
 from src.services.plotting import output as dirOrg
 from src.services.plotting import theme as setup_theme
@@ -84,11 +86,11 @@ def _compound_color(compound: Optional[str]) -> str:
     return palette.get(key, palette.get("UNKNOWN", "#777777"))
 
 
-def _init(y: int, event_name: str, session_name: str):
+def _init(y: int, event_name: str, session_name: str, suffix: str = ""):
     event_folder = event_name.replace(' ', '')
     dirOrg.checkForFolder(f"{y}/{event_folder}/{session_name}")
     location = f"outputs/plots/{y}/{event_folder}/{session_name}"
-    name = f"Pit strategy {y} {event_name} {session_name}.png"
+    name = f"Pit strategy {y} {event_name} {session_name}{suffix}.png"
     return location, name
 
 
@@ -383,10 +385,301 @@ class PitStrategyData:
         )
 
 
-class PitStrategyPlot:
-    """Callable: ``PitStrategyPlot()(year, identifier, session) -> png path``."""
+# ----------------------------------------------------------------------
+# Social-format render (numbers and labels only; see services/plotting/canvas.py)
+# ----------------------------------------------------------------------
+_MUTED = cv.MUTED
+_SHADED_STATUSES = {"SC", "VSC", "RED"}
+_GOOD = "#43b02a"
+_BAD = "#da291c"
+_SESSION_LABELS = {"R": "Race", "RACE": "Race", "S": "Sprint", "SPRINT": "Sprint"}
 
-    def __call__(self, y: int, identifier: Union[int, str], e: str) -> str:
+# Drivers shown in the stop timeline / undercut rows shown, per format.
+_MAX_DRIVERS = {"landscape": 20, "square": 14, "portrait": 18, "story": 10}
+_MAX_UNDERCUTS = {"landscape": 8, "square": 5, "portrait": 8, "story": 8}
+
+
+def _legible(color: str, floor: float = 0.42) -> str:
+    """Lift a colour that would vanish on the dark canvas (Cadillac's near-black)."""
+    try:
+        rgb = mcolors.to_rgb(color)
+    except ValueError:
+        return "#777777"
+    lum = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]
+    if lum >= floor:
+        return mcolors.to_hex(rgb)
+    mix = (floor - lum) / (1.0 - lum)
+    return mcolors.to_hex(tuple(c + (1.0 - c) * mix for c in rgb))
+
+
+def _session_label(e: str) -> str:
+    return _SESSION_LABELS.get(str(e).upper(), str(e))
+
+
+def _finish_context(store: SessionDataStore):
+    """``(finishing order of TLAs, {tla: laps completed}, {tla: starting compound})``.
+
+    Read from the derived caches. Best effort: the render falls back to
+    alphabetical order, a lap count inferred from the stops and an unknown
+    starting compound when a stream is missing.
+    """
+    order: List[str] = []
+    laps_done: Dict[str, int] = {}
+    first_compound: Dict[str, str] = {}
+    try:
+        drivers = store.driver_list()
+        final = []
+        for num, records in store.positions_by_lap().items():
+            if records:
+                final.append((records[-1]["position"], drivers.get(num, {}).get("tla", num)))
+        order = [tla for _, tla in sorted(final)]
+        for num, records in store.lap_times().items():
+            if records:
+                laps_done[drivers.get(num, {}).get("tla", num)] = max(r["lap"] for r in records)
+        for num, stints in store.stints().items():
+            if stints and stints[0].get("compound"):
+                first_compound[drivers.get(num, {}).get("tla", num)] = stints[0]["compound"]
+    except Exception:
+        logger.warning("Pit strategy: finishing order unavailable, using stop data only", exc_info=True)
+    return order, laps_done, first_compound
+
+
+def _stint_segments(driver_stops: List[Dict[str, Any]], end_lap: int,
+                    first_compound: Optional[str] = None) -> List[tuple]:
+    """``[(start_lap, end_lap, compound)]`` rebuilt from a driver's stops.
+
+    The payload rarely knows the tyre a driver *started* on (``compound_in`` of
+    the first stop), so ``first_compound`` (from the stint stream) fills it.
+    """
+    ordered = sorted(driver_stops, key=lambda s: s["lap"])
+    segments = []
+    start = 0
+    current = ordered[0].get("compound_in") or first_compound
+    for i, stop in enumerate(ordered):
+        segments.append((start, stop["lap"], current))
+        start = stop["lap"]
+        nxt_in = ordered[i + 1].get("compound_in") if i + 1 < len(ordered) else None
+        current = stop.get("compound_out") or nxt_in or current
+    segments.append((start, max(end_lap, start + 1), current))
+    return segments
+
+
+def _px_axes(fig, ax, fmt: cv.CanvasFormat):
+    """Switch ``ax`` to a pixel coordinate system (origin top-left); returns ``(width, height)``."""
+    box = ax.get_position()
+    width, height = box.width * fmt.width_px, box.height * fmt.height_px
+    ax.set_axis_off()
+    ax.set_xlim(0, width)
+    ax.set_ylim(height, 0)
+    return width, height
+
+
+def _pt_px(size_pt: float) -> float:
+    return size_pt * cv.DESIGN_DPI / 72.0
+
+
+def _stat_tiles(fig, ax, fmt: cv.CanvasFormat, payload: Dict[str, Any]) -> None:
+    width, height = _px_axes(fig, ax, fmt)
+    stops = payload.get("stops", [])
+    undercuts = payload.get("undercuts", [])
+    worked = sum(1 for u in undercuts if u.get("worked"))
+    fastest = (payload.get("summary") or {}).get("fastest_stop")
+    if fastest:
+        fast_value, fast_sub = f"{fastest['pit_lane_time_s']:.1f}s", f"{fastest['driver']} L{fastest['lap']}"
+    else:
+        fast_value, fast_sub = "–", ""
+    tiles = [
+        ("STOPS", str(len(stops)), "", cv.TEXT),
+        ("UNDERCUTS WON", f"{worked}/{len(undercuts)}" if undercuts else "–", "", _GOOD if worked else cv.TEXT),
+        ("FASTEST STOP", fast_value, fast_sub, cv.TEXT),
+    ]
+    value_size = fmt.base_fontsize * 1.75
+    for i, (label, value, sub, color) in enumerate(tiles):
+        x = width * (0.0, 0.26, 0.64)[i]
+        ax.text(x, 0.04 * height, label, ha="left", va="top", fontsize=fmt.base_fontsize * 0.72,
+                color=_MUTED, fontweight="semibold")
+        ax.text(x, 0.96 * height, value, ha="left", va="bottom", fontsize=value_size,
+                color=color, fontweight="bold")
+        if sub:
+            x_sub = x + len(value) * 0.56 * _pt_px(value_size) + 0.012 * width
+            ax.text(x_sub, 0.96 * height, sub, ha="left", va="bottom", fontsize=fmt.base_fontsize * 0.78,
+                    color=_MUTED, fontweight="semibold")
+
+
+def _timeline(ax, fmt: cv.CanvasFormat, stops, periods, y: int, order: List[str],
+              laps_done: Dict[str, int], first_compound: Dict[str, str], max_drivers: int) -> None:
+    by_driver: Dict[str, List[Dict[str, Any]]] = {}
+    for s in stops:
+        by_driver.setdefault(s["driver"], []).append(s)
+    ranked = [d for d in order if d in by_driver] + sorted(d for d in by_driver if d not in order)
+    drivers = ranked[:max_drivers]
+
+    last_stop = max((s["lap"] for s in stops), default=1)
+    total = max([last_stop + 1] + [laps_done.get(d, 0) for d in drivers]) if laps_done else int(last_stop * 1.15) + 1
+    total = max(total, last_stop + 1)
+
+    ax.set_xlim(0, total)
+    ax.set_ylim(len(drivers) - 0.4, -0.6)
+    cv.style_axis(ax, fmt)
+    ax.grid(False)
+    ax.grid(True, axis="x", color="#2a2a2a", linestyle="--", alpha=0.5)
+    setup_theme.add_track_status_shading(ax, [p for p in periods if p.get("status") in _SHADED_STATUSES])
+
+    seen = set()
+    bar_h = 0.66
+    for row, tla in enumerate(drivers):
+        end = laps_done.get(tla) or total
+        end = max(end, max(s["lap"] for s in by_driver[tla]) + 1)
+        for start, stop_lap, compound in _stint_segments(by_driver[tla], end, first_compound.get(tla)):
+            key = (compound or "UNKNOWN").upper()
+            ax.barh(row, stop_lap - start, left=start, height=bar_h, color=_compound_color(compound),
+                    edgecolor=cv.FACE, linewidth=1.2, zorder=3, label=None if key in seen else key)
+            seen.add(key)
+
+    # Stop lap numbers on the boundary; drop one that would sit on top of the previous.
+    px_per_lap = max(ax.get_position().width * fmt.width_px / max(total, 1), 1.0)
+    min_gap = _pt_px(fmt.base_fontsize * 0.7) * 2.3 / px_per_lap
+    for row, tla in enumerate(drivers):
+        last = -1e9
+        for s in sorted(by_driver[tla], key=lambda st: st["lap"]):
+            if s["lap"] - last < min_gap:
+                continue
+            last = s["lap"]
+            ax.text(s["lap"], row, str(s["lap"]), ha="center", va="center", zorder=5,
+                    fontsize=fmt.base_fontsize * 0.7, fontweight="bold",
+                    color="#FF6B6B" if s.get("under_sc") else cv.TEXT,
+                    bbox={"boxstyle": "round,pad=0.12", "fc": cv.FACE, "ec": "none", "alpha": 0.88})
+
+    ax.set_yticks(range(len(drivers)))
+    ax.set_yticklabels(drivers, fontweight="bold")
+    for label in ax.get_yticklabels():
+        label.set_color(_legible(colors_module.get_driver_color(label.get_text(), y)))
+        label.set_fontsize(fmt.base_fontsize * 0.8)
+    ax.tick_params(axis="y", length=0)
+    ax.set_xlabel("Lap")
+    handles, labels = ax.get_legend_handles_labels()
+    if handles:
+        ax.legend(handles, labels, loc="lower left", bbox_to_anchor=(0.0, 1.0), ncol=len(handles),
+                  frameon=False, fontsize=fmt.base_fontsize * 0.72, labelcolor=cv.TEXT,
+                  handlelength=1.0, handleheight=0.9, columnspacing=1.0, borderaxespad=0.2)
+
+
+def _section_header(ax, width: float, y_px: float, fs: float, left: str, right: str) -> None:
+    for x, text, ha in ((0, left, "left"), (width, right, "right")):
+        ax.text(x, y_px, text, ha=ha, va="top", fontsize=fs * 0.75, color=_MUTED, fontweight="semibold")
+
+
+def _side_lists(ax, fig, fmt: cv.CanvasFormat, payload: Dict[str, Any], y: int, max_undercuts: int) -> None:
+    """Undercut swings, then (space permitting) the per-team average pit-lane time."""
+    width, height = _px_axes(fig, ax, fmt)
+    fs = fmt.base_fontsize
+    label_size = fs * 0.85
+    line = _pt_px(label_size)
+    head = _pt_px(fs * 0.75) * 2.0
+    row_h = line * 2.0
+
+    undercuts = payload.get("undercuts", [])
+    pad_top = head * 0.8 if fmt.is_vertical else 0.0  # clear the timeline's "Lap" label above
+    _section_header(ax, width, pad_top, fs, "UNDERCUTS", "SWING")
+    cursor = pad_top + head
+    if not undercuts:
+        ax.text(0, cursor + row_h * 0.5, "NONE DETECTED", ha="left", va="center", fontsize=label_size,
+                color=_MUTED, fontweight="semibold")
+        cursor += row_h
+    else:
+        fit = int((height - cursor) // row_h)
+        top = sorted(undercuts, key=lambda u: -abs(u["gain_s"]))[:max(1, min(max_undercuts, fit))]
+        rows = sorted(top, key=lambda u: -u["gain_s"])
+        zero_x, span = width * 0.60, width * 0.15
+        peak = max(abs(u["gain_s"]) for u in rows) or 1.0
+        for i, u in enumerate(rows):
+            yc = cursor + (i + 0.5) * row_h
+            color = _GOOD if u.get("worked") else _BAD
+            ax.text(0, yc, f"{u['attacker']}→{u['defender']}  L{u['lap']}", ha="left", va="center",
+                    fontsize=label_size, color=cv.TEXT, fontweight="bold")
+            ax.barh(yc, span * u["gain_s"] / peak, left=zero_x, height=line, color=color, zorder=3)
+            ax.text(width, yc, f"{u['gain_s']:+.1f}s", ha="right", va="center", fontsize=label_size,
+                    color=color, fontweight="bold")
+        ax.plot([zero_x, zero_x], [cursor, cursor + row_h * len(rows)], color="#555555", lw=1.0, zorder=2)
+        cursor += row_h * len(rows)
+
+    teams = (payload.get("summary") or {}).get("avg_stop_by_team") or []
+    cursor += head * 0.6
+    fit = int((height - cursor - head) // row_h)
+    if teams and fit >= 2:
+        _section_header(ax, width, cursor, fs, "AVG PIT LANE", "SECONDS")
+        cursor += head
+        peak = max(t["avg_pit_lane_time_s"] for t in teams) or 1.0
+        x0, span = width * 0.50, width * 0.30
+        for i, t in enumerate(teams[:fit]):
+            yc = cursor + (i + 0.5) * row_h
+            color = _legible(colors_module.get_team_color(t["team"], y))
+            ax.text(0, yc, t["team"][:15], ha="left", va="center", fontsize=label_size, color=cv.TEXT)
+            ax.barh(yc, span * t["avg_pit_lane_time_s"] / peak, left=x0, height=line, color=color, zorder=3)
+            ax.text(width, yc, f"{t['avg_pit_lane_time_s']:.1f}", ha="right", va="center",
+                    fontsize=label_size, color=cv.TEXT, fontweight="bold")
+
+
+def _render_formatted(
+    payload: Dict[str, Any],
+    periods: List[Dict[str, Any]],
+    y: int,
+    event_name: str,
+    e: str,
+    fmt_name: str,
+    order: Optional[List[str]] = None,
+    laps_done: Optional[Dict[str, int]] = None,
+    first_compound: Optional[Dict[str, str]] = None,
+) -> str:
+    """Recompose the pit-strategy payload for a social format (stop timeline + undercut numbers)."""
+    fmt = cv.get_format(fmt_name)
+    location, name = _init(y, event_name, e, cv.format_suffix(fmt.name))
+    fig = cv.new_canvas(fmt)
+    cv.add_header(fig, fmt, "Pit stops & undercuts", f"{y} {event_name}  ·  {_session_label(e)}")
+    cv.add_footer(fig, fmt)
+    cv.add_watermark(fig, fmt)
+
+    order = order or []
+    laps_done = laps_done or {}
+    first_compound = first_compound or {}
+    max_drivers = _MAX_DRIVERS[fmt.name]
+
+    if fmt.name == "landscape":
+        gs = cv.safe_gridspec(fig, fmt, 2, 2, width_ratios=[2.35, 1.0], height_ratios=[0.16, 1.0],
+                              hspace=0.24, wspace=0.09)
+        stat_spec, tl_spec, side_spec = gs[0, :], gs[1, 0], gs[1, 1]
+    else:
+        body = {"square": [1.6, 0.85], "portrait": [1.0, 0.7], "story": [0.9, 1.0]}[fmt.name]
+        # Stat tiles need a fixed ~100 px, whatever the frame height is.
+        top_px = cv.header_height(fmt) * fmt.height_px
+        avail = (fmt.safe[3] - fmt.safe[1]) * fmt.height_px - top_px
+        tile = 1.25 * 100.0 / max(avail - 100.0, 1.0) * sum(body)
+        gs = cv.safe_gridspec(fig, fmt, 3, 1, height_ratios=[tile] + body, hspace=0.26)
+        stat_spec, tl_spec, side_spec = gs[0], gs[1], gs[2]
+        # No x tick labels sit at the bottom of this stack: pull it down to the footer.
+        gs.update(bottom=fmt.safe[1] + 2.6 * _pt_px(fmt.base_fontsize * 0.8) / fmt.height_px)
+    # Row labels are three letters: far narrower than the generic y-label margin.
+    tick_px = 3 * 0.75 * _pt_px(fmt.base_fontsize * 0.8) + 16
+    gs.update(left=fmt.safe[0] + tick_px / fmt.width_px)
+
+    _stat_tiles(fig, fig.add_subplot(stat_spec), fmt, payload)
+    _timeline(fig.add_subplot(tl_spec), fmt, payload.get("stops", []), periods, y, order, laps_done,
+              first_compound, max_drivers)
+    _side_lists(fig.add_subplot(side_spec), fig, fmt, payload, y, _MAX_UNDERCUTS[fmt.name])
+    path = f"{location}/{name}"
+    return cv.save_png(fig, path, fmt)
+
+
+class PitStrategyPlot:
+    """Callable: ``PitStrategyPlot()(year, identifier, session, fmt=None) -> png path``.
+
+    ``fmt`` (one of :data:`canvas.FORMAT_NAMES`) recomposes the same payload for a
+    social format; ``None`` keeps the original figure and file name.
+    """
+
+    def __call__(self, y: int, identifier: Union[int, str], e: str, fmt: Optional[str] = None) -> str:
+        if fmt is not None:
+            cv.get_format(fmt)  # ValueError before any network work
         assert_session_type(
             e, y, identifier, allowed=RACE_SESSIONS, feature="Pit strategy", sessions_label="Race/Sprint",
         )
@@ -402,6 +695,9 @@ class PitStrategyPlot:
         event_name = store.event_name
         periods = get_track_status_periods(store)
 
+        if fmt is not None:
+            order, laps_done, first_compound = _finish_context(store)
+            return _render_formatted(payload, periods, y, event_name, e, fmt, order, laps_done, first_compound)
         return self._render(payload, periods, y, event_name, e)
 
     @staticmethod
@@ -425,11 +721,7 @@ class PitStrategyPlot:
         PitStrategyPlot._render_timeline(ax_top, stops, periods)
         PitStrategyPlot._render_undercuts(ax_bot, undercuts)
 
-        try:
-            logo = mpimg.imread('assets/images/logo mic.png')
-            fig.figimage(logo, 575, 575, zorder=3, alpha=.5)
-        except Exception:
-            pass
+        add_legacy_watermark(fig, 575, 575, alpha=0.5, zorder=3)
 
         plt.suptitle(f"Pit strategy & undercuts\n{y} {event_name} {e}")
         plt.savefig(f"{location}/{name}")

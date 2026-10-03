@@ -32,7 +32,6 @@ from __future__ import annotations
 from statistics import median
 from typing import Any, Dict, List, Optional, Union
 
-import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -45,6 +44,7 @@ from src.services.analysis.v2._race_helpers import (
     get_track_status_periods,
 )
 from src.services.analysis.v2.session_store import SessionDataStore
+from src.services.plotting.canvas import add_legacy_watermark
 from src.services.plotting import output as dirOrg
 from src.services.plotting import theme as setup_theme
 from src.services.plotting.colors import compound_colors, get_compound_color
@@ -396,11 +396,7 @@ class TyreDegradationPlot:
         ax.set_ylabel("Lap time (s)", fontsize=12)
         ax.legend(loc='upper left', frameon=True, fontsize=10)
 
-        try:
-            logo = mpimg.imread('assets/images/logo mic.png')
-            fig.figimage(logo, 30, 30, zorder=3, alpha=0.30)
-        except Exception:
-            pass
+        add_legacy_watermark(fig, 30, 30, alpha=0.3, zorder=3)
 
         title = "Tyre degradation"
         if driver:

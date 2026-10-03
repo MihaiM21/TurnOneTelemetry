@@ -1,8 +1,10 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
-from typing import List, Dict, Union
+from matplotlib.colors import to_hex, to_rgb
+from typing import List, Dict, Optional, Union
 
+from src.services.plotting import canvas as cv
+from src.services.plotting.canvas import add_legacy_watermark
 from src.services.plotting import output as dirOrg
 from src.services.plotting import theme as setup_theme
 from src.repositories.plots import store_data_dict_to_mongo, get_plot_data_from_mongo
@@ -80,18 +82,102 @@ def _generate_plot(data: List[Dict], y: int, event_name: str, session_name: str,
     pole = data[0]
     plt.suptitle(f"{event_name} {y} {session_name}\nFastest Lap: {pole['LapTime']} ({pole['Driver']})")
 
-    try:
-        logo = mpimg.imread('assets/images/logo mic.png')
-        fig.figimage(logo, 575, 575, zorder=3, alpha=.6)
-    except (FileNotFoundError, OSError) as exc:
-        logger.debug("Watermark logo unavailable, skipping: %s", exc)
+    add_legacy_watermark(fig, 575, 575, alpha=0.6, zorder=3)
 
     setup_theme.add_glow(ax)
     plt.savefig(f"{location}/{name}")
     plt.close()
 
 
-def QualiResultsPlot(y: int, identifier: Union[int, str], e: str) -> str:
+# Rows shown per format. The grid is 20-22 cars; a story is watched on a phone,
+# so it keeps the part of the order the eye goes to first.
+_MAX_ROWS = {"story": 15}
+
+_SESSION_LONG = {
+    "Q": "Qualifying", "QUALIFYING": "Qualifying", "SQ": "Sprint Qualifying",
+    "SPRINT QUALIFYING": "Sprint Qualifying", "SPRINT SHOOTOUT": "Sprint Shootout",
+}
+
+
+def _session_long(code: str) -> str:
+    return _SESSION_LONG.get(str(code).strip().upper(), str(code))
+
+
+def _formatted_path(location: str, name: str, fmt_name: str) -> str:
+    """Legacy file name with the format suffix inserted before ``.png``."""
+    stem = name[:-4] if name.lower().endswith(".png") else name
+    return f"{location}/{stem}{cv.format_suffix(fmt_name)}.png"
+
+
+def legible_color(color: str, floor: float = 0.32) -> str:
+    """Lift a colour that would vanish on the dark canvas (a near-black team colour) towards white."""
+    r, g, b = to_rgb(color)
+    lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
+    if lum >= floor:
+        return color
+    mix = (floor - lum) / (1.0 - lum)
+    return to_hex((r + (1 - r) * mix, g + (1 - g) * mix, b + (1 - b) * mix))
+
+
+def _team_color(row: Dict, y: int) -> str:
+    color = get_team_color(row.get("Team", "Unknown"), y)
+    return color if color != "#FFFFFF" or not row.get("Color") else row["Color"]
+
+
+def _render_formatted(data: List[Dict], fmt: str, y: int, event_name: str, session_name: str,
+                      location: Optional[str] = None, name: Optional[str] = None) -> str:
+    """Social-format gap-to-pole ranking.
+
+    Horizontal bars, pole at the top, the gap at the end of each bar and the
+    pole lap time on P1. Codes in team colour. Numbers only, no sentences.
+    """
+    canvas_fmt = cv.get_format(fmt)
+    if location is None or name is None:
+        location, name, _ = _init(y, event_name, session_name)
+
+    rows = data[:_MAX_ROWS.get(canvas_fmt.name, len(data))]
+    n = len(rows)
+    gaps = [float(r["LapTimeDelta"]) for r in rows]
+    colors = [_team_color(r, y) for r in rows]
+
+    fig = cv.new_canvas(canvas_fmt)
+    cv.add_header(fig, canvas_fmt, "Gap to pole", f"{y} {event_name}  ·  {_session_long(session_name)}")
+    cv.add_footer(fig, canvas_fmt)
+    cv.add_watermark(fig, canvas_fmt)
+
+    gs = cv.safe_gridspec(fig, canvas_fmt, 1)
+    ax = fig.add_subplot(gs[0])
+    ax.barh(range(n), gaps, color=colors, height=0.68, zorder=3)
+
+    # Leave room at the right of the longest bar for its "+x.xxx" label.
+    base = canvas_fmt.base_fontsize
+    axes_px = ax.get_position().width * canvas_fmt.width_px
+    reserve_px = 7 * base * cv.DESIGN_DPI / 72.0 * 0.62 + 14
+    longest = max(max(gaps, default=0.0), 0.05)
+    ax.set_xlim(0, longest * axes_px / max(axes_px - reserve_px, 1.0))
+    ax.set_ylim(n - 0.5, -0.5)
+
+    for i, row in enumerate(rows):
+        text = row["LapTime"] if i == 0 else f"+{gaps[i]:.3f}"
+        ax.annotate(text, (gaps[i], i), xytext=(6, 0), textcoords="offset points", ha="left", va="center",
+                    fontsize=base, fontweight="bold", color=cv.TEXT if i else colors[0], zorder=4)
+
+    ax.set_yticks(range(n))
+    ax.set_yticklabels([f"{i + 1}  {r['Driver']}" for i, r in enumerate(rows)], fontweight="bold")
+    for tick, color in zip(ax.get_yticklabels(), colors):
+        tick.set_color(legible_color(color))
+    ax.set_xlabel("Gap to pole (s)")
+    cv.style_axis(ax, canvas_fmt)
+    ax.grid(False, axis="y")
+    ax.set_axisbelow(True)
+    ax.tick_params(axis="y", length=0)
+
+    return cv.save_png(fig, _formatted_path(location, name, canvas_fmt.name), canvas_fmt)
+
+
+def QualiResultsPlot(y: int, identifier: Union[int, str], e: str, fmt: Optional[str] = None) -> str:
+    if fmt is not None:
+        cv.get_format(fmt)  # fail fast on a bad name, before any network work
     cached = get_plot_data_from_mongo(y, identifier, e, 'qualifying_results', version='v2')
     client = F1StaticClient()
 
@@ -118,6 +204,9 @@ def QualiResultsPlot(y: int, identifier: Union[int, str], e: str) -> str:
 
     if not data:
         return ""
+
+    if fmt is not None:
+        return _render_formatted(data, fmt, y, event_name, e, location, name)
 
     setup_theme.setup_turnone_theme()
     _generate_plot(data, y, event_name, e, location, name)

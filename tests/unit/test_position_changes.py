@@ -134,3 +134,56 @@ def test_plot_renders_png(store, monkeypatch, tmp_path):
 
     assert os.path.isfile(out_path)
     assert out_path.endswith(".png")
+
+
+# ----------------------------------------------------------------------
+# Change-log -> one point per lap
+# ----------------------------------------------------------------------
+def test_fill_laps_single_record_runs_to_last_lap():
+    out = pc._fill_laps([{"lap": 0, "position": 1}], 5)
+    assert [r["lap"] for r in out] == [0, 1, 2, 3, 4, 5]
+    assert {r["position"] for r in out} == {1}
+
+
+def test_fill_laps_carries_positions_forward():
+    records = [{"lap": 0, "position": 7}, {"lap": 1, "position": 6}, {"lap": 5, "position": 3}]
+    out = pc._fill_laps(records, 6)
+    assert [r["lap"] for r in out] == list(range(7))
+    assert [r["position"] for r in out] == [7, 6, 6, 6, 6, 3, 3]
+
+
+def test_fill_laps_never_stops_before_the_last_record():
+    records = [{"lap": 0, "position": 4}, {"lap": 8, "position": 2}]
+    out = pc._fill_laps(records, 3)
+    assert out[-1] == {"lap": 8, "position": 2}
+    assert len(out) == 9
+
+
+def test_laps_completed_empty_when_lap_times_raise(monkeypatch):
+    def boom(_store):
+        raise RuntimeError("no lap stream")
+
+    monkeypatch.setattr(pc, "extract_lap_times", boom)
+    assert pc._laps_completed(object()) == {}
+
+
+def test_laps_completed_is_highest_lap_per_car(monkeypatch):
+    monkeypatch.setattr(pc, "extract_lap_times", lambda _s: {"63": [{"lap": 1}, {"lap": 3}], "1": []})
+    assert pc._laps_completed(object()) == {"63": 3, "1": 0}
+
+
+def test_build_payload_emits_one_entry_per_lap(monkeypatch):
+    class _Store:
+        def driver_list(self):
+            return {"63": {"tla": "RUS", "team": "Mercedes", "color": "00D7B6"}}
+
+    monkeypatch.setattr(pc, "extract_positions_by_lap",
+                        lambda _s: {"63": [{"lap": 0, "position": 3}, {"lap": 4, "position": 2}]})
+    monkeypatch.setattr(pc, "extract_lap_times", lambda _s: {"63": [{"lap": n} for n in range(1, 11)]})
+    payload = pc._build_payload(_Store())
+    assert len(payload) == 1
+    rus = payload[0]
+    assert rus["driver"] == "RUS" and rus["color"] == "#00D7B6"
+    assert rus["start_pos"] == 3 and rus["end_pos"] == 2
+    assert [p["lap"] for p in rus["positions"]] == list(range(11))
+    assert [p["position"] for p in rus["positions"]] == [3, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2]
