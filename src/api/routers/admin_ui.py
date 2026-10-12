@@ -54,6 +54,7 @@ from src.services.circuit_derivation import (
     build_preview_geometry,
     derive_and_store,
 )
+from src.services.mapping_audit import audit_mapping
 from src.services.storage_cleanup import (
     ALL_LAYERS,
     CleanupError,
@@ -1085,6 +1086,7 @@ async def admin_cleanup_page(
     error: str = Query("", max_length=300),
     purged: int = Query(None),
     reclaimed: int = Query(None),
+    audit: bool = Query(False),
 ):
     """Storage overview, plus an optional dry-run preview of a scoped cleanup.
 
@@ -1096,6 +1098,9 @@ async def admin_cleanup_page(
 
     totals = await run_in_threadpool(storage_totals)
     orphans = await run_in_threadpool(find_orphan_plot_dirs)
+
+    # Opt-in: reads every stored payload for the year(s), which is not free.
+    mapping = await run_in_threadpool(audit_mapping, year) if audit else None
 
     plan = None
     selected_layers = tuple(layers) if layers else ALL_LAYERS
@@ -1119,6 +1124,7 @@ async def admin_cleanup_page(
             "version": settings.app_version,
             "totals": totals,
             "orphans": orphans,
+            "audit": mapping,
             "plan": plan,
             "error": error or None,
             "purged": purged,

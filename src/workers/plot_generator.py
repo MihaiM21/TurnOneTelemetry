@@ -383,7 +383,7 @@ class PlotDataGenerator:
             Dictionary with counts of successful and failed generations
         """
         # V2 identifier: prefer name-based lookup to avoid pre-season testing offset
-        v2_identifier = gp_name if gp_name else round_num
+        v2_identifier = round_num if round_num else gp_name
         logger.info("Generating ALL data (V1 + V2) for Y%s R%s - %s", year, round_num, session_name)
 
         success_count = 0

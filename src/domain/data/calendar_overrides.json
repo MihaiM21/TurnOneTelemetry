@@ -1,0 +1,62 @@
+{
+  "_comment": "Hand-maintained calendar facts that no upstream feed states. Read by src/ingestion/calendar.py. name_map: curated/alternate GP name -> the name livetiming uses. aliases: extra names that resolve to a GP (keyed by canonical name, all years). gp_codes: explicit gp_id code where the legacy substring rule would collide. years.<Y>.cancelled: events that were scheduled and never held (they keep status=cancelled, round=null). years.<Y>.events.<meeting key>: per-meeting aliases / replacement notes.",
+  "name_map": {
+    "USA Grand Prix": "United States Grand Prix",
+    "Gran Premio de Barcelona-Catalunya": "Barcelona Grand Prix"
+  },
+  "aliases": {
+    "United States Grand Prix": ["USA", "United States", "US", "United States of America", "Austin", "COTA", "Circuit of the Americas"],
+    "Barcelona Grand Prix": ["Barcelona", "Catalunya", "Montmelo"],
+    "Mexico City Grand Prix": ["Mexico", "Mexico City", "Mexican Grand Prix"],
+    "Abu Dhabi Grand Prix": ["UAE", "Yas Marina", "Yas Island"],
+    "Saudi Arabian Grand Prix": ["Saudi Arabia", "Jeddah"]
+  },
+  "gp_codes": {
+    "Barcelona Grand Prix": "BCN"
+  },
+  "years": {
+    "2020": {
+      "cancelled": [
+        {"grandPrix": "Australian Grand Prix", "country": "Australia", "location": "Melbourne", "original_round": 1, "reason": "Cancelled during the COVID-19 pandemic."},
+        {"grandPrix": "Vietnamese Grand Prix", "country": "Vietnam", "location": "Hanoi", "original_round": 3, "reason": "Postponed and never held."},
+        {"grandPrix": "Chinese Grand Prix", "country": "China", "location": "Shanghai", "original_round": 4, "reason": "Postponed and never held."},
+        {"grandPrix": "Dutch Grand Prix", "country": "Netherlands", "location": "Zandvoort", "original_round": 5, "reason": "Postponed to 2021."},
+        {"grandPrix": "Monaco Grand Prix", "country": "Monaco", "location": "Monte Carlo", "original_round": 7, "reason": "Cancelled during the COVID-19 pandemic."},
+        {"grandPrix": "Azerbaijan Grand Prix", "country": "Azerbaijan", "location": "Baku", "original_round": 8, "reason": "Cancelled during the COVID-19 pandemic."},
+        {"grandPrix": "Canadian Grand Prix", "country": "Canada", "location": "Montreal", "original_round": 9, "reason": "Cancelled during the COVID-19 pandemic."},
+        {"grandPrix": "French Grand Prix", "country": "France", "location": "Le Castellet", "original_round": 10, "reason": "Cancelled during the COVID-19 pandemic."},
+        {"grandPrix": "Singapore Grand Prix", "country": "Singapore", "location": "Marina Bay", "original_round": 16, "reason": "Cancelled during the COVID-19 pandemic."},
+        {"grandPrix": "Japanese Grand Prix", "country": "Japan", "location": "Suzuka", "original_round": 18, "reason": "Cancelled during the COVID-19 pandemic."},
+        {"grandPrix": "United States Grand Prix", "country": "United States", "location": "Austin", "original_round": 19, "reason": "Cancelled during the COVID-19 pandemic."},
+        {"grandPrix": "Mexican Grand Prix", "country": "Mexico", "location": "Mexico City", "original_round": 20, "reason": "Cancelled during the COVID-19 pandemic."},
+        {"grandPrix": "Brazilian Grand Prix", "country": "Brazil", "location": "Sao Paulo", "original_round": 21, "reason": "Cancelled during the COVID-19 pandemic."}
+      ]
+    },
+    "2022": {
+      "cancelled": [
+        {"grandPrix": "Russian Grand Prix", "country": "Russia", "location": "Sochi", "original_round": 17, "reason": "Cancelled after Russia's invasion of Ukraine."}
+      ]
+    },
+    "2023": {
+      "cancelled": [
+        {"grandPrix": "Emilia Romagna Grand Prix", "country": "Italy", "location": "Imola", "reason": "Cancelled because of flooding in the region."},
+        {"grandPrix": "Chinese Grand Prix", "country": "China", "location": "Shanghai", "reason": "Cancelled; China's COVID-19 restrictions left too little lead time."}
+      ]
+    },
+    "2026": {
+      "cancelled": [
+        {"grandPrix": "Bahrain Grand Prix", "circuit": "Bahrain International Circuit", "country": "Bahrain", "location": "Sakhir", "original_round": 4, "replaced_by_key": 1308, "reason": "Not held at Sakhir; the Bahrain Grand Prix was run in Malaysia instead.", "aliases": ["Sakhir"]},
+        {"grandPrix": "Saudi Arabian Grand Prix", "circuit": "Jeddah Corniche Circuit", "country": "Saudi Arabia", "location": "Jeddah", "original_round": 5, "reason": "Removed from the 2026 calendar.", "aliases": ["Jeddah"]}
+      ],
+      "events": {
+        "1308": {
+          "circuit": "Sepang",
+          "aliases": ["Malaysia", "Malaysian Grand Prix", "Sepang", "Kuala Lumpur", "Bahrain Grand Prix in Malaysia"],
+          "replaces": "Bahrain Grand Prix",
+          "note": "The Bahrain Grand Prix, held at Sepang (Kuala Lumpur, Malaysia)."
+        },
+        "1294": {"aliases": ["Madrid", "Madring"]}
+      }
+    }
+  }
+}

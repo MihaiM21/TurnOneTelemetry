@@ -28,14 +28,42 @@ class SeasonEventItem(BaseModel):
     official_name: Optional[str] = None
     location: Optional[str] = None
     country: Optional[str] = None
-    key: Optional[int] = Field(default=None, description="Meeting key; use as `event_name` to list its sessions")
+    key: Optional[int] = Field(
+        default=None,
+        description="Livetiming meeting key; use as `event_name` to list its sessions. "
+                    "`null` until livetiming lists the meeting (a future round) or for seasons it does not serve.",
+    )
     code: Optional[str] = None
+    round: Optional[int] = Field(
+        default=None,
+        description="Official championship round (the same number FastF1 / V1 use). "
+                    "`null` for pre-season testing and for cancelled events.",
+    )
+    kind: Optional[str] = Field(default=None, description="`race` or `testing`")
+    status: Optional[str] = Field(
+        default=None, description="`scheduled`, `completed` or `cancelled` (cancelled events keep no round)"
+    )
+    circuit: Optional[str] = None
+    circuit_key: Optional[int] = None
+    has_sprint: Optional[bool] = None
+    original_round: Optional[int] = Field(
+        default=None, description="Slot in the originally planned calendar, when known (cancelled / replaced events)"
+    )
+    aliases: Optional[List[str]] = Field(default=None, description="Other names that resolve to this event")
+    sessions: Optional[List[Dict[str, Any]]] = Field(
+        default=None, description="`{name, start, end}` per session (UTC); empty until the schedule is known"
+    )
+    replaces: Optional[str] = Field(default=None, description="Cancelled event this one replaced")
+    replaced_by: Optional[str] = Field(default=None, description="Event that replaced this cancelled one")
+    replaced_by_key: Optional[int] = None
+    reason: Optional[str] = None
+    note: Optional[str] = None
 
     model_config = {"extra": "allow"}
 
 
 class SeasonEventsResponse(BaseModel):
-    """All meetings for a season, fetched live from formula1.com (not cached)."""
+    """The season calendar: pre-season testing, every race by official round, and cancelled events."""
 
     year: int
     events: List[SeasonEventItem]

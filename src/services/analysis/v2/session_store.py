@@ -36,7 +36,7 @@ from src.core.exceptions import (
     UpstreamUnavailableError,
 )
 from src.core.logging import get_logger
-from src.ingestion.static_client import F1StaticClient
+from src.ingestion.static_client import F1StaticClient, source_token
 from src.repositories.raw_stream_cache import get_raw_stream, store_raw_stream
 from src.repositories.session_cache import get_session_bundle, store_session_bundle
 from src.services.analysis.v2._helpers import extract_stints_from_data, parse_f1_time
@@ -112,23 +112,25 @@ class SessionDataStore:
         self.official_name: str = event_info.get("official_name", "")
         self.event_key: Optional[int] = event_info.get("key")
 
-        # Resolve the livetiming base URL by name. The curated round number can
-        # drift from livetiming's positional meeting index (e.g. pre-season
-        # testing shifts every round by one), so name matching is the reliable
-        # path; get_event_session_url falls back to it internally.
-        base_url = self.client.get_event_session_url(
-            year, self.event_name, session_name, round_nr=self.round_nr
-        )
-        if not base_url:
-            base_url = self.client.get_event_session_url(
-                year, self.event_name, session_name
+        # The livetiming meeting is selected by its Key (never by array position or
+        # name substring). An event livetiming has not listed yet has no key.
+        if self.event_key is None:
+            raise SessionNotFoundError(
+                year=year, gp=identifier, session=session_name,
+                reason=f"{self.event_name} is not available from livetiming yet",
             )
+        base_url = self.client.get_event_session_url(
+            year, self.event_name, session_name, round_nr=self.round_nr, event_key=self.event_key
+        )
         if not base_url:
             raise SessionNotFoundError(
                 year=year, gp=identifier, session=session_name,
                 reason=f"No livetiming session for {self.event_name} {session_name}",
             )
         self.base_url: str = base_url
+        # Identity of the exact livetiming session; every durable cache entry is
+        # tagged with it and only served back to the same session.
+        self.source: Optional[str] = source_token(base_url)
 
         # Per-instance parsed-stream cache.
         self._cache: Dict[str, Any] = {}
@@ -249,7 +251,7 @@ class SessionDataStore:
         cache = None
         if not big:
             redis_key = make_stream_key(
-                self.year, self.round_nr, self.session_name, stream_name
+                self.year, self.round_nr, self.session_name, stream_name, source=self.source
             )
             try:
                 cache = get_sync_cache()
@@ -264,7 +266,7 @@ class SessionDataStore:
 
         # Tier 3: durable GridFS.
         durable = get_raw_stream(
-            self.year, self.round_nr, self.session_name, stream_name
+            self.year, self.round_nr, self.session_name, stream_name, source=self.source
         )
         if durable is not None:
             self._cache[stream_name] = durable
@@ -280,7 +282,7 @@ class SessionDataStore:
         # session_info() lookup resolves without re-entering this loader.
         if self.is_session_complete():
             store_raw_stream(
-                self.year, self.round_nr, self.session_name, stream_name, data
+                self.year, self.round_nr, self.session_name, stream_name, data, source=self.source
             )
         return data
 
@@ -454,7 +456,9 @@ class SessionDataStore:
 
         if not self._bundle_checked:
             self._bundle_checked = True
-            loaded = get_session_bundle(self.year, self.round_nr, self.session_name)
+            loaded = get_session_bundle(
+                self.year, self.round_nr, self.session_name, source=self.source
+            )
             if loaded is not None:
                 self._derived_bundle = loaded
             elif self.is_session_complete():
@@ -502,6 +506,7 @@ class SessionDataStore:
             store_session_bundle(
                 self.year, self.round_nr, self.session_name, bundle,
                 meta={"event_name": self.event_name},
+                source=self.source,
             )
 
     def _compute_stints(self) -> Dict[str, List[Dict[str, Any]]]:

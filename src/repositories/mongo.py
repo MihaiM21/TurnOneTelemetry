@@ -253,7 +253,8 @@ class MongoDBManager:
         return new_doc
 
     def add_session_data(self, gp_id: str, session_type: str, data_type: str,
-                        data: List[Dict], date: str = None, time: str = None, year: Optional[int] = None) -> bool:
+                        data: List[Dict], date: str = None, time: str = None, year: Optional[int] = None,
+                        source: Optional[str] = None) -> bool:
         """
         Add or update data for a specific session and data type
 
@@ -265,6 +266,7 @@ class MongoDBManager:
             date: Session date (YYYY-MM-DD)
             time: Session time (HH:MM:SSZ)
             year: Optional year to specify collection. If None, extracts from gp_id
+            source: Livetiming session path the data was computed from (provenance)
 
         Returns:
             True if successful, False otherwise
@@ -301,6 +303,8 @@ class MongoDBManager:
                 "data_type": data_type,
                 "data": data
             }
+            if source:
+                data_entry["source"] = source
 
             if session_index is not None:
                 # Session exists, check if data_type exists
@@ -387,7 +391,8 @@ class MongoDBManager:
             logger.error("Error storing plot data: %s", e)
             return False
 
-    def get_session_data(self, gp_id: str, session_type: str, data_type: Optional[str] = None, year: Optional[int] = None) -> Optional[Dict]:
+    def get_session_data(self, gp_id: str, session_type: str, data_type: Optional[str] = None, year: Optional[int] = None,
+                         expect_source: Optional[str] = None) -> Optional[Dict]:
         """
         Retrieve data for a specific session
 
@@ -396,6 +401,10 @@ class MongoDBManager:
             session_type: Session type (FP1, FP2, Q, etc.)
             data_type: Optional specific data type to retrieve
             year: Optional year to specify collection. If None, extracts from gp_id
+            expect_source: Livetiming session path the caller is asking about. An entry
+                recorded for a *different* session is treated as a miss; entries written
+                before provenance existed carry no source and are served (the mapping
+                audit is what finds poisoned legacy rows).
 
         Returns:
             Session data or None if not found
@@ -425,6 +434,12 @@ class MongoDBManager:
             if data_type:
                 for data_entry in session.get('data', []):
                     if data_entry.get('data_type') == data_type:
+                        stored_source = data_entry.get('source')
+                        if expect_source and stored_source and stored_source != expect_source:
+                            logger.warning(
+                                "Ignoring %s for %s %s: stored for %s, requested %s",
+                                data_type, gp_id, session_type, stored_source, expect_source)
+                            return None
                         return data_entry.get('data')
                 return None
             return session

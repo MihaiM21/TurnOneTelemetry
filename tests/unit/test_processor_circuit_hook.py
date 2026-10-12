@@ -73,7 +73,7 @@ def test_hook_failure_does_not_fail_processing(proc, monkeypatch):
     assert "2026_16_R" in proc.processed_sessions
 
 
-def test_ensure_circuit_layout_delegates_by_gp_name(proc, monkeypatch):
+def test_ensure_circuit_layout_delegates_by_official_round(proc, monkeypatch):
     seen = {}
 
     def _fake(year, gp, session):
@@ -85,18 +85,21 @@ def test_ensure_circuit_layout_delegates_by_gp_name(proc, monkeypatch):
 
     proc.ensure_circuit_layout(2026, 16, "R", gp_name="Spanish Grand Prix")
 
-    assert seen == {"year": 2026, "gp": "Spanish Grand Prix", "session": "R"}
+    # V1 and V2 share the official round, so the round (not the name) is the identifier.
+    assert seen == {"year": 2026, "gp": 16, "session": "R"}
 
 
 def test_upcoming_sessions_carry_event_name(proc, monkeypatch):
-    """The schedule row index is off by one for V2 when testing is listed, so
-    the event name must travel with the tuple into ``process_session``."""
+    """The processor addresses a race by FastF1's official ``RoundNumber`` (testing, round 0,
+    is skipped) and the event name still travels with the tuple into ``process_session``."""
     import pandas as pd
 
     now = pd.Timestamp.now(tz="UTC")
     schedule = pd.DataFrame([
-        {"EventName": "Pre-Season Testing", "Session5Date": now - pd.Timedelta(days=30)},
-        {"EventName": "Spanish Grand Prix", "Session5Date": now - pd.Timedelta(hours=2)},
+        {"RoundNumber": 0, "EventName": "Pre-Season Testing", "Session5": "Race",
+         "Session5Date": now - pd.Timedelta(hours=1)},
+        {"RoundNumber": 2, "EventName": "Spanish Grand Prix", "Session5": "Race",
+         "Session5Date": now - pd.Timedelta(hours=2)},
     ])
     monkeypatch.setattr(mod.fastf1, "get_event_schedule", lambda year: schedule)
 

@@ -1,4 +1,5 @@
 import json
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -18,6 +19,9 @@ team_colors = {
     "Racing Bulls": "#6692FF",
     "Red Bull Racing": "#3671C6",
     "Williams": "#64C4FF",
+    # 2026 entrants. Deliberately absent from ``teams`` (the legacy FastF1 team list).
+    "Audi": "#FF5226",
+    "Cadillac": "#42423E",
 }
 
 # Path to the year-keyed team/driver reference data, resolved relative to the repo root
@@ -48,13 +52,94 @@ def _latest_teams_year():
     return max(int(year) for year in teams_data.keys())
 
 
+def _is_blank_color(color):
+    """True for a missing, empty or placeholder-white colour."""
+    if not isinstance(color, str):
+        return True
+    return color.strip().upper() in ("", "#", "#FFFFFF", "#FFF", "FFFFFF", "FFF")
+
+
 def _resolve_team_color(entry):
     """Return the usable colour for a teams.json team entry, guarding against a
-    missing or placeholder-white colour on file."""
+    missing (None/empty) or placeholder-white colour on file."""
     color = entry.get("color")
-    if not color or color.strip().upper() == "#FFFFFF":
-        return _TEAM_COLOR_FALLBACKS.get(entry.get("name"), "#FFFFFF")
+    if _is_blank_color(color):
+        name = entry.get("name")
+        return _TEAM_COLOR_FALLBACKS.get(name) or team_colors.get(name) or "#FFFFFF"
     return color
+
+
+# ---------------------------------------------------------------------------
+# Team-name canonicalisation. Livetiming / FastF1 / OpenF1 spell teams in many
+# ways ("Haas F1 Team", "Stake F1 Team Kick Sauber", "Visa Cash App Racing Bulls
+# F1 Team"); teams.json only knows the short forms.
+# ---------------------------------------------------------------------------
+# Exact (normalised) short names and abbreviations.
+_TEAM_EXACT_ALIASES = {
+    "alp": "Alpine", "am": "Aston Martin", "amr": "Aston Martin", "fer": "Ferrari",
+    "has": "Haas", "haa": "Haas", "mer": "Mercedes", "merc": "Mercedes", "mcl": "McLaren",
+    "rb": "Racing Bulls", "vcarb": "Racing Bulls", "rbr": "Red Bull Racing", "redbull": "Red Bull Racing",
+    "wil": "Williams", "sau": "Kick Sauber", "kick": "Kick Sauber", "aud": "Audi", "cad": "Cadillac",
+}
+
+# Ordered substring rules over the normalised name. Racing Bulls must precede
+# Red Bull, and its older identities (AlphaTauri, Toro Rosso) ride along.
+_TEAM_SUBSTRING_RULES = (
+    ("racing bulls", "Racing Bulls"),
+    ("racingbulls", "Racing Bulls"),
+    ("visa cash app", "Racing Bulls"),
+    ("alphatauri", "Racing Bulls"),
+    ("toro rosso", "Racing Bulls"),
+    ("red bull", "Red Bull Racing"),
+    ("redbull", "Red Bull Racing"),
+    ("cadillac", "Cadillac"),
+    ("audi", "Audi"),
+    ("haas", "Haas"),
+    ("ferrari", "Ferrari"),
+    ("mclaren", "McLaren"),
+    ("mercedes", "Mercedes"),
+    ("aston martin", "Aston Martin"),
+    ("alpine", "Alpine"),
+    ("williams", "Williams"),
+)
+
+_SAUBER_MARKERS = ("sauber", "kick", "alfa romeo")
+_AUDI_FIRST_YEAR = 2026
+
+
+def canonical_team(name, year=None):
+    """Map an official/alternate team name to the name used in teams.json.
+
+    ``"Haas F1 Team"`` -> ``"Haas"``, ``"Oracle Red Bull Racing"`` -> ``"Red Bull
+    Racing"``, ``"Visa Cash App RB"`` -> ``"Racing Bulls"``. The Sauber entry
+    became Audi in 2026, so ``"Kick Sauber"`` is ``"Audi"`` for ``year >= 2026``
+    and stays ``"Kick Sauber"`` before that (and when ``year`` is ``None``).
+    An unrecognised name is returned stripped but otherwise unchanged.
+    """
+    if not isinstance(name, str):
+        return ""
+    stripped = name.strip()
+    norm = re.sub(r"[\s_\-]+", " ", stripped.lower()).strip()
+    if not norm:
+        return ""
+
+    if norm in _TEAM_EXACT_ALIASES:
+        canonical = _TEAM_EXACT_ALIASES[norm]
+    elif any(marker in norm for marker in _SAUBER_MARKERS):
+        canonical = "Kick Sauber"
+    else:
+        canonical = next((value for needle, value in _TEAM_SUBSTRING_RULES if needle in norm), None)
+        if canonical is None:
+            # "RB" as a whole word covers "Visa Cash App RB Formula One Team".
+            canonical = "Racing Bulls" if re.search(r"\brb\b", norm) else stripped
+
+    if canonical == "Kick Sauber":
+        try:
+            if year is not None and int(year) >= _AUDI_FIRST_YEAR:
+                return "Audi"
+        except (TypeError, ValueError):
+            pass
+    return canonical
 
 
 def _lighten(hex_color, amount=0.2):
@@ -76,11 +161,12 @@ def _team_color_for_year(team, year):
     if not entries:
         return None
 
-    team_norm = team.strip().lower()
+    if not isinstance(team, str) or not team.strip():
+        return None
+    wanted = {team.strip().lower(), canonical_team(team, year).lower()}
     for entry in entries:
         candidates = [entry.get("name"), entry.get("alt_name"), entry.get("short_name")]
-        candidates = [c.lower() for c in candidates if c]
-        if team_norm in candidates:
+        if wanted & {c.lower() for c in candidates if c}:
             return _resolve_team_color(entry)
     return None
 
@@ -101,18 +187,30 @@ def _legacy_team_color(team):
         "Williams": ["williams", "wil"]
     }
 
+    if not isinstance(team, str) or not team.strip():
+        return None
     team_norm = team.lower().strip()
 
     for official_name, aliases in team_aliases.items():
         if team_norm in aliases:
             return team_colors[official_name]
 
-    return None
+    # Official spellings ("Haas F1 Team") and the 2026 entrants.
+    return team_colors.get(canonical_team(team))
 
 
 def get_team_color(team, year=None):
+    """Livery colour for ``team`` (any official/alternate spelling).
+
+    A team on the grid in ``year`` (or, without a year, in any season on file)
+    never resolves to white; only a name nobody recognises does.
+    """
     if year is not None:
         color = _team_color_for_year(team, year)
+        if color is None:
+            # Season not on file, or the team is not in it (Audi in 2025): a team the
+            # palette knows keeps its livery rather than rendering white.
+            color = team_colors.get(canonical_team(team, year))
         return legible_on_dark(color) if color is not None else "#FFFFFF"
 
     color = _legacy_team_color(team)
@@ -225,9 +323,13 @@ def _driver_color_for_year(driver, year):
     return None
 
 
-def get_driver_color(driver, year=None):
+def get_driver_color(driver, year=None, team=None):
+    """Colour for ``driver``; ``team`` (any spelling) is the fallback for a driver
+    teams.json does not list, so a known team never yields white."""
     if year is not None:
         color = _driver_color_for_year(driver, year)
+        if color is None and team:
+            return get_team_color(team, year)
         return legible_on_dark(color) if color is not None else "#FFFFFF"
 
     color = _legacy_driver_color(driver)
@@ -239,6 +341,9 @@ def get_driver_color(driver, year=None):
         color = _driver_color_for_year(driver, latest_year)
         if color is not None:
             return color
+
+    if team:
+        return get_team_color(team)
 
     # If the driver is not found the color will be white
     return "#FFFFFF"
@@ -353,7 +458,7 @@ def color_distance(a, b):
 
 def _team_key(team):
     """Canonical lower-case team name via teams.json (any year) or the legacy aliases."""
-    norm = (team or "").strip().lower()
+    norm = canonical_team(team).lower()
     if not norm:
         return ""
     for entries in _load_teams_data().values():

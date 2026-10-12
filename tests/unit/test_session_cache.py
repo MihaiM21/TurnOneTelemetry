@@ -19,7 +19,10 @@ class _FakeCollection:
         self.docs: dict = {}
 
     def find_one(self, flt, projection=None):
-        return self.docs.get(flt["_id"])
+        doc = self.docs.get(flt["_id"])
+        if doc is not None and "source" in flt and doc.get("source") != flt["source"]:
+            return None
+        return doc
 
     def replace_one(self, flt, document, upsert=False):
         self.docs[flt["_id"]] = document
@@ -73,3 +76,23 @@ def test_write_failure_is_swallowed(monkeypatch):
     monkeypatch.setattr(sc, "_collection", lambda: _BoomCollection())
     # Must fail open — a cache write can never break the caller.
     assert sc.store_session_bundle(2024, 1, "Race", {"lap_times": {}}) is False
+
+
+# ---- provenance ---------------------------------------------------------------------------
+
+JAPAN_Q = "2026/2026-03-29_Japanese_Grand_Prix/2026-03-28_Qualifying"
+AUSTRALIA_Q = "2026/2026-03-08_Australian_Grand_Prix/2026-03-07_Qualifying"
+
+
+def test_bundle_is_only_served_to_the_session_it_was_built_from(fake_collection):
+    bundle = {"lap_times": {"1": [{"lap": 1}]}}
+    assert sc.store_session_bundle(2026, 3, "Q", bundle, source=AUSTRALIA_Q) is True
+    assert sc.get_session_bundle(2026, 3, "Q", source=JAPAN_Q) is None
+    assert sc.get_session_bundle(2026, 3, "Q", source=AUSTRALIA_Q) == bundle
+
+
+def test_legacy_bundle_without_source_is_a_miss_and_gets_replaced(fake_collection):
+    sc.store_session_bundle(2026, 3, "Q", {"lap_times": {"old": []}})  # pre-provenance write
+    assert sc.get_session_bundle(2026, 3, "Q", source=JAPAN_Q) is None
+    sc.store_session_bundle(2026, 3, "Q", {"lap_times": {"new": []}}, source=JAPAN_Q)
+    assert sc.get_session_bundle(2026, 3, "Q", source=JAPAN_Q) == {"lap_times": {"new": []}}

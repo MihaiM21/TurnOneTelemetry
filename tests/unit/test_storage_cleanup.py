@@ -369,3 +369,13 @@ def test_all_layers_are_covered_by_the_default_scope():
     otherwise it silently accumulates forever -- which is how the plots layer
     got into this state in the first place."""
     assert set(CleanupScope().layers) == set(ALL_LAYERS)
+
+
+def test_numeric_gp_scope_matches_the_round_exactly_not_as_a_substring():
+    """Purging 'round 3' must not also pick up round 13 or a gp_id such as 2025_13_R."""
+    scope = CleanupScope(gp="3")
+    assert scope.matches_gp(3)
+    assert scope.matches_gp("3")
+    assert not scope.matches_gp(13)
+    assert not scope.matches_gp("2025_13_R")
+    assert not scope.matches_gp(30, "Monaco Grand Prix")

@@ -158,7 +158,11 @@ class CleanupScope:
             folded = _fold(candidate)
             if not folded:
                 continue
-            if folded == target or target in folded:
+            if folded == target:
+                return True
+            # A round number must match exactly: as a substring "3" also hit round 13
+            # and a gp_id such as "2025_13_R", so purging "round 3" deleted round 13.
+            if not target.isdigit() and target in folded:
                 return True
         return False
 

@@ -47,18 +47,27 @@ def _filename(year: int, round_nr: Any, session: str, stream_name: str) -> str:
 
 
 def get_raw_stream(
-    year: int, round_nr: Any, session: str, stream_name: str
+    year: int, round_nr: Any, session: str, stream_name: str, source: Optional[str] = None
 ) -> Optional[Any]:
     """Return the stored parsed stream, or ``None`` on miss.
+
+    ``source`` is the livetiming session path the caller is about to fetch
+    (``static_client.source_token``). A blob is only served when it was written for
+    that exact session; a blob with no recorded source (written before provenance
+    existed) or a different one is a miss and gets overwritten by the next write.
+    The ``(year, round, session)`` filename alone cannot be trusted: round numbers
+    have been renumbered and an earlier resolver served one event's data under
+    another's key.
 
     Never raises: any GridFS error (or a stale/corrupt blob) is logged and
     treated as a miss so the caller re-fetches from livetiming.
     """
     name = _filename(year, round_nr, session, stream_name)
     try:
-        grid_out = _bucket().find_one(
-            {"filename": name, "metadata.schema_version": SCHEMA_VERSION}
-        )
+        query = {"filename": name, "metadata.schema_version": SCHEMA_VERSION}
+        if source is not None:
+            query["metadata.source"] = source
+        grid_out = _bucket().find_one(query)
         if grid_out is None:
             return None
         return json.loads(gzip.decompress(grid_out.read()).decode("utf-8"))
@@ -68,7 +77,7 @@ def get_raw_stream(
 
 
 def store_raw_stream(
-    year: int, round_nr: Any, session: str, stream_name: str, data: Any
+    year: int, round_nr: Any, session: str, stream_name: str, data: Any, source: Optional[str] = None
 ) -> bool:
     """Upsert a parsed stream (gzipped JSON). Returns ``True`` on success.
 
@@ -92,6 +101,7 @@ def store_raw_stream(
                 "round_nr": round_nr,
                 "session": session,
                 "stream": stream_name,
+                "source": source,
                 "schema_version": SCHEMA_VERSION,
                 "created_at": datetime.utcnow(),
             },

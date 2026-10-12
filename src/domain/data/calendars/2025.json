@@ -1,0 +1,1655 @@
+{
+ "year": 2025,
+ "events": [
+  {
+   "grandPrix": "Pre-Season Testing",
+   "officialName": "FORMULA 1 ARAMCO PRE-SEASON TESTING 2025",
+   "circuit": "Sakhir",
+   "circuitKey": 63,
+   "location": "Sakhir",
+   "country": "Bahrain",
+   "code": "F12025T01",
+   "key": 1253,
+   "livetimingNumber": 1,
+   "kind": "testing",
+   "sessions": [
+    {
+     "name": "Day 1",
+     "type": "Practice",
+     "startTime": "2025-02-26T07:00:00+00:00",
+     "endTime": "2025-02-26T16:00:00+00:00",
+     "startDate": "2025-02-26T10:00:00",
+     "endDate": "2025-02-26T19:00:00",
+     "path": "2025/2025-02-28_Pre-Season_Testing/2025-02-26_Day_1/"
+    },
+    {
+     "name": "Day 2",
+     "type": "Practice",
+     "startTime": "2025-02-27T07:00:00+00:00",
+     "endTime": "2025-02-27T16:00:00+00:00",
+     "startDate": "2025-02-27T10:00:00",
+     "endDate": "2025-02-27T19:00:00",
+     "path": "2025/2025-02-28_Pre-Season_Testing/2025-02-27_Day_2/"
+    },
+    {
+     "name": "Day 3",
+     "type": "Practice",
+     "startTime": "2025-02-28T07:00:00+00:00",
+     "endTime": "2025-02-28T16:00:00+00:00",
+     "startDate": "2025-02-28T10:00:00",
+     "endDate": "2025-02-28T19:00:00",
+     "path": "2025/2025-02-28_Pre-Season_Testing/2025-02-28_Day_3/"
+    }
+   ],
+   "source": "livetiming",
+   "round": null,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": null
+  },
+  {
+   "grandPrix": "Australian Grand Prix",
+   "officialName": "FORMULA 1 LOUIS VUITTON AUSTRALIAN GRAND PRIX 2025",
+   "circuit": "Melbourne",
+   "circuitKey": 10,
+   "location": "Melbourne",
+   "country": "Australia",
+   "code": "F1202501",
+   "key": 1254,
+   "livetimingNumber": 1,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2025-03-14T01:30:00+00:00",
+     "endTime": "2025-03-14T02:30:00+00:00",
+     "startDate": "2025-03-14T12:30:00",
+     "endDate": "2025-03-14T13:30:00",
+     "path": "2025/2025-03-16_Australian_Grand_Prix/2025-03-14_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2025-03-14T05:00:00+00:00",
+     "endTime": "2025-03-14T06:00:00+00:00",
+     "startDate": "2025-03-14T16:00:00",
+     "endDate": "2025-03-14T17:00:00",
+     "path": "2025/2025-03-16_Australian_Grand_Prix/2025-03-14_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2025-03-15T01:30:00+00:00",
+     "endTime": "2025-03-15T02:30:00+00:00",
+     "startDate": "2025-03-15T12:30:00",
+     "endDate": "2025-03-15T13:30:00",
+     "path": "2025/2025-03-16_Australian_Grand_Prix/2025-03-15_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-03-15T05:00:00+00:00",
+     "endTime": "2025-03-15T06:00:00+00:00",
+     "startDate": "2025-03-15T16:00:00",
+     "endDate": "2025-03-15T17:00:00",
+     "path": "2025/2025-03-16_Australian_Grand_Prix/2025-03-15_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2025-03-16T04:00:00+00:00",
+     "endTime": "2025-03-16T06:00:00+00:00",
+     "startDate": "2025-03-16T15:00:00",
+     "endDate": "2025-03-16T17:00:00",
+     "path": "2025/2025-03-16_Australian_Grand_Prix/2025-03-16_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "hasSprint": false,
+   "originalRound": 1,
+   "curatedName": "Australian Grand Prix",
+   "round": 1,
+   "aliases": [],
+   "gp_id": "2025_AUS"
+  },
+  {
+   "grandPrix": "Chinese Grand Prix",
+   "officialName": "FORMULA 1 HEINEKEN CHINESE GRAND PRIX 2025",
+   "circuit": "Shanghai",
+   "circuitKey": 49,
+   "location": "Shanghai",
+   "country": "China",
+   "code": "F1202502",
+   "key": 1255,
+   "livetimingNumber": 2,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2025-03-21T03:30:00+00:00",
+     "endTime": "2025-03-21T04:30:00+00:00",
+     "startDate": "2025-03-21T11:30:00",
+     "endDate": "2025-03-21T12:30:00",
+     "path": "2025/2025-03-23_Chinese_Grand_Prix/2025-03-21_Practice_1/"
+    },
+    {
+     "name": "Sprint Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-03-21T07:30:00+00:00",
+     "endTime": "2025-03-21T08:14:00+00:00",
+     "startDate": "2025-03-21T15:30:00",
+     "endDate": "2025-03-21T16:14:00",
+     "path": "2025/2025-03-23_Chinese_Grand_Prix/2025-03-21_Sprint_Qualifying/"
+    },
+    {
+     "name": "Sprint",
+     "type": "Race",
+     "startTime": "2025-03-22T03:00:00+00:00",
+     "endTime": "2025-03-22T04:00:00+00:00",
+     "startDate": "2025-03-22T11:00:00",
+     "endDate": "2025-03-22T12:00:00",
+     "path": "2025/2025-03-23_Chinese_Grand_Prix/2025-03-22_Sprint/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-03-22T07:00:00+00:00",
+     "endTime": "2025-03-22T08:00:00+00:00",
+     "startDate": "2025-03-22T15:00:00",
+     "endDate": "2025-03-22T16:00:00",
+     "path": "2025/2025-03-23_Chinese_Grand_Prix/2025-03-22_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2025-03-23T07:00:00+00:00",
+     "endTime": "2025-03-23T09:00:00+00:00",
+     "startDate": "2025-03-23T15:00:00",
+     "endDate": "2025-03-23T17:00:00",
+     "path": "2025/2025-03-23_Chinese_Grand_Prix/2025-03-23_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "hasSprint": true,
+   "originalRound": 2,
+   "curatedName": "Chinese Grand Prix",
+   "round": 2,
+   "aliases": [],
+   "gp_id": "2025_CHN"
+  },
+  {
+   "grandPrix": "Japanese Grand Prix",
+   "officialName": "FORMULA 1 LENOVO JAPANESE GRAND PRIX 2025 ",
+   "circuit": "Suzuka",
+   "circuitKey": 46,
+   "location": "Suzuka",
+   "country": "Japan",
+   "code": "F1202503",
+   "key": 1256,
+   "livetimingNumber": 3,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2025-04-04T02:30:00+00:00",
+     "endTime": "2025-04-04T03:30:00+00:00",
+     "startDate": "2025-04-04T11:30:00",
+     "endDate": "2025-04-04T12:30:00",
+     "path": "2025/2025-04-06_Japanese_Grand_Prix/2025-04-04_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2025-04-04T06:00:00+00:00",
+     "endTime": "2025-04-04T07:00:00+00:00",
+     "startDate": "2025-04-04T15:00:00",
+     "endDate": "2025-04-04T16:00:00",
+     "path": "2025/2025-04-06_Japanese_Grand_Prix/2025-04-04_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2025-04-05T02:30:00+00:00",
+     "endTime": "2025-04-05T03:30:00+00:00",
+     "startDate": "2025-04-05T11:30:00",
+     "endDate": "2025-04-05T12:30:00",
+     "path": "2025/2025-04-06_Japanese_Grand_Prix/2025-04-05_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-04-05T06:00:00+00:00",
+     "endTime": "2025-04-05T07:00:00+00:00",
+     "startDate": "2025-04-05T15:00:00",
+     "endDate": "2025-04-05T16:00:00",
+     "path": "2025/2025-04-06_Japanese_Grand_Prix/2025-04-05_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2025-04-06T05:00:00+00:00",
+     "endTime": "2025-04-06T07:00:00+00:00",
+     "startDate": "2025-04-06T14:00:00",
+     "endDate": "2025-04-06T16:00:00",
+     "path": "2025/2025-04-06_Japanese_Grand_Prix/2025-04-06_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "hasSprint": false,
+   "originalRound": 3,
+   "curatedName": "Japanese Grand Prix",
+   "round": 3,
+   "aliases": [],
+   "gp_id": "2025_JPN"
+  },
+  {
+   "grandPrix": "Bahrain Grand Prix",
+   "officialName": "FORMULA 1 GULF AIR BAHRAIN GRAND PRIX 2025",
+   "circuit": "Sakhir",
+   "circuitKey": 63,
+   "location": "Sakhir",
+   "country": "Bahrain",
+   "code": "F1202504",
+   "key": 1257,
+   "livetimingNumber": 4,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2025-04-11T11:30:00+00:00",
+     "endTime": "2025-04-11T12:30:00+00:00",
+     "startDate": "2025-04-11T14:30:00",
+     "endDate": "2025-04-11T15:30:00",
+     "path": "2025/2025-04-13_Bahrain_Grand_Prix/2025-04-11_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2025-04-11T15:00:00+00:00",
+     "endTime": "2025-04-11T16:00:00+00:00",
+     "startDate": "2025-04-11T18:00:00",
+     "endDate": "2025-04-11T19:00:00",
+     "path": "2025/2025-04-13_Bahrain_Grand_Prix/2025-04-11_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2025-04-12T12:30:00+00:00",
+     "endTime": "2025-04-12T13:30:00+00:00",
+     "startDate": "2025-04-12T15:30:00",
+     "endDate": "2025-04-12T16:30:00",
+     "path": "2025/2025-04-13_Bahrain_Grand_Prix/2025-04-12_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-04-12T16:00:00+00:00",
+     "endTime": "2025-04-12T17:00:00+00:00",
+     "startDate": "2025-04-12T19:00:00",
+     "endDate": "2025-04-12T20:00:00",
+     "path": "2025/2025-04-13_Bahrain_Grand_Prix/2025-04-12_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2025-04-13T15:00:00+00:00",
+     "endTime": "2025-04-13T17:00:00+00:00",
+     "startDate": "2025-04-13T18:00:00",
+     "endDate": "2025-04-13T20:00:00",
+     "path": "2025/2025-04-13_Bahrain_Grand_Prix/2025-04-13_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "hasSprint": false,
+   "originalRound": 4,
+   "curatedName": "Bahrain Grand Prix",
+   "round": 4,
+   "aliases": [],
+   "gp_id": "2025_BHR"
+  },
+  {
+   "grandPrix": "Saudi Arabian Grand Prix",
+   "officialName": "FORMULA 1 STC SAUDI ARABIAN GRAND PRIX 2025",
+   "circuit": "Jeddah",
+   "circuitKey": 149,
+   "location": "Jeddah",
+   "country": "Saudi Arabia",
+   "code": "F1202505",
+   "key": 1258,
+   "livetimingNumber": 5,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2025-04-18T13:30:00+00:00",
+     "endTime": "2025-04-18T14:30:00+00:00",
+     "startDate": "2025-04-18T16:30:00",
+     "endDate": "2025-04-18T17:30:00",
+     "path": "2025/2025-04-20_Saudi_Arabian_Grand_Prix/2025-04-18_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2025-04-18T17:00:00+00:00",
+     "endTime": "2025-04-18T18:00:00+00:00",
+     "startDate": "2025-04-18T20:00:00",
+     "endDate": "2025-04-18T21:00:00",
+     "path": "2025/2025-04-20_Saudi_Arabian_Grand_Prix/2025-04-18_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2025-04-19T13:30:00+00:00",
+     "endTime": "2025-04-19T14:30:00+00:00",
+     "startDate": "2025-04-19T16:30:00",
+     "endDate": "2025-04-19T17:30:00",
+     "path": "2025/2025-04-20_Saudi_Arabian_Grand_Prix/2025-04-19_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-04-19T17:00:00+00:00",
+     "endTime": "2025-04-19T18:00:00+00:00",
+     "startDate": "2025-04-19T20:00:00",
+     "endDate": "2025-04-19T21:00:00",
+     "path": "2025/2025-04-20_Saudi_Arabian_Grand_Prix/2025-04-19_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2025-04-20T17:00:00+00:00",
+     "endTime": "2025-04-20T19:00:00+00:00",
+     "startDate": "2025-04-20T20:00:00",
+     "endDate": "2025-04-20T22:00:00",
+     "path": "2025/2025-04-20_Saudi_Arabian_Grand_Prix/2025-04-20_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "hasSprint": false,
+   "originalRound": 5,
+   "curatedName": "Saudi Arabian Grand Prix",
+   "round": 5,
+   "aliases": [
+    "Saudi Arabia",
+    "Jeddah"
+   ],
+   "gp_id": "2025_SAU"
+  },
+  {
+   "grandPrix": "Miami Grand Prix",
+   "officialName": "FORMULA 1 CRYPTO.COM MIAMI GRAND PRIX 2025",
+   "circuit": "Miami",
+   "circuitKey": 151,
+   "location": "Miami",
+   "country": "United States",
+   "code": "F1202506",
+   "key": 1259,
+   "livetimingNumber": 6,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2025-05-02T16:30:00+00:00",
+     "endTime": "2025-05-02T17:30:00+00:00",
+     "startDate": "2025-05-02T12:30:00",
+     "endDate": "2025-05-02T13:30:00",
+     "path": "2025/2025-05-04_Miami_Grand_Prix/2025-05-02_Practice_1/"
+    },
+    {
+     "name": "Sprint Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-05-02T20:30:00+00:00",
+     "endTime": "2025-05-02T21:14:00+00:00",
+     "startDate": "2025-05-02T16:30:00",
+     "endDate": "2025-05-02T17:14:00",
+     "path": "2025/2025-05-04_Miami_Grand_Prix/2025-05-02_Sprint_Qualifying/"
+    },
+    {
+     "name": "Sprint",
+     "type": "Race",
+     "startTime": "2025-05-03T16:00:00+00:00",
+     "endTime": "2025-05-03T17:00:00+00:00",
+     "startDate": "2025-05-03T12:00:00",
+     "endDate": "2025-05-03T13:00:00",
+     "path": "2025/2025-05-04_Miami_Grand_Prix/2025-05-03_Sprint/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-05-03T20:00:00+00:00",
+     "endTime": "2025-05-03T21:00:00+00:00",
+     "startDate": "2025-05-03T16:00:00",
+     "endDate": "2025-05-03T17:00:00",
+     "path": "2025/2025-05-04_Miami_Grand_Prix/2025-05-03_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2025-05-04T20:00:00+00:00",
+     "endTime": "2025-05-04T22:00:00+00:00",
+     "startDate": "2025-05-04T16:00:00",
+     "endDate": "2025-05-04T18:00:00",
+     "path": "2025/2025-05-04_Miami_Grand_Prix/2025-05-04_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "hasSprint": true,
+   "originalRound": 6,
+   "curatedName": "Miami Grand Prix",
+   "round": 6,
+   "aliases": [],
+   "gp_id": "2025_MIA"
+  },
+  {
+   "grandPrix": "Emilia Romagna Grand Prix",
+   "officialName": "FORMULA 1 AWS GRAN PREMIO DEL MADE IN ITALY E DELL'EMILIA-ROMAGNA 2025",
+   "circuit": "Imola",
+   "circuitKey": 6,
+   "location": "Imola",
+   "country": "Italy",
+   "code": "F1202507",
+   "key": 1260,
+   "livetimingNumber": 7,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2025-05-16T11:30:00+00:00",
+     "endTime": "2025-05-16T12:30:00+00:00",
+     "startDate": "2025-05-16T13:30:00",
+     "endDate": "2025-05-16T14:30:00",
+     "path": "2025/2025-05-18_Emilia_Romagna_Grand_Prix/2025-05-16_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2025-05-16T15:00:00+00:00",
+     "endTime": "2025-05-16T16:00:00+00:00",
+     "startDate": "2025-05-16T17:00:00",
+     "endDate": "2025-05-16T18:00:00",
+     "path": "2025/2025-05-18_Emilia_Romagna_Grand_Prix/2025-05-16_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2025-05-17T10:30:00+00:00",
+     "endTime": "2025-05-17T11:30:00+00:00",
+     "startDate": "2025-05-17T12:30:00",
+     "endDate": "2025-05-17T13:30:00",
+     "path": "2025/2025-05-18_Emilia_Romagna_Grand_Prix/2025-05-17_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-05-17T14:00:00+00:00",
+     "endTime": "2025-05-17T15:00:00+00:00",
+     "startDate": "2025-05-17T16:00:00",
+     "endDate": "2025-05-17T17:00:00",
+     "path": "2025/2025-05-18_Emilia_Romagna_Grand_Prix/2025-05-17_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2025-05-18T13:00:00+00:00",
+     "endTime": "2025-05-18T15:00:00+00:00",
+     "startDate": "2025-05-18T15:00:00",
+     "endDate": "2025-05-18T17:00:00",
+     "path": "2025/2025-05-18_Emilia_Romagna_Grand_Prix/2025-05-18_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "hasSprint": false,
+   "originalRound": 7,
+   "curatedName": "Emilia Romagna Grand Prix",
+   "round": 7,
+   "aliases": [],
+   "gp_id": "2025_EMI"
+  },
+  {
+   "grandPrix": "Monaco Grand Prix",
+   "officialName": "FORMULA 1 TAG HEUER GRAND PRIX DE MONACO 2025",
+   "circuit": "Monte Carlo",
+   "circuitKey": 22,
+   "location": "Monaco",
+   "country": "Monaco",
+   "code": "F1202508",
+   "key": 1261,
+   "livetimingNumber": 8,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2025-05-23T11:30:00+00:00",
+     "endTime": "2025-05-23T12:30:00+00:00",
+     "startDate": "2025-05-23T13:30:00",
+     "endDate": "2025-05-23T14:30:00",
+     "path": "2025/2025-05-25_Monaco_Grand_Prix/2025-05-23_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2025-05-23T15:00:00+00:00",
+     "endTime": "2025-05-23T16:00:00+00:00",
+     "startDate": "2025-05-23T17:00:00",
+     "endDate": "2025-05-23T18:00:00",
+     "path": "2025/2025-05-25_Monaco_Grand_Prix/2025-05-23_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2025-05-24T10:30:00+00:00",
+     "endTime": "2025-05-24T11:30:00+00:00",
+     "startDate": "2025-05-24T12:30:00",
+     "endDate": "2025-05-24T13:30:00",
+     "path": "2025/2025-05-25_Monaco_Grand_Prix/2025-05-24_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-05-24T14:00:00+00:00",
+     "endTime": "2025-05-24T15:00:00+00:00",
+     "startDate": "2025-05-24T16:00:00",
+     "endDate": "2025-05-24T17:00:00",
+     "path": "2025/2025-05-25_Monaco_Grand_Prix/2025-05-24_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2025-05-25T13:00:00+00:00",
+     "endTime": "2025-05-25T15:00:00+00:00",
+     "startDate": "2025-05-25T15:00:00",
+     "endDate": "2025-05-25T17:00:00",
+     "path": "2025/2025-05-25_Monaco_Grand_Prix/2025-05-25_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "hasSprint": false,
+   "originalRound": 8,
+   "curatedName": "Monaco Grand Prix",
+   "round": 8,
+   "aliases": [],
+   "gp_id": "2025_MON"
+  },
+  {
+   "grandPrix": "Spanish Grand Prix",
+   "officialName": "FORMULA 1 ARAMCO GRAN PREMIO DE ESPAÑA 2025",
+   "circuit": "Catalunya",
+   "circuitKey": 15,
+   "location": "Barcelona",
+   "country": "Spain",
+   "code": "F1202509",
+   "key": 1262,
+   "livetimingNumber": 9,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2025-05-30T11:30:00+00:00",
+     "endTime": "2025-05-30T12:30:00+00:00",
+     "startDate": "2025-05-30T13:30:00",
+     "endDate": "2025-05-30T14:30:00",
+     "path": "2025/2025-06-01_Spanish_Grand_Prix/2025-05-30_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2025-05-30T15:00:00+00:00",
+     "endTime": "2025-05-30T16:00:00+00:00",
+     "startDate": "2025-05-30T17:00:00",
+     "endDate": "2025-05-30T18:00:00",
+     "path": "2025/2025-06-01_Spanish_Grand_Prix/2025-05-30_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2025-05-31T10:30:00+00:00",
+     "endTime": "2025-05-31T11:30:00+00:00",
+     "startDate": "2025-05-31T12:30:00",
+     "endDate": "2025-05-31T13:30:00",
+     "path": "2025/2025-06-01_Spanish_Grand_Prix/2025-05-31_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-05-31T14:00:00+00:00",
+     "endTime": "2025-05-31T15:00:00+00:00",
+     "startDate": "2025-05-31T16:00:00",
+     "endDate": "2025-05-31T17:00:00",
+     "path": "2025/2025-06-01_Spanish_Grand_Prix/2025-05-31_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2025-06-01T13:00:00+00:00",
+     "endTime": "2025-06-01T15:00:00+00:00",
+     "startDate": "2025-06-01T15:00:00",
+     "endDate": "2025-06-01T17:00:00",
+     "path": "2025/2025-06-01_Spanish_Grand_Prix/2025-06-01_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "hasSprint": false,
+   "originalRound": 9,
+   "curatedName": "Spanish Grand Prix",
+   "round": 9,
+   "aliases": [],
+   "gp_id": "2025_ESP"
+  },
+  {
+   "grandPrix": "Canadian Grand Prix",
+   "officialName": "FORMULA 1 PIRELLI GRAND PRIX DU CANADA 2025",
+   "circuit": "Montreal",
+   "circuitKey": 23,
+   "location": "Montréal",
+   "country": "Canada",
+   "code": "F1202510",
+   "key": 1263,
+   "livetimingNumber": 10,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2025-06-13T17:30:00+00:00",
+     "endTime": "2025-06-13T18:30:00+00:00",
+     "startDate": "2025-06-13T13:30:00",
+     "endDate": "2025-06-13T14:30:00",
+     "path": "2025/2025-06-15_Canadian_Grand_Prix/2025-06-13_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2025-06-13T21:00:00+00:00",
+     "endTime": "2025-06-13T22:00:00+00:00",
+     "startDate": "2025-06-13T17:00:00",
+     "endDate": "2025-06-13T18:00:00",
+     "path": "2025/2025-06-15_Canadian_Grand_Prix/2025-06-13_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2025-06-14T16:30:00+00:00",
+     "endTime": "2025-06-14T17:30:00+00:00",
+     "startDate": "2025-06-14T12:30:00",
+     "endDate": "2025-06-14T13:30:00",
+     "path": "2025/2025-06-15_Canadian_Grand_Prix/2025-06-14_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-06-14T20:00:00+00:00",
+     "endTime": "2025-06-14T21:00:00+00:00",
+     "startDate": "2025-06-14T16:00:00",
+     "endDate": "2025-06-14T17:00:00",
+     "path": "2025/2025-06-15_Canadian_Grand_Prix/2025-06-14_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2025-06-15T18:00:00+00:00",
+     "endTime": "2025-06-15T20:00:00+00:00",
+     "startDate": "2025-06-15T14:00:00",
+     "endDate": "2025-06-15T16:00:00",
+     "path": "2025/2025-06-15_Canadian_Grand_Prix/2025-06-15_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "hasSprint": false,
+   "originalRound": 10,
+   "curatedName": "Canadian Grand Prix",
+   "round": 10,
+   "aliases": [],
+   "gp_id": "2025_CAN"
+  },
+  {
+   "grandPrix": "Austrian Grand Prix",
+   "officialName": "FORMULA 1 MSC CRUISES AUSTRIAN GRAND PRIX 2025",
+   "circuit": "Spielberg",
+   "circuitKey": 19,
+   "location": "Spielberg",
+   "country": "Austria",
+   "code": "F1202511",
+   "key": 1264,
+   "livetimingNumber": 11,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2025-06-27T11:30:00+00:00",
+     "endTime": "2025-06-27T12:30:00+00:00",
+     "startDate": "2025-06-27T13:30:00",
+     "endDate": "2025-06-27T14:30:00",
+     "path": "2025/2025-06-29_Austrian_Grand_Prix/2025-06-27_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2025-06-27T15:00:00+00:00",
+     "endTime": "2025-06-27T16:00:00+00:00",
+     "startDate": "2025-06-27T17:00:00",
+     "endDate": "2025-06-27T18:00:00",
+     "path": "2025/2025-06-29_Austrian_Grand_Prix/2025-06-27_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2025-06-28T10:30:00+00:00",
+     "endTime": "2025-06-28T11:30:00+00:00",
+     "startDate": "2025-06-28T12:30:00",
+     "endDate": "2025-06-28T13:30:00",
+     "path": "2025/2025-06-29_Austrian_Grand_Prix/2025-06-28_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-06-28T14:00:00+00:00",
+     "endTime": "2025-06-28T15:00:00+00:00",
+     "startDate": "2025-06-28T16:00:00",
+     "endDate": "2025-06-28T17:00:00",
+     "path": "2025/2025-06-29_Austrian_Grand_Prix/2025-06-28_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2025-06-29T13:00:00+00:00",
+     "endTime": "2025-06-29T15:00:00+00:00",
+     "startDate": "2025-06-29T15:00:00",
+     "endDate": "2025-06-29T17:00:00",
+     "path": "2025/2025-06-29_Austrian_Grand_Prix/2025-06-29_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "hasSprint": false,
+   "originalRound": 11,
+   "curatedName": "Austrian Grand Prix",
+   "round": 11,
+   "aliases": [],
+   "gp_id": "2025_AUT"
+  },
+  {
+   "grandPrix": "British Grand Prix",
+   "officialName": "FORMULA 1 QATAR AIRWAYS BRITISH GRAND PRIX 2025",
+   "circuit": "Silverstone",
+   "circuitKey": 2,
+   "location": "Silverstone",
+   "country": "United Kingdom",
+   "code": "F1202512",
+   "key": 1277,
+   "livetimingNumber": 12,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2025-07-04T11:30:00+00:00",
+     "endTime": "2025-07-04T12:30:00+00:00",
+     "startDate": "2025-07-04T12:30:00",
+     "endDate": "2025-07-04T13:30:00",
+     "path": "2025/2025-07-06_British_Grand_Prix/2025-07-04_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2025-07-04T15:00:00+00:00",
+     "endTime": "2025-07-04T16:00:00+00:00",
+     "startDate": "2025-07-04T16:00:00",
+     "endDate": "2025-07-04T17:00:00",
+     "path": "2025/2025-07-06_British_Grand_Prix/2025-07-04_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2025-07-05T10:30:00+00:00",
+     "endTime": "2025-07-05T11:30:00+00:00",
+     "startDate": "2025-07-05T11:30:00",
+     "endDate": "2025-07-05T12:30:00",
+     "path": "2025/2025-07-06_British_Grand_Prix/2025-07-05_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-07-05T14:00:00+00:00",
+     "endTime": "2025-07-05T15:00:00+00:00",
+     "startDate": "2025-07-05T15:00:00",
+     "endDate": "2025-07-05T16:00:00",
+     "path": "2025/2025-07-06_British_Grand_Prix/2025-07-05_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2025-07-06T14:00:00+00:00",
+     "endTime": "2025-07-06T16:00:00+00:00",
+     "startDate": "2025-07-06T15:00:00",
+     "endDate": "2025-07-06T17:00:00",
+     "path": "2025/2025-07-06_British_Grand_Prix/2025-07-06_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "hasSprint": false,
+   "originalRound": 12,
+   "curatedName": "British Grand Prix",
+   "round": 12,
+   "aliases": [],
+   "gp_id": "2025_GBR"
+  },
+  {
+   "grandPrix": "Belgian Grand Prix",
+   "officialName": "FORMULA 1 MOËT & CHANDON BELGIAN GRAND PRIX 2025",
+   "circuit": "Spa-Francorchamps",
+   "circuitKey": 7,
+   "location": "Spa-Francorchamps",
+   "country": "Belgium",
+   "code": "F1202513",
+   "key": 1265,
+   "livetimingNumber": 13,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2025-07-25T10:30:00+00:00",
+     "endTime": "2025-07-25T11:30:00+00:00",
+     "startDate": "2025-07-25T12:30:00",
+     "endDate": "2025-07-25T13:30:00",
+     "path": "2025/2025-07-27_Belgian_Grand_Prix/2025-07-25_Practice_1/"
+    },
+    {
+     "name": "Sprint Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-07-25T14:30:00+00:00",
+     "endTime": "2025-07-25T15:14:00+00:00",
+     "startDate": "2025-07-25T16:30:00",
+     "endDate": "2025-07-25T17:14:00",
+     "path": "2025/2025-07-27_Belgian_Grand_Prix/2025-07-25_Sprint_Qualifying/"
+    },
+    {
+     "name": "Sprint",
+     "type": "Race",
+     "startTime": "2025-07-26T10:00:00+00:00",
+     "endTime": "2025-07-26T11:00:00+00:00",
+     "startDate": "2025-07-26T12:00:00",
+     "endDate": "2025-07-26T13:00:00",
+     "path": "2025/2025-07-27_Belgian_Grand_Prix/2025-07-26_Sprint/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-07-26T14:00:00+00:00",
+     "endTime": "2025-07-26T15:00:00+00:00",
+     "startDate": "2025-07-26T16:00:00",
+     "endDate": "2025-07-26T17:00:00",
+     "path": "2025/2025-07-27_Belgian_Grand_Prix/2025-07-26_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2025-07-27T13:00:00+00:00",
+     "endTime": "2025-07-27T15:00:00+00:00",
+     "startDate": "2025-07-27T15:00:00",
+     "endDate": "2025-07-27T17:00:00",
+     "path": "2025/2025-07-27_Belgian_Grand_Prix/2025-07-27_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "hasSprint": true,
+   "originalRound": 13,
+   "curatedName": "Belgian Grand Prix",
+   "round": 13,
+   "aliases": [],
+   "gp_id": "2025_BEL"
+  },
+  {
+   "grandPrix": "Hungarian Grand Prix",
+   "officialName": "FORMULA 1 LENOVO HUNGARIAN GRAND PRIX 2025",
+   "circuit": "Hungaroring",
+   "circuitKey": 4,
+   "location": "Budapest",
+   "country": "Hungary",
+   "code": "F1202514",
+   "key": 1266,
+   "livetimingNumber": 14,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2025-08-01T11:30:00+00:00",
+     "endTime": "2025-08-01T12:30:00+00:00",
+     "startDate": "2025-08-01T13:30:00",
+     "endDate": "2025-08-01T14:30:00",
+     "path": "2025/2025-08-03_Hungarian_Grand_Prix/2025-08-01_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2025-08-01T15:00:00+00:00",
+     "endTime": "2025-08-01T16:00:00+00:00",
+     "startDate": "2025-08-01T17:00:00",
+     "endDate": "2025-08-01T18:00:00",
+     "path": "2025/2025-08-03_Hungarian_Grand_Prix/2025-08-01_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2025-08-02T10:30:00+00:00",
+     "endTime": "2025-08-02T11:30:00+00:00",
+     "startDate": "2025-08-02T12:30:00",
+     "endDate": "2025-08-02T13:30:00",
+     "path": "2025/2025-08-03_Hungarian_Grand_Prix/2025-08-02_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-08-02T14:00:00+00:00",
+     "endTime": "2025-08-02T15:00:00+00:00",
+     "startDate": "2025-08-02T16:00:00",
+     "endDate": "2025-08-02T17:00:00",
+     "path": "2025/2025-08-03_Hungarian_Grand_Prix/2025-08-02_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2025-08-03T13:00:00+00:00",
+     "endTime": "2025-08-03T15:00:00+00:00",
+     "startDate": "2025-08-03T15:00:00",
+     "endDate": "2025-08-03T17:00:00",
+     "path": "2025/2025-08-03_Hungarian_Grand_Prix/2025-08-03_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "hasSprint": false,
+   "originalRound": 14,
+   "curatedName": "Hungarian Grand Prix",
+   "round": 14,
+   "aliases": [],
+   "gp_id": "2025_HUN"
+  },
+  {
+   "grandPrix": "Dutch Grand Prix",
+   "officialName": "FORMULA 1 HEINEKEN DUTCH GRAND PRIX 2025",
+   "circuit": "Zandvoort",
+   "circuitKey": 55,
+   "location": "Zandvoort",
+   "country": "Netherlands",
+   "code": "F1202515",
+   "key": 1267,
+   "livetimingNumber": 15,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2025-08-29T10:30:00+00:00",
+     "endTime": "2025-08-29T11:30:00+00:00",
+     "startDate": "2025-08-29T12:30:00",
+     "endDate": "2025-08-29T13:30:00",
+     "path": "2025/2025-08-31_Dutch_Grand_Prix/2025-08-29_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2025-08-29T14:00:00+00:00",
+     "endTime": "2025-08-29T15:00:00+00:00",
+     "startDate": "2025-08-29T16:00:00",
+     "endDate": "2025-08-29T17:00:00",
+     "path": "2025/2025-08-31_Dutch_Grand_Prix/2025-08-29_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2025-08-30T09:30:00+00:00",
+     "endTime": "2025-08-30T10:30:00+00:00",
+     "startDate": "2025-08-30T11:30:00",
+     "endDate": "2025-08-30T12:30:00",
+     "path": "2025/2025-08-31_Dutch_Grand_Prix/2025-08-30_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-08-30T13:00:00+00:00",
+     "endTime": "2025-08-30T14:00:00+00:00",
+     "startDate": "2025-08-30T15:00:00",
+     "endDate": "2025-08-30T16:00:00",
+     "path": "2025/2025-08-31_Dutch_Grand_Prix/2025-08-30_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2025-08-31T13:00:00+00:00",
+     "endTime": "2025-08-31T15:00:00+00:00",
+     "startDate": "2025-08-31T15:00:00",
+     "endDate": "2025-08-31T17:00:00",
+     "path": "2025/2025-08-31_Dutch_Grand_Prix/2025-08-31_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "hasSprint": false,
+   "originalRound": 15,
+   "curatedName": "Dutch Grand Prix",
+   "round": 15,
+   "aliases": [],
+   "gp_id": "2025_NED"
+  },
+  {
+   "grandPrix": "Italian Grand Prix",
+   "officialName": "FORMULA 1 PIRELLI GRAN PREMIO D’ITALIA 2025",
+   "circuit": "Monza",
+   "circuitKey": 39,
+   "location": "Monza",
+   "country": "Italy",
+   "code": "F1202516",
+   "key": 1268,
+   "livetimingNumber": 16,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2025-09-05T11:30:00+00:00",
+     "endTime": "2025-09-05T12:30:00+00:00",
+     "startDate": "2025-09-05T13:30:00",
+     "endDate": "2025-09-05T14:30:00",
+     "path": "2025/2025-09-07_Italian_Grand_Prix/2025-09-05_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2025-09-05T15:00:00+00:00",
+     "endTime": "2025-09-05T16:00:00+00:00",
+     "startDate": "2025-09-05T17:00:00",
+     "endDate": "2025-09-05T18:00:00",
+     "path": "2025/2025-09-07_Italian_Grand_Prix/2025-09-05_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2025-09-06T10:30:00+00:00",
+     "endTime": "2025-09-06T11:30:00+00:00",
+     "startDate": "2025-09-06T12:30:00",
+     "endDate": "2025-09-06T13:30:00",
+     "path": "2025/2025-09-07_Italian_Grand_Prix/2025-09-06_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-09-06T14:00:00+00:00",
+     "endTime": "2025-09-06T15:00:00+00:00",
+     "startDate": "2025-09-06T16:00:00",
+     "endDate": "2025-09-06T17:00:00",
+     "path": "2025/2025-09-07_Italian_Grand_Prix/2025-09-06_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2025-09-07T13:00:00+00:00",
+     "endTime": "2025-09-07T15:00:00+00:00",
+     "startDate": "2025-09-07T15:00:00",
+     "endDate": "2025-09-07T17:00:00",
+     "path": "2025/2025-09-07_Italian_Grand_Prix/2025-09-07_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "hasSprint": false,
+   "originalRound": 16,
+   "curatedName": "Italian Grand Prix",
+   "round": 16,
+   "aliases": [],
+   "gp_id": "2025_ITA"
+  },
+  {
+   "grandPrix": "Azerbaijan Grand Prix",
+   "officialName": "FORMULA 1 QATAR AIRWAYS AZERBAIJAN GRAND PRIX 2025",
+   "circuit": "Baku",
+   "circuitKey": 144,
+   "location": "Baku",
+   "country": "Azerbaijan",
+   "code": "F1202517",
+   "key": 1269,
+   "livetimingNumber": 17,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2025-09-19T08:30:00+00:00",
+     "endTime": "2025-09-19T09:30:00+00:00",
+     "startDate": "2025-09-19T12:30:00",
+     "endDate": "2025-09-19T13:30:00",
+     "path": "2025/2025-09-21_Azerbaijan_Grand_Prix/2025-09-19_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2025-09-19T12:00:00+00:00",
+     "endTime": "2025-09-19T13:00:00+00:00",
+     "startDate": "2025-09-19T16:00:00",
+     "endDate": "2025-09-19T17:00:00",
+     "path": "2025/2025-09-21_Azerbaijan_Grand_Prix/2025-09-19_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2025-09-20T08:30:00+00:00",
+     "endTime": "2025-09-20T09:30:00+00:00",
+     "startDate": "2025-09-20T12:30:00",
+     "endDate": "2025-09-20T13:30:00",
+     "path": "2025/2025-09-21_Azerbaijan_Grand_Prix/2025-09-20_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-09-20T12:00:00+00:00",
+     "endTime": "2025-09-20T13:00:00+00:00",
+     "startDate": "2025-09-20T16:00:00",
+     "endDate": "2025-09-20T17:00:00",
+     "path": "2025/2025-09-21_Azerbaijan_Grand_Prix/2025-09-20_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2025-09-21T11:00:00+00:00",
+     "endTime": "2025-09-21T13:00:00+00:00",
+     "startDate": "2025-09-21T15:00:00",
+     "endDate": "2025-09-21T17:00:00",
+     "path": "2025/2025-09-21_Azerbaijan_Grand_Prix/2025-09-21_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "hasSprint": false,
+   "originalRound": 17,
+   "curatedName": "Azerbaijan Grand Prix",
+   "round": 17,
+   "aliases": [],
+   "gp_id": "2025_AZE"
+  },
+  {
+   "grandPrix": "Singapore Grand Prix",
+   "officialName": "FORMULA 1 SINGAPORE AIRLINES SINGAPORE GRAND PRIX 2025",
+   "circuit": "Singapore",
+   "circuitKey": 61,
+   "location": "Marina Bay",
+   "country": "Singapore",
+   "code": "F1202518",
+   "key": 1270,
+   "livetimingNumber": 18,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2025-10-03T09:30:00+00:00",
+     "endTime": "2025-10-03T10:30:00+00:00",
+     "startDate": "2025-10-03T17:30:00",
+     "endDate": "2025-10-03T18:30:00",
+     "path": "2025/2025-10-05_Singapore_Grand_Prix/2025-10-03_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2025-10-03T13:00:00+00:00",
+     "endTime": "2025-10-03T14:00:00+00:00",
+     "startDate": "2025-10-03T21:00:00",
+     "endDate": "2025-10-03T22:00:00",
+     "path": "2025/2025-10-05_Singapore_Grand_Prix/2025-10-03_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2025-10-04T09:30:00+00:00",
+     "endTime": "2025-10-04T10:30:00+00:00",
+     "startDate": "2025-10-04T17:30:00",
+     "endDate": "2025-10-04T18:30:00",
+     "path": "2025/2025-10-05_Singapore_Grand_Prix/2025-10-04_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-10-04T13:00:00+00:00",
+     "endTime": "2025-10-04T14:00:00+00:00",
+     "startDate": "2025-10-04T21:00:00",
+     "endDate": "2025-10-04T22:00:00",
+     "path": "2025/2025-10-05_Singapore_Grand_Prix/2025-10-04_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2025-10-05T12:00:00+00:00",
+     "endTime": "2025-10-05T14:00:00+00:00",
+     "startDate": "2025-10-05T20:00:00",
+     "endDate": "2025-10-05T22:00:00",
+     "path": "2025/2025-10-05_Singapore_Grand_Prix/2025-10-05_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "hasSprint": false,
+   "originalRound": 18,
+   "curatedName": "Singapore Grand Prix",
+   "round": 18,
+   "aliases": [],
+   "gp_id": "2025_SGP"
+  },
+  {
+   "grandPrix": "United States Grand Prix",
+   "officialName": "FORMULA 1 MSC CRUISES UNITED STATES GRAND PRIX 2025",
+   "circuit": "Austin",
+   "circuitKey": 9,
+   "location": "Austin",
+   "country": "United States",
+   "code": "F1202519",
+   "key": 1271,
+   "livetimingNumber": 19,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2025-10-17T17:30:00+00:00",
+     "endTime": "2025-10-17T18:30:00+00:00",
+     "startDate": "2025-10-17T12:30:00",
+     "endDate": "2025-10-17T13:30:00",
+     "path": "2025/2025-10-19_United_States_Grand_Prix/2025-10-17_Practice_1/"
+    },
+    {
+     "name": "Sprint Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-10-17T21:30:00+00:00",
+     "endTime": "2025-10-17T22:14:00+00:00",
+     "startDate": "2025-10-17T16:30:00",
+     "endDate": "2025-10-17T17:14:00",
+     "path": "2025/2025-10-19_United_States_Grand_Prix/2025-10-17_Sprint_Qualifying/"
+    },
+    {
+     "name": "Sprint",
+     "type": "Race",
+     "startTime": "2025-10-18T17:00:00+00:00",
+     "endTime": "2025-10-18T18:00:00+00:00",
+     "startDate": "2025-10-18T12:00:00",
+     "endDate": "2025-10-18T13:00:00",
+     "path": "2025/2025-10-19_United_States_Grand_Prix/2025-10-18_Sprint/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-10-18T21:00:00+00:00",
+     "endTime": "2025-10-18T22:00:00+00:00",
+     "startDate": "2025-10-18T16:00:00",
+     "endDate": "2025-10-18T17:00:00",
+     "path": "2025/2025-10-19_United_States_Grand_Prix/2025-10-18_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2025-10-19T19:00:00+00:00",
+     "endTime": "2025-10-19T21:00:00+00:00",
+     "startDate": "2025-10-19T14:00:00",
+     "endDate": "2025-10-19T16:00:00",
+     "path": "2025/2025-10-19_United_States_Grand_Prix/2025-10-19_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "hasSprint": true,
+   "originalRound": 19,
+   "curatedName": "USA Grand Prix",
+   "round": 19,
+   "aliases": [
+    "USA",
+    "United States",
+    "US",
+    "United States of America",
+    "Austin",
+    "COTA",
+    "Circuit of the Americas",
+    "USA Grand Prix"
+   ],
+   "gp_id": "2025_USA"
+  },
+  {
+   "grandPrix": "Mexico City Grand Prix",
+   "officialName": "FORMULA 1 GRAN PREMIO DE LA CIUDAD DE MÉXICO 2025",
+   "circuit": "Mexico City",
+   "circuitKey": 65,
+   "location": "Mexico City",
+   "country": "Mexico",
+   "code": "F1202520",
+   "key": 1272,
+   "livetimingNumber": 20,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2025-10-24T18:30:00+00:00",
+     "endTime": "2025-10-24T19:30:00+00:00",
+     "startDate": "2025-10-24T12:30:00",
+     "endDate": "2025-10-24T13:30:00",
+     "path": "2025/2025-10-26_Mexico_City_Grand_Prix/2025-10-24_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2025-10-24T22:00:00+00:00",
+     "endTime": "2025-10-24T23:00:00+00:00",
+     "startDate": "2025-10-24T16:00:00",
+     "endDate": "2025-10-24T17:00:00",
+     "path": "2025/2025-10-26_Mexico_City_Grand_Prix/2025-10-24_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2025-10-25T17:30:00+00:00",
+     "endTime": "2025-10-25T18:30:00+00:00",
+     "startDate": "2025-10-25T11:30:00",
+     "endDate": "2025-10-25T12:30:00",
+     "path": "2025/2025-10-26_Mexico_City_Grand_Prix/2025-10-25_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-10-25T21:00:00+00:00",
+     "endTime": "2025-10-25T22:00:00+00:00",
+     "startDate": "2025-10-25T15:00:00",
+     "endDate": "2025-10-25T16:00:00",
+     "path": "2025/2025-10-26_Mexico_City_Grand_Prix/2025-10-25_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2025-10-26T20:00:00+00:00",
+     "endTime": "2025-10-26T22:00:00+00:00",
+     "startDate": "2025-10-26T14:00:00",
+     "endDate": "2025-10-26T16:00:00",
+     "path": "2025/2025-10-26_Mexico_City_Grand_Prix/2025-10-26_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "hasSprint": false,
+   "originalRound": 20,
+   "curatedName": "Mexico City Grand Prix",
+   "round": 20,
+   "aliases": [
+    "Mexico",
+    "Mexico City",
+    "Mexican Grand Prix"
+   ],
+   "gp_id": "2025_MEX"
+  },
+  {
+   "grandPrix": "São Paulo Grand Prix",
+   "officialName": "FORMULA 1 MSC CRUISES GRANDE PRÊMIO DE SÃO PAULO 2025",
+   "circuit": "Interlagos",
+   "circuitKey": 14,
+   "location": "São Paulo",
+   "country": "Brazil",
+   "code": "F1202521",
+   "key": 1273,
+   "livetimingNumber": 21,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2025-11-07T14:30:00+00:00",
+     "endTime": "2025-11-07T15:30:00+00:00",
+     "startDate": "2025-11-07T11:30:00",
+     "endDate": "2025-11-07T12:30:00",
+     "path": "2025/2025-11-09_São_Paulo_Grand_Prix/2025-11-07_Practice_1/"
+    },
+    {
+     "name": "Sprint Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-11-07T18:30:00+00:00",
+     "endTime": "2025-11-07T19:14:00+00:00",
+     "startDate": "2025-11-07T15:30:00",
+     "endDate": "2025-11-07T16:14:00",
+     "path": "2025/2025-11-09_São_Paulo_Grand_Prix/2025-11-07_Sprint_Qualifying/"
+    },
+    {
+     "name": "Sprint",
+     "type": "Race",
+     "startTime": "2025-11-08T14:00:00+00:00",
+     "endTime": "2025-11-08T15:00:00+00:00",
+     "startDate": "2025-11-08T11:00:00",
+     "endDate": "2025-11-08T12:00:00",
+     "path": "2025/2025-11-09_São_Paulo_Grand_Prix/2025-11-08_Sprint/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-11-08T18:00:00+00:00",
+     "endTime": "2025-11-08T19:00:00+00:00",
+     "startDate": "2025-11-08T15:00:00",
+     "endDate": "2025-11-08T16:00:00",
+     "path": "2025/2025-11-09_São_Paulo_Grand_Prix/2025-11-08_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2025-11-09T17:00:00+00:00",
+     "endTime": "2025-11-09T19:00:00+00:00",
+     "startDate": "2025-11-09T14:00:00",
+     "endDate": "2025-11-09T16:00:00",
+     "path": "2025/2025-11-09_São_Paulo_Grand_Prix/2025-11-09_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "hasSprint": true,
+   "originalRound": 21,
+   "curatedName": "São Paulo Grand Prix",
+   "round": 21,
+   "aliases": [],
+   "gp_id": "2025_SÃO"
+  },
+  {
+   "grandPrix": "Las Vegas Grand Prix",
+   "officialName": "FORMULA 1 HEINEKEN LAS VEGAS GRAND PRIX 2025",
+   "circuit": "Las Vegas",
+   "circuitKey": 152,
+   "location": "Las Vegas",
+   "country": "United States",
+   "code": "F1202522",
+   "key": 1274,
+   "livetimingNumber": 22,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2025-11-21T00:30:00+00:00",
+     "endTime": "2025-11-21T01:30:00+00:00",
+     "startDate": "2025-11-20T16:30:00",
+     "endDate": "2025-11-20T17:30:00",
+     "path": "2025/2025-11-22_Las_Vegas_Grand_Prix/2025-11-20_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2025-11-21T04:00:00+00:00",
+     "endTime": "2025-11-21T05:00:00+00:00",
+     "startDate": "2025-11-20T20:00:00",
+     "endDate": "2025-11-20T21:00:00",
+     "path": "2025/2025-11-22_Las_Vegas_Grand_Prix/2025-11-20_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2025-11-22T00:30:00+00:00",
+     "endTime": "2025-11-22T01:30:00+00:00",
+     "startDate": "2025-11-21T16:30:00",
+     "endDate": "2025-11-21T17:30:00",
+     "path": "2025/2025-11-22_Las_Vegas_Grand_Prix/2025-11-21_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-11-22T04:00:00+00:00",
+     "endTime": "2025-11-22T05:00:00+00:00",
+     "startDate": "2025-11-21T20:00:00",
+     "endDate": "2025-11-21T21:00:00",
+     "path": "2025/2025-11-22_Las_Vegas_Grand_Prix/2025-11-21_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2025-11-23T04:00:00+00:00",
+     "endTime": "2025-11-23T06:00:00+00:00",
+     "startDate": "2025-11-22T20:00:00",
+     "endDate": "2025-11-22T22:00:00",
+     "path": "2025/2025-11-22_Las_Vegas_Grand_Prix/2025-11-22_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "hasSprint": false,
+   "originalRound": 22,
+   "curatedName": "Las Vegas Grand Prix",
+   "round": 22,
+   "aliases": [],
+   "gp_id": "2025_LVG"
+  },
+  {
+   "grandPrix": "Qatar Grand Prix",
+   "officialName": "FORMULA 1 QATAR AIRWAYS QATAR GRAND PRIX 2025",
+   "circuit": "Lusail",
+   "circuitKey": 150,
+   "location": "Lusail",
+   "country": "Qatar",
+   "code": "F1202523",
+   "key": 1275,
+   "livetimingNumber": 23,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2025-11-28T13:30:00+00:00",
+     "endTime": "2025-11-28T14:30:00+00:00",
+     "startDate": "2025-11-28T16:30:00",
+     "endDate": "2025-11-28T17:30:00",
+     "path": "2025/2025-11-30_Qatar_Grand_Prix/2025-11-28_Practice_1/"
+    },
+    {
+     "name": "Sprint Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-11-28T17:30:00+00:00",
+     "endTime": "2025-11-28T18:14:00+00:00",
+     "startDate": "2025-11-28T20:30:00",
+     "endDate": "2025-11-28T21:14:00",
+     "path": "2025/2025-11-30_Qatar_Grand_Prix/2025-11-28_Sprint_Qualifying/"
+    },
+    {
+     "name": "Sprint",
+     "type": "Race",
+     "startTime": "2025-11-29T14:00:00+00:00",
+     "endTime": "2025-11-29T15:00:00+00:00",
+     "startDate": "2025-11-29T17:00:00",
+     "endDate": "2025-11-29T18:00:00",
+     "path": "2025/2025-11-30_Qatar_Grand_Prix/2025-11-29_Sprint/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-11-29T18:00:00+00:00",
+     "endTime": "2025-11-29T19:00:00+00:00",
+     "startDate": "2025-11-29T21:00:00",
+     "endDate": "2025-11-29T22:00:00",
+     "path": "2025/2025-11-30_Qatar_Grand_Prix/2025-11-29_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2025-11-30T16:00:00+00:00",
+     "endTime": "2025-11-30T18:00:00+00:00",
+     "startDate": "2025-11-30T19:00:00",
+     "endDate": "2025-11-30T21:00:00",
+     "path": "2025/2025-11-30_Qatar_Grand_Prix/2025-11-30_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "hasSprint": true,
+   "originalRound": 23,
+   "curatedName": "Qatar Grand Prix",
+   "round": 23,
+   "aliases": [],
+   "gp_id": "2025_QAT"
+  },
+  {
+   "grandPrix": "Abu Dhabi Grand Prix",
+   "officialName": "FORMULA 1 ETIHAD AIRWAYS ABU DHABI GRAND PRIX 2025 ",
+   "circuit": "Yas Marina Circuit",
+   "circuitKey": 70,
+   "location": "Yas Island",
+   "country": "United Arab Emirates",
+   "code": "F1202524",
+   "key": 1276,
+   "livetimingNumber": 24,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2025-12-05T09:30:00+00:00",
+     "endTime": "2025-12-05T10:30:00+00:00",
+     "startDate": "2025-12-05T13:30:00",
+     "endDate": "2025-12-05T14:30:00",
+     "path": "2025/2025-12-07_Abu_Dhabi_Grand_Prix/2025-12-05_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2025-12-05T13:00:00+00:00",
+     "endTime": "2025-12-05T14:00:00+00:00",
+     "startDate": "2025-12-05T17:00:00",
+     "endDate": "2025-12-05T18:00:00",
+     "path": "2025/2025-12-07_Abu_Dhabi_Grand_Prix/2025-12-05_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2025-12-06T10:30:00+00:00",
+     "endTime": "2025-12-06T11:30:00+00:00",
+     "startDate": "2025-12-06T14:30:00",
+     "endDate": "2025-12-06T15:30:00",
+     "path": "2025/2025-12-07_Abu_Dhabi_Grand_Prix/2025-12-06_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2025-12-06T14:00:00+00:00",
+     "endTime": "2025-12-06T15:00:00+00:00",
+     "startDate": "2025-12-06T18:00:00",
+     "endDate": "2025-12-06T19:00:00",
+     "path": "2025/2025-12-07_Abu_Dhabi_Grand_Prix/2025-12-06_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2025-12-07T13:00:00+00:00",
+     "endTime": "2025-12-07T15:00:00+00:00",
+     "startDate": "2025-12-07T17:00:00",
+     "endDate": "2025-12-07T19:00:00",
+     "path": "2025/2025-12-07_Abu_Dhabi_Grand_Prix/2025-12-07_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "hasSprint": false,
+   "originalRound": 24,
+   "curatedName": "Abu Dhabi Grand Prix",
+   "round": 24,
+   "aliases": [
+    "UAE",
+    "Yas Marina",
+    "Yas Island"
+   ],
+   "gp_id": "2025_ABU"
+  }
+ ]
+}

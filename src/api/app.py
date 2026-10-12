@@ -121,8 +121,11 @@ Data-heavy endpoints carry a separate 60/min counter. Exceeding a limit returns
 
 Historical session data never changes once processed, so those responses are
 `private, max-age=86400, immutable` and carry a weak `ETag` — send `If-None-Match`
-to get a **304** and skip the transfer. `/api/v2/dashboard` is the exception: it
-tracks the latest session and is revalidated frequently.
+to get a **304** and skip the transfer. Anything that can still change is instead
+`private, max-age=30, must-revalidate`: empty results (`[]`, `{}`, `null`, or an
+object whose lists are all empty — the data may simply not be processed yet),
+requests for the current or a later year, `/api/v2/dashboard`, the live and
+current-season standings, and `/availability`.
 
 ## CSV export
 
@@ -157,8 +160,9 @@ TAGS_METADATA = [
         "name": "Latest Session",
         "description": (
             "Aggregated payload for the most recently completed session. "
-            "Powers the main dashboard. Unlike the rest of v2 this response is "
-            "**not** immutable -- it changes as a race weekend progresses."
+            "Powers the main dashboard. Unlike historical v2 responses this is "
+            "**not** immutable (short `must-revalidate` cache) -- it changes as a "
+            "race weekend progresses."
         ),
     },
     {

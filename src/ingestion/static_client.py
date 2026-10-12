@@ -23,6 +23,8 @@ from typing import Dict, List, Optional, Any, Tuple, Union
 from urllib.parse import urljoin
 import logging
 import os
+import time
+from threading import Lock
 
 from src.core.config import settings
 from src.core.exceptions import (
@@ -37,6 +39,35 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+def source_token(base_url: Optional[str]) -> Optional[str]:
+    """Stable identity of one livetiming session: ``{year}/{meeting_folder}/{session_folder}``.
+
+    Every durable cache entry records this next to its data and is only served back
+    when it matches the session being asked for. Cache keys built from
+    ``(year, round, session label)`` alone cannot tell two events apart once round
+    numbers move or a resolver picks the wrong meeting; the session's own path can.
+    The proxy/origin host prefix is ignored on purpose.
+    """
+    if not base_url:
+        return None
+    parts = [p for p in str(base_url).rstrip("/").split("/") if p]
+    return "/".join(parts[-3:]) if len(parts) >= 3 else None
+
+
+# Season-index cache. The index was fetched on every call (twice per request via
+# SessionDataStore); finished seasons never change, the current one gets a short TTL
+# so a freshly listed meeting (a new session's path) is picked up quickly.
+_INDEX_CACHE: dict = {}
+_INDEX_CACHE_LOCK = Lock()
+_INDEX_TTL_CURRENT_SECONDS = 300
+_INDEX_TTL_PAST_SECONDS = 86400
+
+
+def clear_index_cache() -> None:
+    with _INDEX_CACHE_LOCK:
+        _INDEX_CACHE.clear()
 
 
 class F1StaticClient:
@@ -167,8 +198,21 @@ class F1StaticClient:
     
     def fetch_season_index(self, year: int) -> Dict[str, Any]:
         """
-        Fetch the season index for a given year.
+        Fetch the season index for a given year (cached; do not mutate the result).
         """
+        cache_key = (self.BASE_URL, int(year))
+        with _INDEX_CACHE_LOCK:
+            hit = _INDEX_CACHE.get(cache_key)
+        if hit is not None and hit[0] > time.time():
+            return hit[1]
+
+        index = self._fetch_season_index_uncached(year)
+        ttl = _INDEX_TTL_PAST_SECONDS if int(year) < time.gmtime().tm_year else _INDEX_TTL_CURRENT_SECONDS
+        with _INDEX_CACHE_LOCK:
+            _INDEX_CACHE[cache_key] = (time.time() + ttl, index)
+        return index
+
+    def _fetch_season_index_uncached(self, year: int) -> Dict[str, Any]:
         url = f"{self.BASE_URL}{year}/Index.json"
         logger.info(f"Fetching season index: {url}")
 
@@ -180,7 +224,9 @@ class F1StaticClient:
                 source="livetiming", reason=f"Failed to fetch {url}: {exc}"
             ) from exc
 
-        if response.status_code == 404:
+        if response.status_code in (403, 404):
+            # livetiming answers 403 (not 404) for objects it does not publish; the
+            # 2022 index is one. That is "no data for this season", not an outage.
             raise SessionNotFoundError(
                 year=year, reason=f"No livetiming index published for {year}"
             )
@@ -200,62 +246,87 @@ class F1StaticClient:
         # F1 JSON files have UTF-8 BOM, decode properly
         content = response.content.decode('utf-8-sig')
         return json.loads(content)
-    
+
+    def _find_meeting(
+        self,
+        year: int,
+        event_name: str,
+        round_nr: Optional[int],
+        event_key: Optional[int],
+    ) -> Optional[Dict[str, Any]]:
+        """Pick the livetiming meeting for an event -- by ``Key``, never by position."""
+        from src.ingestion.event_resolver import resolve_event
+
+        meetings = self.fetch_season_index(year).get('Meetings', [])
+
+        key = event_key
+        resolved_name = None
+        if key is None:
+            identifier: Union[int, str, None] = round_nr if round_nr else (event_name or None)
+            if identifier is not None:
+                try:
+                    info = resolve_event(year, identifier)
+                except SessionNotFoundError as exc:
+                    logger.warning("Could not resolve %r for %s: %s", identifier, year, exc.reason)
+                else:
+                    key, resolved_name = info.key, info.name
+                    if round_nr and event_name and not self._same_event(info, event_name):
+                        logger.error(
+                            "Round %s of %s is %r but the caller asked for %r; refusing to guess",
+                            round_nr, year, info.name, event_name,
+                        )
+                        return None
+
+        if key is not None:
+            for meeting in meetings:
+                if meeting.get('Key') == key:
+                    logger.info("Found event by key %s: %s", key, meeting.get('Name'))
+                    return meeting
+            logger.error(
+                "Meeting key %s (%s) is not in the %s livetiming index", key, resolved_name or event_name, year
+            )
+            return None
+
+        # No key known (e.g. a historical snapshot built without livetiming): accept
+        # only a full-name match that identifies exactly one non-testing meeting.
+        wanted = self._normalize_text(event_name) if event_name else ""
+        exact = [
+            m for m in meetings
+            if wanted and self._normalize_text(m.get('Name', '')) == wanted
+            and 'testing' not in m.get('Name', '').lower()
+        ]
+        if len(exact) == 1:
+            logger.info("Found event by exact name: %s", exact[0].get('Name'))
+            return exact[0]
+        return None
+
+    @staticmethod
+    def _same_event(info: Any, name: str) -> bool:
+        from src.ingestion.calendar import fold
+        return fold(name) in {fold(info.name), fold(info.official_name), fold(info.location)}
+
     def get_event_session_url(
         self,
         year: int,
         event_name: str,
         session_name: str,
         round_nr: Optional[int] = None,
+        event_key: Optional[int] = None,
     ) -> Optional[str]:
         """
         Construct the base URL for a specific event session.
 
-        ``round_nr`` (1-based) is the most reliable lookup key and should be
-        passed whenever available.  Falls back to normalized name matching so
-        the method still works for callers that only have a name.
+        The meeting is chosen by its livetiming ``Key`` (``event_key``, or the key of
+        the calendar event that ``round_nr`` -- the *official* round -- or
+        ``event_name`` resolves to). Position in the ``Meetings`` array is never
+        used: it includes pre-season testing and skips cancelled rounds, and trusting
+        it served one event's laps for another.
         """
-        season_index = self.fetch_season_index(year)
-        meetings = season_index.get('Meetings', [])
-
-        # Primary: positional lookup by round number, but only trust it when the
-        # meeting at that index actually matches the requested event. The
-        # livetiming Meetings array can include pre-season testing, which shifts
-        # positional indices out of sync with curated round numbers (e.g. 2026:
-        # curated round 1 == livetiming index 3). Blindly trusting the index
-        # would silently return the wrong meeting (Pre-Season Testing).
-        event_data = None
-        if round_nr is not None and 1 <= round_nr <= len(meetings):
-            candidate = meetings[round_nr - 1]
-            normalized_target = self._normalize_text(event_name) if event_name else ""
-            normalized_candidate = self._normalize_text(candidate.get('Name', ''))
-            if (
-                not normalized_target
-                or normalized_target in normalized_candidate
-                or normalized_candidate in normalized_target
-            ):
-                event_data = candidate
-                logger.info(f"Found event by round {round_nr}: {candidate.get('Name')}")
-            else:
-                logger.warning(
-                    f"Round {round_nr} positional meeting '{candidate.get('Name')}' does not "
-                    f"match requested '{event_name}'; falling back to name match"
-                )
-
-        # Fallback: normalized name matching (strips diacritics / hyphens).
-        if event_data is None:
-            normalized_target = self._normalize_text(event_name)
-            for meeting in meetings:
-                normalized_candidate = self._normalize_text(meeting.get('Name', ''))
-                if normalized_target in normalized_candidate or normalized_candidate in normalized_target:
-                    event_data = meeting
-                    logger.info(f"Found event by name match: {meeting.get('Name')}")
-                    break
-
+        event_data = self._find_meeting(year, event_name, round_nr, event_key)
         if not event_data:
             logger.error(f"Event '{event_name}' (round_nr={round_nr}) not found in {year} season")
             return None
-        
+
         # Find the session within the event's sessions
         session_data = None
         for session in event_data.get('Sessions', []):
@@ -263,23 +334,23 @@ class F1StaticClient:
                 session_data = session
                 logger.info(f"Found session: {session.get('Name')}")
                 break
-        
+
         if not session_data:
             logger.error(f"Session '{session_name}' not found for {event_name}")
             return None
-        
+
         # Get session path
         session_path = session_data.get('Path')
         if not session_path:
             logger.error(f"No path found for session: {session_name}")
             return None
-        
+
         # Construct the full base URL
         base_url = f"{self.BASE_URL}{session_path}"
         logger.info(f"Session base URL: {base_url}")
-        
+
         return base_url
-    
+
     def get_timing_data_url(
         self, 
         year: int, 
@@ -298,40 +369,6 @@ class F1StaticClient:
         logger.info(f"TimingData URL: {timing_data_url}")
         
         return timing_data_url
-    
-    def get_event_name(self, year: int, round_nr: int) -> Optional[str]:
-        """
-        Get the event name for a specific round number.
-        
-        Args:
-            year: Season year
-            round_nr: Round number (1-based index)
-        
-        Returns:
-            Event name (e.g., "Italian Grand Prix") or None if not found
-        """
-        try:
-            season_index = self.fetch_season_index(year)
-            
-            # Meetings are typically in chronological order
-            meetings = season_index.get('Meetings', [])
-            
-            if 1 <= round_nr <= len(meetings):
-                event_name = meetings[round_nr - 1].get('Name', '')
-                logger.info(f"Round {round_nr}: {event_name}")
-                return event_name
-            else:
-                logger.error(f"Round {round_nr} out of range (1-{len(meetings)})")
-                return None
-                
-        except (DataNotAvailableError, SessionNotFoundError, UpstreamUnavailableError):
-            raise
-        except Exception as e:
-            logger.exception("Failed to get event name for round %s", round_nr)
-            raise UpstreamUnavailableError(
-                source="livetiming",
-                reason=f"Unexpected error resolving round {round_nr}: {e}",
-            ) from e
     
     def get_event_info(self, year: int, identifier: Union[int, str]) -> Optional[Dict[str, Any]]:
         """
@@ -354,6 +391,10 @@ class F1StaticClient:
             "circuit": info.circuit,
             "country": info.country,
             "circuit_key": info.circuit_key,
+            "location": info.location,
+            "kind": info.kind,
+            "status": info.status,
+            "gp_id": info.gp_id,
         }
     
     # ========================================================================

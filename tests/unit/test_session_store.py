@@ -61,10 +61,10 @@ def stubbed_store(monkeypatch):
 
     fake_mongo: dict = {}
 
-    def fake_get_bundle(year, round_nr, session):
+    def fake_get_bundle(year, round_nr, session, source=None):
         return fake_mongo.get((year, round_nr, session))
 
-    def fake_store_bundle(year, round_nr, session, bundle, meta=None):
+    def fake_store_bundle(year, round_nr, session, bundle, meta=None, source=None):
         fake_mongo[(year, round_nr, session)] = bundle
         return True
 
@@ -75,10 +75,10 @@ def stubbed_store(monkeypatch):
     # ``_cached`` never touches a real database.
     fake_raw: dict = {}
 
-    def fake_get_raw(year, round_nr, session, stream_name):
+    def fake_get_raw(year, round_nr, session, stream_name, source=None):
         return fake_raw.get((year, round_nr, session, stream_name))
 
-    def fake_store_raw(year, round_nr, session, stream_name, data):
+    def fake_store_raw(year, round_nr, session, stream_name, data, source=None):
         fake_raw[(year, round_nr, session, stream_name)] = data
         return True
 

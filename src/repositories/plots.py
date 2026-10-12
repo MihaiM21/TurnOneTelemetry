@@ -2,6 +2,7 @@
 Helper functions to integrate MongoDB storage with F1 telemetry plot generation
 """
 
+from src.ingestion.calendar import COUNTRY_CODES as _COUNTRY_CODES, country_code_from_event_name
 from src.repositories.mongo import MongoDBManager, convert_numpy_types
 from src.core.exceptions import (
     DataNotAvailableError as _DNAErr,
@@ -44,50 +45,50 @@ DATA_TYPE_MAP = {
     'throttle_brake_comparison': 'throttle_brake_comparison_2drivers'
 }
 
-# Country code mapping for GP IDs (shared across all functions)
-COUNTRY_CODES = {
-    'Australian': 'AUS',
-    'Bahrain': 'BHR',
-    'Chinese': 'CHN',
-    'Japanese': 'JPN',
-    'Saudi Arabian': 'SAU',
-    'Miami': 'MIA',
-    'Emilia Romagna': 'EMI',
-    'Monaco': 'MON',
-    'Spanish': 'ESP',
-    'Canadian': 'CAN',
-    'Austrian': 'AUT',
-    'British': 'GBR',
-    'Belgian': 'BEL',
-    'Dutch': 'NED',
-    'Italian': 'ITA',
-    'Azerbaijan': 'AZE',
-    'Singapore': 'SGP',
-    'United States': 'USA',
-    'Mexico': 'MEX',
-    'Brazil': 'BRA',
-    'Las Vegas': 'LVG',
-    'Qatar': 'QAT',
-    'Abu Dhabi': 'ABU'
-}
+# Country code mapping for GP IDs. The table and the rule live in
+# ``ingestion.calendar`` (one copy; ``Calendar`` events carry a ready ``gp_id``).
+COUNTRY_CODES = _COUNTRY_CODES
 
 
 def get_country_code_from_event_name(event_name: str) -> str:
     """
     Extract country code from event name using consistent mapping
-    
+
     Args:
         event_name: Full event name (e.g., "Australian Grand Prix")
-    
+
     Returns:
         Three-letter country code (e.g., "AUS")
     """
-    for key, code in COUNTRY_CODES.items():
-        if key.lower() in event_name.lower():
-            return code
-    
-    # Fallback to first 3 letters of cleaned event name
-    return event_name.replace(' ', '').replace('Grand', '').replace('Prix', '')[:3].upper()
+    return country_code_from_event_name(event_name)
+
+
+def _session_source(year: int, round_nr: int, event_name: str, session_name: str,
+                    event_key: Optional[int] = None) -> Optional[str]:
+    """Livetiming session path for ``(year, round, session)``, or ``None`` if unknown.
+
+    Best effort: resolution failures return ``None`` (legacy behaviour, no provenance
+    recorded) rather than blocking a cache read or write.
+    """
+    try:
+        from src.ingestion.static_client import F1StaticClient, source_token
+        return source_token(F1StaticClient().get_event_session_url(
+            year, event_name, session_name, round_nr=round_nr or None, event_key=event_key))
+    except Exception as exc:  # provenance is an integrity aid, never a reason to fail a request
+        logger.debug("No session source for %s %s %s: %s", year, round_nr, session_name, exc)
+        return None
+
+
+def _gp_id_for(year: int, round_nr: int, event_name: str, version: str) -> str:
+    if version == 'v2':
+        try:
+            from src.ingestion.event_resolver import resolve_event
+            info = resolve_event(year, round_nr)
+            if info.gp_id and (info.name == event_name or not event_name):
+                return info.gp_id
+        except Exception as exc:
+            logger.debug("gp_id via calendar failed for %s %s: %s", year, round_nr, exc)
+    return f"{year}_{get_country_code_from_event_name(event_name)}"
 
 
 def get_gp_id_from_session(session: Any) -> str:
@@ -236,7 +237,7 @@ def store_plot_data_to_mongo(session: Any, data_type: str, json_file_path: str,
             data=data,
             date=session_date,
             time=session_time,
-            year=year
+            year=year,
         )
 
         return success
@@ -255,7 +256,8 @@ def store_data_dict_to_mongo(year: int, round_nr: int, session_name: str,
                              session_date: Optional[str] = None,
                              session_time: Optional[str] = None,
                              db_manager: Optional[MongoDBManager] = None,
-                             version: str = 'v1') -> bool:
+                             version: str = 'v1',
+                             source: Optional[str] = None) -> bool:
     """
     Store data directly to MongoDB without a JSON file
 
@@ -270,6 +272,9 @@ def store_data_dict_to_mongo(year: int, round_nr: int, session_name: str,
         session_time: Optional session time
         db_manager: Optional existing MongoDBManager instance
         version: Data source version ('v1' for FastF1, 'v2' for F1StaticClient)
+        source: Livetiming session path this data was computed from. For v2 it is
+            looked up when omitted, so every stored payload records which session it
+            came from and ``get_plot_data_from_mongo`` can refuse a mismatch.
 
     Returns:
         True if successful, False otherwise
@@ -277,6 +282,9 @@ def store_data_dict_to_mongo(year: int, round_nr: int, session_name: str,
     should_close = False
 
     try:
+        if source is None and version == 'v2':
+            source = _session_source(int(year), int(round_nr), event_name, session_name)
+
         # Convert numpy types in the data
         data = convert_numpy_types(data)
         year = int(year)
@@ -287,45 +295,9 @@ def store_data_dict_to_mongo(year: int, round_nr: int, session_name: str,
             db_manager = MongoDBManager(year=year, version=version)
             should_close = True
 
-        # Create GP ID using consistent country code mapping
-        country_codes = {
-            'Australian': 'AUS',
-            'Bahrain': 'BHR',
-            'Chinese': 'CHN',
-            'Japanese': 'JPN',
-            'Saudi Arabian': 'SAU',
-            'Miami': 'MIA',
-            'Emilia Romagna': 'EMI',
-            'Monaco': 'MON',
-            'Spanish': 'ESP',
-            'Canadian': 'CAN',
-            'Austrian': 'AUT',
-            'British': 'GBR',
-            'Belgian': 'BEL',
-            'Dutch': 'NED',
-            'Italian': 'ITA',
-            'Azerbaijan': 'AZE',
-            'Singapore': 'SGP',
-            'United States': 'USA',
-            'Mexico': 'MEX',
-            'Brazil': 'BRA',
-            'Las Vegas': 'LVG',
-            'Qatar': 'QAT',
-            'Abu Dhabi': 'ABU'
-        }
-        
-        # Find matching country code
-        country_code = None
-        for key, code in country_codes.items():
-            if key.lower() in event_name.lower():
-                country_code = code
-                break
-        
-        if not country_code:
-            # Fallback to first 3 letters of event name
-            country_code = event_name.replace(' ', '').replace('Grand', '').replace('Prix', '')[:3].upper()
-        
-        gp_id = f"{year}_{country_code}"
+        # Create GP ID: the calendar's gp_id for v2 (disambiguates e.g. Barcelona vs
+        # Madrid), the legacy name-derived code otherwise.
+        gp_id = _gp_id_for(year, round_nr, event_name, version)
         gp_name = event_name.replace(' ', '')
 
         # Get or create GP document
@@ -342,7 +314,8 @@ def store_data_dict_to_mongo(year: int, round_nr: int, session_name: str,
             data=data,
             date=session_date,
             time=session_time,
-            year=year
+            year=year,
+            source=source,
         )
 
         return success
@@ -428,6 +401,7 @@ def get_plot_data_from_mongo(year: int, identifier: Union[int, str], event_name:
         round_nr = None
         gp_doc = None
         gp_id = None
+        expect_source = None
         
         # Resolve GP document. SessionNotFoundError / DataNotAvailableError /
         # UpstreamUnavailableError must propagate so the API returns a proper
@@ -443,8 +417,8 @@ def get_plot_data_from_mongo(year: int, identifier: Union[int, str], event_name:
                 info = resolve_event(year, identifier)
                 event_full_name = info.name
                 round_nr = info.round_nr
-                country_code = get_country_code_from_event_name(event_full_name)
-                gp_id = f"{year}_{country_code}"
+                gp_id = info.gp_id or f"{year}_{get_country_code_from_event_name(event_full_name)}"
+                expect_source = _session_source(year, info.round_nr, info.name, event_name, event_key=info.key)
                 gp_doc = collection.find_one({"year": year, "gp_id": gp_id})
             else:
                 # Fast path for v1: find the GP directly by round number.
@@ -499,7 +473,8 @@ def get_plot_data_from_mongo(year: int, identifier: Union[int, str], event_name:
                 gp_id=gp_id,
                 session_type=session_type,
                 data_type=candidate_type,
-                year=year
+                year=year,
+                expect_source=expect_source,
             )
             if data:
                 selected_data_type = candidate_type

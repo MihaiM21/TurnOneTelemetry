@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from src.services.plotting.canvas import add_legacy_watermark
 from src.services.plotting import output as dirOrg
 from src.services.plotting import theme as setup_theme
-from src.services.plotting.colors import team_colors
+from src.services.plotting.colors import get_team_color
 from src.repositories.plots import store_data_dict_to_mongo, get_plot_data_from_mongo
 from src.ingestion.static_client import F1StaticClient
 from src.services.analysis.v2._helpers import get_driver_team_from_list
@@ -95,7 +95,7 @@ def _build_data(y: int, identifier, e: str):
             continue
         entry = {
             'team': team,
-            'color': team_colors.get(team, '#FFFFFF'),
+            'color': get_team_color(team, y),
             'lap_times_seconds': filtered,
             'lap_count': len(filtered),
         }

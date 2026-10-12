@@ -1,0 +1,1146 @@
+{
+ "year": 2024,
+ "events": [
+  {
+   "grandPrix": "Bahrain Grand Prix",
+   "officialName": "",
+   "circuit": "Bahrain International Circuit",
+   "circuitKey": null,
+   "location": "Sakhir",
+   "country": "Bahrain",
+   "code": "",
+   "key": null,
+   "kind": "race",
+   "round": 1,
+   "sessions": [],
+   "source": "reference",
+   "referenceDate": "2024-03-02",
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2024_BHR"
+  },
+  {
+   "grandPrix": "Saudi Arabian Grand Prix",
+   "officialName": "",
+   "circuit": "Jeddah Corniche Circuit",
+   "circuitKey": null,
+   "location": "Jeddah",
+   "country": "Saudi Arabia",
+   "code": "",
+   "key": null,
+   "kind": "race",
+   "round": 2,
+   "sessions": [],
+   "source": "reference",
+   "referenceDate": "2024-03-09",
+   "aliases": [
+    "Saudi Arabia",
+    "Jeddah"
+   ],
+   "hasSprint": false,
+   "gp_id": "2024_SAU"
+  },
+  {
+   "grandPrix": "Australian Grand Prix",
+   "officialName": "",
+   "circuit": "Albert Park Grand Prix Circuit",
+   "circuitKey": null,
+   "location": "Melbourne",
+   "country": "Australia",
+   "code": "",
+   "key": null,
+   "kind": "race",
+   "round": 3,
+   "sessions": [],
+   "source": "reference",
+   "referenceDate": "2024-03-24",
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2024_AUS"
+  },
+  {
+   "grandPrix": "Japanese Grand Prix",
+   "officialName": "",
+   "circuit": "Suzuka Circuit",
+   "circuitKey": null,
+   "location": "Suzuka",
+   "country": "Japan",
+   "code": "",
+   "key": null,
+   "kind": "race",
+   "round": 4,
+   "sessions": [],
+   "source": "reference",
+   "referenceDate": "2024-04-07",
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2024_JPN"
+  },
+  {
+   "grandPrix": "Chinese Grand Prix",
+   "officialName": "",
+   "circuit": "Shanghai International Circuit",
+   "circuitKey": null,
+   "location": "Shanghai",
+   "country": "China",
+   "code": "",
+   "key": null,
+   "kind": "race",
+   "round": 5,
+   "sessions": [],
+   "source": "reference",
+   "referenceDate": "2024-04-21",
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2024_CHN"
+  },
+  {
+   "grandPrix": "Miami Grand Prix",
+   "officialName": "",
+   "circuit": "Miami International Autodrome",
+   "circuitKey": null,
+   "location": "Miami",
+   "country": "USA",
+   "code": "",
+   "key": null,
+   "kind": "race",
+   "round": 6,
+   "sessions": [],
+   "source": "reference",
+   "referenceDate": "2024-05-05",
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2024_MIA"
+  },
+  {
+   "grandPrix": "Emilia Romagna Grand Prix",
+   "officialName": "",
+   "circuit": "Autodromo Enzo e Dino Ferrari",
+   "circuitKey": null,
+   "location": "Imola",
+   "country": "Italy",
+   "code": "",
+   "key": null,
+   "kind": "race",
+   "round": 7,
+   "sessions": [],
+   "source": "reference",
+   "referenceDate": "2024-05-19",
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2024_EMI"
+  },
+  {
+   "grandPrix": "Monaco Grand Prix",
+   "officialName": "",
+   "circuit": "Circuit de Monaco",
+   "circuitKey": null,
+   "location": "Monte Carlo",
+   "country": "Monaco",
+   "code": "",
+   "key": null,
+   "kind": "race",
+   "round": 8,
+   "sessions": [],
+   "source": "reference",
+   "referenceDate": "2024-05-26",
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2024_MON"
+  },
+  {
+   "grandPrix": "Canadian Grand Prix",
+   "officialName": "",
+   "circuit": "Circuit Gilles Villeneuve",
+   "circuitKey": null,
+   "location": "Montreal",
+   "country": "Canada",
+   "code": "",
+   "key": null,
+   "kind": "race",
+   "round": 9,
+   "sessions": [],
+   "source": "reference",
+   "referenceDate": "2024-06-09",
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2024_CAN"
+  },
+  {
+   "grandPrix": "Spanish Grand Prix",
+   "officialName": "FORMULA 1 ARAMCO GRAN PREMIO DE ESPAÑA 2024",
+   "circuit": "Catalunya",
+   "circuitKey": 15,
+   "location": "Barcelona",
+   "country": "Spain",
+   "code": "ESP0112",
+   "key": 1238,
+   "livetimingNumber": 10,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2024-06-21T11:30:00+00:00",
+     "endTime": "2024-06-21T12:30:00+00:00",
+     "startDate": "2024-06-21T13:30:00",
+     "endDate": "2024-06-21T14:30:00",
+     "path": "2024/2024-06-23_Spanish_Grand_Prix/2024-06-21_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2024-06-21T15:00:00+00:00",
+     "endTime": "2024-06-21T16:00:00+00:00",
+     "startDate": "2024-06-21T17:00:00",
+     "endDate": "2024-06-21T18:00:00",
+     "path": "2024/2024-06-23_Spanish_Grand_Prix/2024-06-21_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2024-06-22T10:30:00+00:00",
+     "endTime": "2024-06-22T11:30:00+00:00",
+     "startDate": "2024-06-22T12:30:00",
+     "endDate": "2024-06-22T13:30:00",
+     "path": "2024/2024-06-23_Spanish_Grand_Prix/2024-06-22_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2024-06-22T14:00:00+00:00",
+     "endTime": "2024-06-22T15:00:00+00:00",
+     "startDate": "2024-06-22T16:00:00",
+     "endDate": "2024-06-22T17:00:00",
+     "path": "2024/2024-06-23_Spanish_Grand_Prix/2024-06-22_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2024-06-23T13:00:00+00:00",
+     "endTime": "2024-06-23T15:00:00+00:00",
+     "startDate": "2024-06-23T15:00:00",
+     "endDate": "2024-06-23T17:00:00",
+     "path": "2024/2024-06-23_Spanish_Grand_Prix/2024-06-23_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 10,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2024_ESP"
+  },
+  {
+   "grandPrix": "Austrian Grand Prix",
+   "officialName": "FORMULA 1 QATAR AIRWAYS AUSTRIAN GRAND PRIX 2024",
+   "circuit": "Spielberg",
+   "circuitKey": 19,
+   "location": "Spielberg",
+   "country": "Austria",
+   "code": "AUT0108",
+   "key": 1239,
+   "livetimingNumber": 11,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2024-06-28T10:30:00+00:00",
+     "endTime": "2024-06-28T11:30:00+00:00",
+     "startDate": "2024-06-28T12:30:00",
+     "endDate": "2024-06-28T13:30:00",
+     "path": "2024/2024-06-30_Austrian_Grand_Prix/2024-06-28_Practice_1/"
+    },
+    {
+     "name": "Sprint Qualifying",
+     "type": "Qualifying",
+     "startTime": "2024-06-28T14:30:00+00:00",
+     "endTime": "2024-06-28T15:14:00+00:00",
+     "startDate": "2024-06-28T16:30:00",
+     "endDate": "2024-06-28T17:14:00",
+     "path": "2024/2024-06-30_Austrian_Grand_Prix/2024-06-28_Sprint_Qualifying/"
+    },
+    {
+     "name": "Sprint",
+     "type": "Race",
+     "startTime": "2024-06-29T10:00:00+00:00",
+     "endTime": "2024-06-29T10:30:00+00:00",
+     "startDate": "2024-06-29T12:00:00",
+     "endDate": "2024-06-29T12:30:00",
+     "path": "2024/2024-06-30_Austrian_Grand_Prix/2024-06-29_Sprint/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2024-06-29T14:00:00+00:00",
+     "endTime": "2024-06-29T15:00:00+00:00",
+     "startDate": "2024-06-29T16:00:00",
+     "endDate": "2024-06-29T17:00:00",
+     "path": "2024/2024-06-30_Austrian_Grand_Prix/2024-06-29_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2024-06-30T13:00:00+00:00",
+     "endTime": "2024-06-30T15:00:00+00:00",
+     "startDate": "2024-06-30T15:00:00",
+     "endDate": "2024-06-30T17:00:00",
+     "path": "2024/2024-06-30_Austrian_Grand_Prix/2024-06-30_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 11,
+   "aliases": [],
+   "hasSprint": true,
+   "gp_id": "2024_AUT"
+  },
+  {
+   "grandPrix": "British Grand Prix",
+   "officialName": "FORMULA 1 QATAR AIRWAYS BRITISH GRAND PRIX 2024",
+   "circuit": "Silverstone",
+   "circuitKey": 2,
+   "location": "Silverstone",
+   "country": "Great Britain",
+   "code": "GBR0114",
+   "key": 1240,
+   "livetimingNumber": 12,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2024-07-05T11:30:00+00:00",
+     "endTime": "2024-07-05T12:30:00+00:00",
+     "startDate": "2024-07-05T12:30:00",
+     "endDate": "2024-07-05T13:30:00",
+     "path": "2024/2024-07-07_British_Grand_Prix/2024-07-05_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2024-07-05T15:00:00+00:00",
+     "endTime": "2024-07-05T16:00:00+00:00",
+     "startDate": "2024-07-05T16:00:00",
+     "endDate": "2024-07-05T17:00:00",
+     "path": "2024/2024-07-07_British_Grand_Prix/2024-07-05_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2024-07-06T10:30:00+00:00",
+     "endTime": "2024-07-06T11:30:00+00:00",
+     "startDate": "2024-07-06T11:30:00",
+     "endDate": "2024-07-06T12:30:00",
+     "path": "2024/2024-07-07_British_Grand_Prix/2024-07-06_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2024-07-06T14:00:00+00:00",
+     "endTime": "2024-07-06T15:00:00+00:00",
+     "startDate": "2024-07-06T15:00:00",
+     "endDate": "2024-07-06T16:00:00",
+     "path": "2024/2024-07-07_British_Grand_Prix/2024-07-06_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2024-07-07T14:00:00+00:00",
+     "endTime": "2024-07-07T16:00:00+00:00",
+     "startDate": "2024-07-07T15:00:00",
+     "endDate": "2024-07-07T17:00:00",
+     "path": "2024/2024-07-07_British_Grand_Prix/2024-07-07_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 12,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2024_GBR"
+  },
+  {
+   "grandPrix": "Hungarian Grand Prix",
+   "officialName": "FORMULA 1 HUNGARIAN GRAND PRIX 2024",
+   "circuit": "Hungaroring",
+   "circuitKey": 4,
+   "location": "Budapest",
+   "country": "Hungary",
+   "code": "HUN0109",
+   "key": 1241,
+   "livetimingNumber": 13,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2024-07-19T11:30:00+00:00",
+     "endTime": "2024-07-19T12:30:00+00:00",
+     "startDate": "2024-07-19T13:30:00",
+     "endDate": "2024-07-19T14:30:00",
+     "path": "2024/2024-07-21_Hungarian_Grand_Prix/2024-07-19_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2024-07-19T15:00:00+00:00",
+     "endTime": "2024-07-19T16:00:00+00:00",
+     "startDate": "2024-07-19T17:00:00",
+     "endDate": "2024-07-19T18:00:00",
+     "path": "2024/2024-07-21_Hungarian_Grand_Prix/2024-07-19_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2024-07-20T10:30:00+00:00",
+     "endTime": "2024-07-20T11:30:00+00:00",
+     "startDate": "2024-07-20T12:30:00",
+     "endDate": "2024-07-20T13:30:00",
+     "path": "2024/2024-07-21_Hungarian_Grand_Prix/2024-07-20_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2024-07-20T14:00:00+00:00",
+     "endTime": "2024-07-20T15:00:00+00:00",
+     "startDate": "2024-07-20T16:00:00",
+     "endDate": "2024-07-20T17:00:00",
+     "path": "2024/2024-07-21_Hungarian_Grand_Prix/2024-07-20_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2024-07-21T13:00:00+00:00",
+     "endTime": "2024-07-21T15:00:00+00:00",
+     "startDate": "2024-07-21T15:00:00",
+     "endDate": "2024-07-21T17:00:00",
+     "path": "2024/2024-07-21_Hungarian_Grand_Prix/2024-07-21_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 13,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2024_HUN"
+  },
+  {
+   "grandPrix": "Belgian Grand Prix",
+   "officialName": "FORMULA 1 ROLEX BELGIAN GRAND PRIX 2024",
+   "circuit": "Spa-Francorchamps",
+   "circuitKey": 7,
+   "location": "Spa-Francorchamps",
+   "country": "Belgium",
+   "code": "BEL02012",
+   "key": 1242,
+   "livetimingNumber": 14,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2024-07-26T11:30:00+00:00",
+     "endTime": "2024-07-26T12:30:00+00:00",
+     "startDate": "2024-07-26T13:30:00",
+     "endDate": "2024-07-26T14:30:00",
+     "path": "2024/2024-07-28_Belgian_Grand_Prix/2024-07-26_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2024-07-26T15:00:00+00:00",
+     "endTime": "2024-07-26T16:00:00+00:00",
+     "startDate": "2024-07-26T17:00:00",
+     "endDate": "2024-07-26T18:00:00",
+     "path": "2024/2024-07-28_Belgian_Grand_Prix/2024-07-26_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2024-07-27T10:30:00+00:00",
+     "endTime": "2024-07-27T11:30:00+00:00",
+     "startDate": "2024-07-27T12:30:00",
+     "endDate": "2024-07-27T13:30:00",
+     "path": "2024/2024-07-28_Belgian_Grand_Prix/2024-07-27_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2024-07-27T14:00:00+00:00",
+     "endTime": "2024-07-27T15:00:00+00:00",
+     "startDate": "2024-07-27T16:00:00",
+     "endDate": "2024-07-27T17:00:00",
+     "path": "2024/2024-07-28_Belgian_Grand_Prix/2024-07-27_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2024-07-28T13:00:00+00:00",
+     "endTime": "2024-07-28T15:00:00+00:00",
+     "startDate": "2024-07-28T15:00:00",
+     "endDate": "2024-07-28T17:00:00",
+     "path": "2024/2024-07-28_Belgian_Grand_Prix/2024-07-28_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 14,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2024_BEL"
+  },
+  {
+   "grandPrix": "Dutch Grand Prix",
+   "officialName": "FORMULA 1 HEINEKEN DUTCH GRAND PRIX 2024",
+   "circuit": "Zandvoort",
+   "circuitKey": 55,
+   "location": "Zandvoort",
+   "country": "Netherlands",
+   "code": "NED0105",
+   "key": 1243,
+   "livetimingNumber": 15,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2024-08-23T10:30:00+00:00",
+     "endTime": "2024-08-23T11:30:00+00:00",
+     "startDate": "2024-08-23T12:30:00",
+     "endDate": "2024-08-23T13:30:00",
+     "path": "2024/2024-08-25_Dutch_Grand_Prix/2024-08-23_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2024-08-23T14:00:00+00:00",
+     "endTime": "2024-08-23T15:00:00+00:00",
+     "startDate": "2024-08-23T16:00:00",
+     "endDate": "2024-08-23T17:00:00",
+     "path": "2024/2024-08-25_Dutch_Grand_Prix/2024-08-23_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2024-08-24T09:30:00+00:00",
+     "endTime": "2024-08-24T10:30:00+00:00",
+     "startDate": "2024-08-24T11:30:00",
+     "endDate": "2024-08-24T12:30:00",
+     "path": "2024/2024-08-25_Dutch_Grand_Prix/2024-08-24_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2024-08-24T13:00:00+00:00",
+     "endTime": "2024-08-24T14:00:00+00:00",
+     "startDate": "2024-08-24T15:00:00",
+     "endDate": "2024-08-24T16:00:00",
+     "path": "2024/2024-08-25_Dutch_Grand_Prix/2024-08-24_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2024-08-25T13:00:00+00:00",
+     "endTime": "2024-08-25T15:00:00+00:00",
+     "startDate": "2024-08-25T15:00:00",
+     "endDate": "2024-08-25T17:00:00",
+     "path": "2024/2024-08-25_Dutch_Grand_Prix/2024-08-25_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 15,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2024_NED"
+  },
+  {
+   "grandPrix": "Italian Grand Prix",
+   "officialName": "FORMULA 1 PIRELLI GRAN PREMIO D’ITALIA 2024",
+   "circuit": "Monza",
+   "circuitKey": 39,
+   "location": "Monza",
+   "country": "Italy",
+   "code": "ITA0311",
+   "key": 1244,
+   "livetimingNumber": 16,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2024-08-30T11:30:00+00:00",
+     "endTime": "2024-08-30T12:30:00+00:00",
+     "startDate": "2024-08-30T13:30:00",
+     "endDate": "2024-08-30T14:30:00",
+     "path": "2024/2024-09-01_Italian_Grand_Prix/2024-08-30_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2024-08-30T15:00:00+00:00",
+     "endTime": "2024-08-30T16:00:00+00:00",
+     "startDate": "2024-08-30T17:00:00",
+     "endDate": "2024-08-30T18:00:00",
+     "path": "2024/2024-09-01_Italian_Grand_Prix/2024-08-30_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2024-08-31T10:30:00+00:00",
+     "endTime": "2024-08-31T11:30:00+00:00",
+     "startDate": "2024-08-31T12:30:00",
+     "endDate": "2024-08-31T13:30:00",
+     "path": "2024/2024-09-01_Italian_Grand_Prix/2024-08-31_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2024-08-31T14:00:00+00:00",
+     "endTime": "2024-08-31T15:00:00+00:00",
+     "startDate": "2024-08-31T16:00:00",
+     "endDate": "2024-08-31T17:00:00",
+     "path": "2024/2024-09-01_Italian_Grand_Prix/2024-08-31_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2024-09-01T13:00:00+00:00",
+     "endTime": "2024-09-01T15:00:00+00:00",
+     "startDate": "2024-09-01T15:00:00",
+     "endDate": "2024-09-01T17:00:00",
+     "path": "2024/2024-09-01_Italian_Grand_Prix/2024-09-01_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 16,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2024_ITA"
+  },
+  {
+   "grandPrix": "Azerbaijan Grand Prix",
+   "officialName": "FORMULA 1 QATAR AIRWAYS AZERBAIJAN GRAND PRIX 2024",
+   "circuit": "Baku",
+   "circuitKey": 144,
+   "location": "Baku",
+   "country": "Azerbaijan",
+   "code": "AZE02",
+   "key": 1245,
+   "livetimingNumber": 17,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2024-09-13T09:30:00+00:00",
+     "endTime": "2024-09-13T10:30:00+00:00",
+     "startDate": "2024-09-13T13:30:00",
+     "endDate": "2024-09-13T14:30:00",
+     "path": "2024/2024-09-15_Azerbaijan_Grand_Prix/2024-09-13_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2024-09-13T13:00:00+00:00",
+     "endTime": "2024-09-13T14:00:00+00:00",
+     "startDate": "2024-09-13T17:00:00",
+     "endDate": "2024-09-13T18:00:00",
+     "path": "2024/2024-09-15_Azerbaijan_Grand_Prix/2024-09-13_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2024-09-14T08:30:00+00:00",
+     "endTime": "2024-09-14T09:30:00+00:00",
+     "startDate": "2024-09-14T12:30:00",
+     "endDate": "2024-09-14T13:30:00",
+     "path": "2024/2024-09-15_Azerbaijan_Grand_Prix/2024-09-14_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2024-09-14T12:00:00+00:00",
+     "endTime": "2024-09-14T13:00:00+00:00",
+     "startDate": "2024-09-14T16:00:00",
+     "endDate": "2024-09-14T17:00:00",
+     "path": "2024/2024-09-15_Azerbaijan_Grand_Prix/2024-09-14_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2024-09-15T11:00:00+00:00",
+     "endTime": "2024-09-15T13:00:00+00:00",
+     "startDate": "2024-09-15T15:00:00",
+     "endDate": "2024-09-15T17:00:00",
+     "path": "2024/2024-09-15_Azerbaijan_Grand_Prix/2024-09-15_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 17,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2024_AZE"
+  },
+  {
+   "grandPrix": "Singapore Grand Prix",
+   "officialName": "FORMULA 1 SINGAPORE AIRLINES SINGAPORE GRAND PRIX 2024",
+   "circuit": "Singapore",
+   "circuitKey": 61,
+   "location": "Marina Bay",
+   "country": "Singapore",
+   "code": "SIN0107",
+   "key": 1246,
+   "livetimingNumber": 18,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2024-09-20T09:30:00+00:00",
+     "endTime": "2024-09-20T10:30:00+00:00",
+     "startDate": "2024-09-20T17:30:00",
+     "endDate": "2024-09-20T18:30:00",
+     "path": "2024/2024-09-22_Singapore_Grand_Prix/2024-09-20_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2024-09-20T13:00:00+00:00",
+     "endTime": "2024-09-20T14:00:00+00:00",
+     "startDate": "2024-09-20T21:00:00",
+     "endDate": "2024-09-20T22:00:00",
+     "path": "2024/2024-09-22_Singapore_Grand_Prix/2024-09-20_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2024-09-21T09:30:00+00:00",
+     "endTime": "2024-09-21T10:30:00+00:00",
+     "startDate": "2024-09-21T17:30:00",
+     "endDate": "2024-09-21T18:30:00",
+     "path": "2024/2024-09-22_Singapore_Grand_Prix/2024-09-21_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2024-09-21T13:00:00+00:00",
+     "endTime": "2024-09-21T14:00:00+00:00",
+     "startDate": "2024-09-21T21:00:00",
+     "endDate": "2024-09-21T22:00:00",
+     "path": "2024/2024-09-22_Singapore_Grand_Prix/2024-09-21_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2024-09-22T12:00:00+00:00",
+     "endTime": "2024-09-22T14:00:00+00:00",
+     "startDate": "2024-09-22T20:00:00",
+     "endDate": "2024-09-22T22:00:00",
+     "path": "2024/2024-09-22_Singapore_Grand_Prix/2024-09-22_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 18,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2024_SGP"
+  },
+  {
+   "grandPrix": "United States Grand Prix",
+   "officialName": "FORMULA 1 PIRELLI UNITED STATES GRAND PRIX 2024",
+   "circuit": "Austin",
+   "circuitKey": 9,
+   "location": "Austin",
+   "country": "United States",
+   "code": "USA0101",
+   "key": 1247,
+   "livetimingNumber": 19,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2024-10-18T17:30:00+00:00",
+     "endTime": "2024-10-18T18:30:00+00:00",
+     "startDate": "2024-10-18T12:30:00",
+     "endDate": "2024-10-18T13:30:00",
+     "path": "2024/2024-10-20_United_States_Grand_Prix/2024-10-18_Practice_1/"
+    },
+    {
+     "name": "Sprint Qualifying",
+     "type": "Qualifying",
+     "startTime": "2024-10-18T21:30:00+00:00",
+     "endTime": "2024-10-18T22:14:00+00:00",
+     "startDate": "2024-10-18T16:30:00",
+     "endDate": "2024-10-18T17:14:00",
+     "path": "2024/2024-10-20_United_States_Grand_Prix/2024-10-18_Sprint_Qualifying/"
+    },
+    {
+     "name": "Sprint",
+     "type": "Race",
+     "startTime": "2024-10-19T18:00:00+00:00",
+     "endTime": "2024-10-19T19:00:00+00:00",
+     "startDate": "2024-10-19T13:00:00",
+     "endDate": "2024-10-19T14:00:00",
+     "path": "2024/2024-10-20_United_States_Grand_Prix/2024-10-19_Sprint/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2024-10-19T22:00:00+00:00",
+     "endTime": "2024-10-19T23:00:00+00:00",
+     "startDate": "2024-10-19T17:00:00",
+     "endDate": "2024-10-19T18:00:00",
+     "path": "2024/2024-10-20_United_States_Grand_Prix/2024-10-19_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2024-10-20T19:00:00+00:00",
+     "endTime": "2024-10-20T21:00:00+00:00",
+     "startDate": "2024-10-20T14:00:00",
+     "endDate": "2024-10-20T16:00:00",
+     "path": "2024/2024-10-20_United_States_Grand_Prix/2024-10-20_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 19,
+   "aliases": [
+    "USA",
+    "United States",
+    "US",
+    "United States of America",
+    "Austin",
+    "COTA",
+    "Circuit of the Americas"
+   ],
+   "hasSprint": true,
+   "gp_id": "2024_USA"
+  },
+  {
+   "grandPrix": "Mexico City Grand Prix",
+   "officialName": "FORMULA 1 GRAN PREMIO DE LA CIUDAD DE MÉXICO 2024",
+   "circuit": "Mexico City",
+   "circuitKey": 65,
+   "location": "Mexico City",
+   "country": "Mexico",
+   "code": "MEX0103",
+   "key": 1248,
+   "livetimingNumber": 20,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2024-10-25T18:30:00+00:00",
+     "endTime": "2024-10-25T19:30:00+00:00",
+     "startDate": "2024-10-25T12:30:00",
+     "endDate": "2024-10-25T13:30:00",
+     "path": "2024/2024-10-27_Mexico_City_Grand_Prix/2024-10-25_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2024-10-25T22:00:00+00:00",
+     "endTime": "2024-10-25T23:00:00+00:00",
+     "startDate": "2024-10-25T16:00:00",
+     "endDate": "2024-10-25T17:00:00",
+     "path": "2024/2024-10-27_Mexico_City_Grand_Prix/2024-10-25_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2024-10-26T17:30:00+00:00",
+     "endTime": "2024-10-26T18:30:00+00:00",
+     "startDate": "2024-10-26T11:30:00",
+     "endDate": "2024-10-26T12:30:00",
+     "path": "2024/2024-10-27_Mexico_City_Grand_Prix/2024-10-26_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2024-10-26T21:00:00+00:00",
+     "endTime": "2024-10-26T22:00:00+00:00",
+     "startDate": "2024-10-26T15:00:00",
+     "endDate": "2024-10-26T16:00:00",
+     "path": "2024/2024-10-27_Mexico_City_Grand_Prix/2024-10-26_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2024-10-27T20:00:00+00:00",
+     "endTime": "2024-10-27T22:00:00+00:00",
+     "startDate": "2024-10-27T14:00:00",
+     "endDate": "2024-10-27T16:00:00",
+     "path": "2024/2024-10-27_Mexico_City_Grand_Prix/2024-10-27_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 20,
+   "aliases": [
+    "Mexico",
+    "Mexico City",
+    "Mexican Grand Prix"
+   ],
+   "hasSprint": false,
+   "gp_id": "2024_MEX"
+  },
+  {
+   "grandPrix": "São Paulo Grand Prix",
+   "officialName": "FORMULA 1 LENOVO GRANDE PRÊMIO DE SÃO PAULO 2024",
+   "circuit": "Interlagos",
+   "circuitKey": 14,
+   "location": "São Paulo",
+   "country": "Brazil",
+   "code": "BRA0109",
+   "key": 1249,
+   "livetimingNumber": 21,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2024-11-01T14:30:00+00:00",
+     "endTime": "2024-11-01T15:30:00+00:00",
+     "startDate": "2024-11-01T11:30:00",
+     "endDate": "2024-11-01T12:30:00",
+     "path": "2024/2024-11-03_São_Paulo_Grand_Prix/2024-11-01_Practice_1/"
+    },
+    {
+     "name": "Sprint Qualifying",
+     "type": "Qualifying",
+     "startTime": "2024-11-01T18:30:00+00:00",
+     "endTime": "2024-11-01T19:14:00+00:00",
+     "startDate": "2024-11-01T15:30:00",
+     "endDate": "2024-11-01T16:14:00",
+     "path": "2024/2024-11-03_São_Paulo_Grand_Prix/2024-11-01_Sprint_Qualifying/"
+    },
+    {
+     "name": "Sprint",
+     "type": "Race",
+     "startTime": "2024-11-02T14:00:00+00:00",
+     "endTime": "2024-11-02T15:00:00+00:00",
+     "startDate": "2024-11-02T11:00:00",
+     "endDate": "2024-11-02T12:00:00",
+     "path": "2024/2024-11-03_São_Paulo_Grand_Prix/2024-11-02_Sprint/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2024-11-02T18:00:00+00:00",
+     "endTime": "2024-11-02T19:00:00+00:00",
+     "startDate": "2024-11-02T15:00:00",
+     "endDate": "2024-11-02T16:00:00",
+     "path": "2024/2024-11-03_São_Paulo_Grand_Prix/2024-11-02_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2024-11-03T15:30:00+00:00",
+     "endTime": "2024-11-03T17:30:00+00:00",
+     "startDate": "2024-11-03T12:30:00",
+     "endDate": "2024-11-03T14:30:00",
+     "path": "2024/2024-11-03_São_Paulo_Grand_Prix/2024-11-03_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 21,
+   "aliases": [],
+   "hasSprint": true,
+   "gp_id": "2024_SÃO"
+  },
+  {
+   "grandPrix": "Las Vegas Grand Prix",
+   "officialName": "FORMULA 1 HEINEKEN SILVER LAS VEGAS GRAND PRIX 2024",
+   "circuit": "Las Vegas",
+   "circuitKey": 152,
+   "location": "Las Vegas",
+   "country": "United States",
+   "code": "USA1501",
+   "key": 1250,
+   "livetimingNumber": 22,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2024-11-22T02:30:00+00:00",
+     "endTime": "2024-11-22T03:30:00+00:00",
+     "startDate": "2024-11-21T18:30:00",
+     "endDate": "2024-11-21T19:30:00",
+     "path": "2024/2024-11-23_Las_Vegas_Grand_Prix/2024-11-21_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2024-11-22T06:00:00+00:00",
+     "endTime": "2024-11-22T07:00:00+00:00",
+     "startDate": "2024-11-21T22:00:00",
+     "endDate": "2024-11-21T23:00:00",
+     "path": "2024/2024-11-23_Las_Vegas_Grand_Prix/2024-11-21_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2024-11-23T02:30:00+00:00",
+     "endTime": "2024-11-23T03:30:00+00:00",
+     "startDate": "2024-11-22T18:30:00",
+     "endDate": "2024-11-22T19:30:00",
+     "path": "2024/2024-11-23_Las_Vegas_Grand_Prix/2024-11-22_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2024-11-23T06:00:00+00:00",
+     "endTime": "2024-11-23T07:00:00+00:00",
+     "startDate": "2024-11-22T22:00:00",
+     "endDate": "2024-11-22T23:00:00",
+     "path": "2024/2024-11-23_Las_Vegas_Grand_Prix/2024-11-22_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2024-11-24T06:00:00+00:00",
+     "endTime": "2024-11-24T08:00:00+00:00",
+     "startDate": "2024-11-23T22:00:00",
+     "endDate": "2024-11-24T00:00:00",
+     "path": "2024/2024-11-23_Las_Vegas_Grand_Prix/2024-11-23_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 22,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2024_LVG"
+  },
+  {
+   "grandPrix": "Qatar Grand Prix",
+   "officialName": "FORMULA 1 QATAR AIRWAYS QATAR GRAND PRIX 2024",
+   "circuit": "Lusail",
+   "circuitKey": 150,
+   "location": "Lusail",
+   "country": "Qatar",
+   "code": "QAT0102",
+   "key": 1251,
+   "livetimingNumber": 23,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2024-11-29T13:30:00+00:00",
+     "endTime": "2024-11-29T14:30:00+00:00",
+     "startDate": "2024-11-29T16:30:00",
+     "endDate": "2024-11-29T17:30:00",
+     "path": "2024/2024-12-01_Qatar_Grand_Prix/2024-11-29_Practice_1/"
+    },
+    {
+     "name": "Sprint Qualifying",
+     "type": "Qualifying",
+     "startTime": "2024-11-29T17:30:00+00:00",
+     "endTime": "2024-11-29T18:14:00+00:00",
+     "startDate": "2024-11-29T20:30:00",
+     "endDate": "2024-11-29T21:14:00",
+     "path": "2024/2024-12-01_Qatar_Grand_Prix/2024-11-29_Sprint_Qualifying/"
+    },
+    {
+     "name": "Sprint",
+     "type": "Race",
+     "startTime": "2024-11-30T14:00:00+00:00",
+     "endTime": "2024-11-30T15:00:00+00:00",
+     "startDate": "2024-11-30T17:00:00",
+     "endDate": "2024-11-30T18:00:00",
+     "path": "2024/2024-12-01_Qatar_Grand_Prix/2024-11-30_Sprint/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2024-11-30T18:00:00+00:00",
+     "endTime": "2024-11-30T19:00:00+00:00",
+     "startDate": "2024-11-30T21:00:00",
+     "endDate": "2024-11-30T22:00:00",
+     "path": "2024/2024-12-01_Qatar_Grand_Prix/2024-11-30_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2024-12-01T16:00:00+00:00",
+     "endTime": "2024-12-01T18:00:00+00:00",
+     "startDate": "2024-12-01T19:00:00",
+     "endDate": "2024-12-01T21:00:00",
+     "path": "2024/2024-12-01_Qatar_Grand_Prix/2024-12-01_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 23,
+   "aliases": [],
+   "hasSprint": true,
+   "gp_id": "2024_QAT"
+  },
+  {
+   "grandPrix": "Abu Dhabi Grand Prix",
+   "officialName": "FORMULA 1 ETIHAD AIRWAYS ABU DHABI GRAND PRIX 2024",
+   "circuit": "Yas Marina Circuit",
+   "circuitKey": 70,
+   "location": "Yas Island",
+   "country": "United Arab Emirates",
+   "code": "UAE0103",
+   "key": 1252,
+   "livetimingNumber": 24,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2024-12-06T09:30:00+00:00",
+     "endTime": "2024-12-06T10:30:00+00:00",
+     "startDate": "2024-12-06T13:30:00",
+     "endDate": "2024-12-06T14:30:00",
+     "path": "2024/2024-12-08_Abu_Dhabi_Grand_Prix/2024-12-06_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2024-12-06T13:00:00+00:00",
+     "endTime": "2024-12-06T14:00:00+00:00",
+     "startDate": "2024-12-06T17:00:00",
+     "endDate": "2024-12-06T18:00:00",
+     "path": "2024/2024-12-08_Abu_Dhabi_Grand_Prix/2024-12-06_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2024-12-07T10:30:00+00:00",
+     "endTime": "2024-12-07T11:30:00+00:00",
+     "startDate": "2024-12-07T14:30:00",
+     "endDate": "2024-12-07T15:30:00",
+     "path": "2024/2024-12-08_Abu_Dhabi_Grand_Prix/2024-12-07_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2024-12-07T14:00:00+00:00",
+     "endTime": "2024-12-07T15:00:00+00:00",
+     "startDate": "2024-12-07T18:00:00",
+     "endDate": "2024-12-07T19:00:00",
+     "path": "2024/2024-12-08_Abu_Dhabi_Grand_Prix/2024-12-07_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2024-12-08T13:00:00+00:00",
+     "endTime": "2024-12-08T15:00:00+00:00",
+     "startDate": "2024-12-08T17:00:00",
+     "endDate": "2024-12-08T19:00:00",
+     "path": "2024/2024-12-08_Abu_Dhabi_Grand_Prix/2024-12-08_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 24,
+   "aliases": [
+    "UAE",
+    "Yas Marina",
+    "Yas Island"
+   ],
+   "hasSprint": false,
+   "gp_id": "2024_ABU"
+  }
+ ]
+}

@@ -13,9 +13,13 @@ from pathlib import Path
 
 from src.core.logging import get_logger
 from src.core.config import settings
+from src.services.orchestrator_helpers import simplify_session_name
 from src.workers.plot_generator import PlotDataGenerator
 
 logger = get_logger(__name__)
+
+# Session labels the processor generates data for (simplify_session_name output).
+_PROCESSABLE_SESSIONS = frozenset({'FP1', 'FP2', 'FP3', 'SQ', 'S', 'Q', 'R'})
 
 
 class BackgroundProcessor:
@@ -72,52 +76,54 @@ class BackgroundProcessor:
     
     def get_upcoming_sessions(self) -> list:
         """
-        Get list of upcoming F1 sessions from the schedule
-        
+        Get list of recently finished F1 sessions from the schedule
+
         Returns:
-            List of tuples (year, gp, session, session_date, gp_name). ``gp`` is
-            the schedule row index + 1 (V1/FastF1); ``gp_name`` is the event
-            name, which V2 must use because the schedule can include
-            pre-season testing and shift the positional round by one.
+            List of tuples (year, gp, session, session_date, gp_name). ``gp`` is the
+            official championship round (FastF1 ``RoundNumber``), the same number the
+            V2 calendar uses, so V1 and V2 address the same race. Pre-season testing
+            (``RoundNumber == 0``) is skipped. ``session`` is derived from the
+            schedule's own ``Session1..5`` names, so sprint weekends get ``SQ``/``S``
+            where a conventional weekend has ``FP2``/``FP3``.
         """
         try:
             current_year = datetime.now().year
             schedule = fastf1.get_event_schedule(current_year)
-            
+
             upcoming = []
             now = pd.Timestamp.now(tz='UTC')  # Use timezone-aware timestamp
-            
-            for idx, event in schedule.iterrows():
-                gp_number = idx + 1
+
+            for _idx, event in schedule.iterrows():
+                try:
+                    gp_number = int(event.get('RoundNumber'))
+                except (TypeError, ValueError):
+                    continue
+                if gp_number < 1:
+                    continue  # pre-season testing
                 gp_name = event.get('EventName') if hasattr(event, 'get') else None
-                
-                # Check all session types
-                session_types = {
-                    'FP1': 'Session1Date',
-                    'FP2': 'Session2Date', 
-                    'FP3': 'Session3Date',
-                    'Q': 'Session4Date',
-                    'R': 'Session5Date'
-                }
-                
-                for session_name, date_column in session_types.items():
+
+                for slot in range(1, 6):
+                    label = simplify_session_name(event.get(f'Session{slot}'))
+                    date_column = f'Session{slot}Date'
+                    if label not in _PROCESSABLE_SESSIONS:
+                        continue
                     if date_column in event and not pd.isna(event[date_column]):
                         session_date = pd.to_datetime(event[date_column])
-                        
+
                         # Make timezone-aware if needed
                         if session_date.tzinfo is None:
                             session_date = session_date.tz_localize('UTC')
-                        
+
                         # Add sessions that finished in the last 24 hours
                         if now - pd.Timedelta(hours=24) <= session_date <= now:
-                            upcoming.append((current_year, gp_number, session_name, session_date, gp_name))
-            
+                            upcoming.append((current_year, gp_number, label, session_date, gp_name))
+
             return upcoming
-            
+
         except Exception as e:
             logger.error(f"Error getting upcoming sessions: {e}", exc_info=True)
             return []
-    
+
     def check_session_completed(self, year: int, gp: int, session: str) -> bool:
         """
         Check if a session has been completed and data is available
@@ -155,12 +161,12 @@ class BackgroundProcessor:
         then read from the warm cache instead of re-downloading.
 
         Fully fail-open: any warm-up error is logged and swallowed so plot
-        generation still proceeds. V2 resolves by ``gp_name`` (avoids the
-        pre-season-testing round-number offset), falling back to ``gp``.
+        generation still proceeds. ``gp`` is the official round, which V1 and V2
+        share; ``gp_name`` is only a fallback.
         """
         from src.services.analysis.v2.session_store import SessionDataStore
 
-        identifier = gp_name or gp
+        identifier = gp or gp_name
         try:
             store = SessionDataStore(year, identifier, session)
         except Exception as exc:
@@ -196,16 +202,16 @@ class BackgroundProcessor:
 
         Delegates to :func:`src.services.circuit_derivation.ensure_circuit_layout`,
         which never raises: an existing layout returns ``None`` immediately, a
-        failed derivation is logged at WARNING. V2 resolves by ``gp_name`` for
-        the same pre-season-testing reason as the pre-warm step.
+        failed derivation is logged at WARNING. ``gp`` is the official round, shared
+        by V1 and V2.
         """
         from src.services.circuit_derivation import ensure_circuit_layout
 
-        result = ensure_circuit_layout(year, gp_name or gp, session)
+        result = ensure_circuit_layout(year, gp or gp_name, session)
         if result:
             logger.info(
                 "🗺️ Derived circuit layout %s (%s) from Y%s %s %s: %s corners, %s m",
-                result["circuit_id"], result["circuit_name"], year, gp_name or gp, session,
+                result["circuit_id"], result["circuit_name"], year, gp or gp_name, session,
                 result["stats"]["n_corners"], result["stats"]["lap_length_m"],
             )
 
@@ -217,8 +223,8 @@ class BackgroundProcessor:
             year: Year
             gp: Grand Prix round number (used for V1/FastF1)
             session: Session type
-            gp_name: Grand Prix name string (used for V2/F1StaticClient to avoid
-                     round-number mismatch caused by pre-season testing entries)
+            gp_name: Grand Prix name (informational; V1 and V2 both address the
+                     race by the official round ``gp``)
 
         Returns:
             Dictionary with processing results
@@ -254,7 +260,7 @@ class BackgroundProcessor:
 
         try:
             # Generate all data for this session
-            # V1 uses round number, V2 uses gp_name to avoid pre-season testing offset
+            # V1 and V2 both use the official round number
             results = await asyncio.to_thread(
                 self.generator.generate_all_session_data,
                 year, gp, session,

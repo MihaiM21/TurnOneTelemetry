@@ -26,7 +26,7 @@ def _init(y: int, event_name: str, session_name: str):
     return location, name, name.replace('png', 'json')
 
 
-def _process_data(base_url: str, client: F1StaticClient) -> List[Dict]:
+def _process_data(base_url: str, client: F1StaticClient, y: Optional[int] = None) -> List[Dict]:
     driver_info = get_driver_team_from_list(base_url, client)
     df = get_qualifying_classification(base_url, client)
 
@@ -41,7 +41,7 @@ def _process_data(base_url: str, client: F1StaticClient) -> List[Dict]:
         info = driver_info.get(drv_num, {})
         tla = info.get('tla', drv_num)
         team = info.get('team', 'Unknown')
-        color = get_team_color(team)
+        color = _team_color({'Team': team, 'Color': info.get('color')}, y)
         # Ordering comes from classification Position, delta from raw LapTime --
         # a driver eliminated early on a fast banker lap can (rarely) have a
         # quicker recorded LapTime than the actual pole-sitter. Clamp at zero
@@ -119,9 +119,15 @@ def legible_color(color: str, floor: float = 0.32) -> str:
     return to_hex((r + (1 - r) * mix, g + (1 - g) * mix, b + (1 - b) * mix))
 
 
-def _team_color(row: Dict, y: int) -> str:
-    color = get_team_color(row.get("Team", "Unknown"), y)
-    return color if color != "#FFFFFF" or not row.get("Color") else row["Color"]
+def _team_color(row: Dict, y: Optional[int]) -> str:
+    """Team colour by name; an unrecognised team falls back to the row's own colour unless that is empty/white."""
+    color = get_team_color(row.get("Team") or "Unknown", y)
+    if color.upper() != "#FFFFFF":
+        return color
+    given = row.get("Color")
+    if isinstance(given, str) and given.strip().upper() not in ("", "#", "#FFFFFF", "#FFF"):
+        return given
+    return color
 
 
 def _render_formatted(data: List[Dict], fmt: str, y: int, event_name: str, session_name: str,
@@ -195,7 +201,7 @@ def QualiResultsPlot(y: int, identifier: Union[int, str], e: str, fmt: Optional[
         base_url = client.get_event_session_url(y, event_name, e, round_nr=round_nr)
         if not base_url:
             return ""
-        data = _process_data(base_url, client)
+        data = _process_data(base_url, client, y)
         if data:
             store_data_dict_to_mongo(
                 year=y, round_nr=round_nr, session_name=e, event_name=event_name,
@@ -230,7 +236,7 @@ def QualiResultsData(y: int, identifier: Union[int, str], e: str,
     if not base_url:
         return []
 
-    data = _process_data(base_url, client)
+    data = _process_data(base_url, client, y)
 
     if store_to_mongo and data:
         store_data_dict_to_mongo(

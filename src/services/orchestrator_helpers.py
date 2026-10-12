@@ -29,17 +29,23 @@ def get_latest_finished_session():
             continue
 
     for year, race_list in datasets:
-        # Prefer livetiming-derived round number when available (curated/livetiming
-        # may drift if a race is cancelled or reordered). Falls back to index + 1.
-        for i, race in enumerate(race_list):
-            round_number = race.get("round") if isinstance(race.get("round"), int) else i + 1
+        # ``round`` is the official championship round (== FastF1's RoundNumber), so it
+        # addresses the same race in V1 and V2. Cancelled events and pre-season
+        # testing are not in this list.
+        for race in race_list:
+            round_number = race.get("round")
+            if not isinstance(round_number, int):
+                continue
 
-            for session in race["sessions"]:
+            for session in race.get("sessions") or []:
+                end_time = session.get("endTime")
+                if end_time is None:
+                    continue
                 # Check if session is finished
-                if session["endTime"] < now:
+                if end_time < now:
 
                     # If this session ended *after* the currently stored one, it's the new latest
-                    if latest_session is None or session["endTime"] > latest_session["endTime"]:
+                    if latest_session is None or end_time > latest_session["endTime"]:
                         sessionType = simplify_session_name(session["name"])
 
                         latest_session = {
@@ -50,8 +56,8 @@ def get_latest_finished_session():
                             "country": race["country"],
                             "session_name": sessionType,
                             "startTime": session["startTime"],
-                            "endTime": session["endTime"],
-                            "is_sprint_weekend": race["hasSprint"]
+                            "endTime": end_time,
+                            "is_sprint_weekend": bool(race.get("hasSprint")),
                         }
 
     return latest_session
@@ -136,53 +142,43 @@ def _meeting_has_sprint(meeting: dict) -> bool:
 
 def get_latest_finished_session_v2():
     """
-    V2 equivalent of :func:`get_latest_finished_session` that uses the
-    livetiming static index (F1StaticClient) instead of curated reference
-    data. Returns the same dict shape so :func:`latest_session_analised_v2`
-    can consume it interchangeably.
+    V2 equivalent of :func:`get_latest_finished_session`. Both read the season
+    calendar (``reference.get_season_events``): official rounds, no pre-season
+    testing, no cancelled events, and only events livetiming actually lists (an
+    event without a meeting key has no V2 data to analyse). Returns the same dict
+    shape so :func:`latest_session_analised_v2` can consume it interchangeably.
     """
-    # Imported lazily to avoid a circular import at module load time.
-    from src.ingestion.static_client import F1StaticClient
-
     now = datetime.now(timezone.utc)
     current_year = now.year
     candidate_years = [current_year - 1, current_year]
 
-    client = F1StaticClient()
     latest_session = None
 
     for year in candidate_years:
         try:
-            index = client.fetch_season_index(year)
+            events = get_season_events(year)
         except Exception as exc:
             logger.debug("V2 latest-session: skipping %s (%s)", year, exc)
             continue
 
-        meetings = index.get('Meetings', []) or []
-        for idx, meeting in enumerate(meetings, start=1):
-            gmt_offset = _parse_gmt_offset(meeting.get('GmtOffset', ''))
-            has_sprint = _meeting_has_sprint(meeting)
-
-            for session in meeting.get('Sessions', []) or []:
-                end_utc = _parse_livetiming_datetime(session.get('EndDate', ''), gmt_offset)
+        for event in events:
+            if event.get("key") is None or not isinstance(event.get("round"), int):
+                continue
+            for session in event.get("sessions") or []:
+                end_utc = session.get("endTime")
                 if end_utc is None or end_utc >= now:
                     continue
-
-                if latest_session is None or end_utc > latest_session['endTime']:
-                    start_utc = _parse_livetiming_datetime(session.get('StartDate', ''), gmt_offset)
-                    session_name = simplify_session_name(session.get('Name', ''))
-                    circuit = meeting.get('Circuit') or {}
-                    country = meeting.get('Country') or {}
+                if latest_session is None or end_utc > latest_session["endTime"]:
                     latest_session = {
                         "year": year,
-                        "round": idx,
-                        "grandPrix": meeting.get('Name', ''),
-                        "circuit": circuit.get('ShortName', '') if isinstance(circuit, dict) else '',
-                        "country": country.get('Name', '') if isinstance(country, dict) else '',
-                        "session_name": session_name,
-                        "startTime": start_utc,
+                        "round": event["round"],
+                        "grandPrix": event.get("grandPrix", ""),
+                        "circuit": event.get("circuit", ""),
+                        "country": event.get("country", ""),
+                        "session_name": simplify_session_name(session.get("name", "")),
+                        "startTime": session.get("startTime"),
                         "endTime": end_utc,
-                        "is_sprint_weekend": has_sprint,
+                        "is_sprint_weekend": bool(event.get("hasSprint")),
                     }
 
     return latest_session

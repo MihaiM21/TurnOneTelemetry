@@ -9,11 +9,12 @@ from src.api.schemas.common import ANALYSIS_ERROR_RESPONSES, COMMON_ERROR_RESPON
 from src.api.schemas.seasonal import (
     EventSessionsResponse,
     SeasonDriverRadarResponse,
+    SeasonEventItem,
     SeasonEventsResponse,
     SeasonFormResponse,
     TeammateBattleResponse,
 )
-from src.core.exceptions import T1APIError
+from src.core.exceptions import SessionNotFoundError, T1APIError
 from src.core.logging import get_logger
 from src.core.security.api_keys import verify_api_key
 from src.core.security.rate_limiting import apply_tiered_limit
@@ -23,6 +24,8 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v2")
 
+from src.ingestion.calendar import public_event
+from src.ingestion.reference import get_season_calendar
 from src.ingestion.static_client import F1StaticClient
 from src.services.analysis.v2.teammate_battle import TeammateBattlePlot, TeammateBattleData
 from src.services.analysis.v2.season_form import SeasonFormPlot, SeasonFormData
@@ -70,41 +73,62 @@ async def get_season_events(
     api_key: str = Depends(verify_api_key)
 ):
     """
-    Get a list of all available events (meetings) for a specific season.
-    This fetches data directly from the formula1.com static API.
+    The season calendar: pre-season testing, every race by its **official round**
+    (the number V1/FastF1 use), and events that were cancelled or replaced
+    (`status: "cancelled"`, no round). Built from the livetiming index, the
+    curated schedule and the championship schedule; see `GET /seasons/{year}/events/{event}`
+    to resolve one event.
     """
     try:
-        logger.info(f"Fetching events for season {year} via F1StaticClient")
-        client = F1StaticClient()
-
-        # Run synchronous network request in a threadpool to prevent blocking the async event loop
-        season_index = await run_in_threadpool(client.fetch_season_index, year)
-
-        meetings = season_index.get('Meetings', [])
-
-        # Format the response nicely
-        events = []
-        for meeting in meetings:
-            events.append({
-                "name": meeting.get('Name'),
-                "official_name": meeting.get('OfficialName'),
-                "location": meeting.get('Location'),
-                "country": meeting.get('Country', {}).get('Name'),
-                "key": meeting.get('Key'),
-                "code": meeting.get('Code')
-            })
-
-        return {"year": year, "events": events}
-
-    except requests.exceptions.HTTPError as e:
-        if e.response.status_code == 404:
-            logger.error(f"Season index not found for year {year}")
-            raise HTTPException(status_code=404, detail=f"Season data for {year} not found on official F1 servers.")
-        logger.error(f"HTTP Error fetching events for {year}: {e}")
-        raise HTTPException(status_code=502, detail="Error communicating with F1 servers.")
+        logger.info(f"Fetching calendar for season {year}")
+        events = await run_in_threadpool(get_season_calendar, year)
+        return {"year": year, "events": [public_event(e) for e in events]}
+    except T1APIError:
+        raise
     except Exception as e:
         logger.error(f"Error fetching season events: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch available events for the season.")
+
+
+@router.get(
+    '/seasons/{year}/events/{event_name}',
+    tags=["API v2", "Seasonal Data"],
+    summary="Resolve one season event",
+    operation_id="v2_season_event",
+    responses={
+        **COMMON_ERROR_RESPONSES,
+        200: {"model": SeasonEventItem, "description": "The calendar entry `event_name` resolves to."},
+        404: {
+            "model": ErrorEnvelope,
+            "description": "Season not covered, or `event_name` matches no event (or several: see `suggestions`).",
+        },
+    },
+)
+@apply_tiered_limit("standard")
+async def get_season_event(
+    request: Request,
+    year: int,
+    event_name: str,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Resolve a round number, livetiming meeting key, or name (`Japan`, `USA`,
+    `Sepang`, `Madrid` ...) to its calendar entry. Cancelled events resolve too and
+    say so in `status` / `reason` / `replaced_by`.
+    """
+    from src.ingestion.event_resolver import EventResolver
+
+    def _resolve():
+        resolver = EventResolver(year)
+        info = resolver.resolve(event_name, allow_cancelled=True)
+        for event in resolver._events:
+            if event.get("grandPrix") == info.name and event.get("key") == info.key and \
+                    event.get("status", "scheduled") == info.status:
+                return event
+        raise SessionNotFoundError(year=year, gp=event_name, reason="Event vanished from the calendar.")
+
+    event = await run_in_threadpool(_resolve)
+    return public_event(event)
 
 
 @router.get(
@@ -117,7 +141,8 @@ async def get_season_events(
         200: {"model": EventSessionsResponse, "description": "All sessions for the matched meeting."},
         404: {
             "model": ErrorEnvelope,
-            "description": "Season data not found on official F1 servers, or no event matched `event_name`.",
+            "description": "Season data not found on official F1 servers, no event matched `event_name`, "
+                           "or the event was cancelled / is not yet listed by livetiming.",
         },
         502: {"model": ErrorEnvelope, "description": "Error communicating with F1 servers."},
     },
@@ -131,22 +156,29 @@ async def get_event_sessions(
 ):
     """
     Get a list of all available sessions for a specific event in a season.
-    event_name can be a broad match (e.g., "Italian Grand Prix").
+    `event_name` is resolved like every other `gp` input: official round, livetiming
+    meeting key, or a name / alias (`Italian Grand Prix`, `Monza`, `Italy`).
     """
+    from src.ingestion.event_resolver import resolve_event
+
     try:
         logger.info(f"Fetching sessions for {event_name} ({year}) via F1StaticClient")
         client = F1StaticClient()
 
+        info = await run_in_threadpool(resolve_event, year, event_name)
+        if info.key is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"{info.name} ({year}) is scheduled but livetiming has not listed it yet.",
+            )
+
         # We need the full season index to find the event and its sessions
         season_index = await run_in_threadpool(client.fetch_season_index, year)
 
-        # Find the meeting
-        meetings = season_index.get('Meetings', [])
-        event_data = None
-        for meeting in meetings:
-            if event_name.lower() in meeting.get('Name', '').lower() or event_name.lower() == str(meeting.get('Key')):
-                event_data = meeting
-                break
+        # The meeting is selected by key -- never by array position or name substring.
+        event_data = next(
+            (m for m in season_index.get('Meetings', []) if m.get('Key') == info.key), None
+        )
 
         if not event_data:
             raise HTTPException(
@@ -175,7 +207,7 @@ async def get_event_sessions(
             "sessions": sessions
         }
 
-    except HTTPException:
+    except (HTTPException, T1APIError):
         raise
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 404:

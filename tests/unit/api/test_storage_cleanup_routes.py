@@ -261,3 +261,61 @@ def test_purge_body_is_a_body_not_a_query_param(admin_api_client, plot_tree, plo
     assert resp.status_code != 422, "body degraded into a query parameter"
     if resp.status_code == 422:  # pragma: no cover - diagnostic only
         assert "query" not in str(resp.json())
+
+
+# --------------------------------------------------------------------------- #
+# Mapping audit (data filed under the wrong event)
+# --------------------------------------------------------------------------- #
+
+_AUDIT = {
+    "years": [{
+        "year": 2026, "gp_documents": 3, "calendar_available": True, "unknown_gp_ids": ["2026_GRA"],
+        "entries_with_source": 0, "entries_without_source": 4,
+        "duplicates": [{
+            "year": 2026, "session": "Q", "data_type": "qualifying_results", "payload_sha256": "abc",
+            "gp_ids": ["2026_AUS", "2026_JPN"], "events": ["AustralianGrandPrix", "JapaneseGrandPrix"],
+            "scopes": [
+                {"year": 2026, "gp": "2026_AUS", "session": "Q", "data_type": "qualifying_results"},
+                {"year": 2026, "gp": "2026_JPN", "session": "Q", "data_type": "qualifying_results"},
+            ],
+        }],
+    }],
+    "total_duplicate_groups": 1,
+    "suspect_scopes": [],
+    "bundles": {"total": 5, "without_source": 5},
+    "raw_stream_sessions": 2,
+    "note": "",
+}
+
+
+def test_mapping_audit_endpoint_returns_the_report(admin_api_client, monkeypatch):
+    from src.api.routers import admin_storage
+
+    seen = {}
+    monkeypatch.setattr(admin_storage, "audit_mapping", lambda year: seen.update(year=year) or _AUDIT)
+    resp = admin_api_client.get("/api/admin/storage/mapping-audit?year=2026")
+    assert resp.status_code == 200
+    assert resp.json()["total_duplicate_groups"] == 1
+    assert seen["year"] == 2026
+
+
+def test_mapping_audit_endpoint_rejects_a_consumer_key(client):
+    resp = client.get("/api/admin/storage/mapping-audit", headers={"X-API-Key": "test-standard-key"})
+    assert resp.status_code in (401, 403)
+
+
+def test_cleanup_page_runs_the_audit_only_when_asked(admin_client, plot_tree, plots_only, monkeypatch):
+    calls = []
+    monkeypatch.setattr(admin_ui, "audit_mapping", lambda year: calls.append(year) or _AUDIT)
+
+    plain = admin_client.get("/admin/cleanup")
+    assert plain.status_code == 200 and calls == []
+    assert "Run audit" in plain.text
+
+    audited = admin_client.get("/admin/cleanup?audit=true")
+    assert audited.status_code == 200 and calls == [None]
+    body = audited.text
+    assert "JapaneseGrandPrix" in body
+    assert "2026_GRA" in body
+    # each suspect links to a ready preview scoped to exactly that row
+    assert "preview=true&amp;year=2026&amp;gp=2026_JPN&amp;session=Q&amp;data_type=qualifying_results" in body

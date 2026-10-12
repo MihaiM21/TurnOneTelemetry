@@ -49,17 +49,21 @@ def _doc_id(year: int, round_nr: Any, session: str) -> str:
 
 
 def get_session_bundle(
-    year: int, round_nr: Any, session: str
+    year: int, round_nr: Any, session: str, source: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
     """Return the stored derived bundle for a session, or ``None`` on miss.
+
+    With ``source`` (the livetiming session path) the bundle is only served when it
+    was written for that exact session -- see ``raw_stream_cache.get_raw_stream``.
 
     Never raises: any Mongo error is logged and treated as a miss so the caller
     recomputes from the raw streams.
     """
     try:
-        doc = _collection().find_one(
-            {"_id": _doc_id(year, round_nr, session)}, {"bundle": 1}
-        )
+        query: Dict[str, Any] = {"_id": _doc_id(year, round_nr, session)}
+        if source is not None:
+            query["source"] = source
+        doc = _collection().find_one(query, {"bundle": 1})
     except PyMongoError as exc:
         logger.debug("session_cache read skipped (%s): %s", _doc_id(year, round_nr, session), exc)
         return None
@@ -75,6 +79,7 @@ def store_session_bundle(
     session: str,
     bundle: Dict[str, Any],
     meta: Optional[Dict[str, Any]] = None,
+    source: Optional[str] = None,
 ) -> bool:
     """Upsert a session's derived bundle. Returns ``True`` on success.
 
@@ -90,6 +95,7 @@ def store_session_bundle(
             "year": int(year),
             "round_nr": round_nr,
             "session": session,
+            "source": source,
             "schema_version": SCHEMA_VERSION,
             "created_at": datetime.utcnow(),
             "bundle": clean_bundle,
@@ -128,7 +134,7 @@ def list_bundles(year: Optional[int] = None) -> list:
         cursor = _collection().find(
             query,
             {"year": 1, "round_nr": 1, "session": 1, "schema_version": 1,
-             "created_at": 1, "meta": 1, "bundle": 1},
+             "created_at": 1, "meta": 1, "bundle": 1, "source": 1},
         )
         rows = []
         for doc in cursor:
@@ -140,6 +146,7 @@ def list_bundles(year: Optional[int] = None) -> list:
                 "round_nr": doc.get("round_nr"),
                 "session": doc.get("session"),
                 "event_name": (doc.get("meta") or {}).get("event_name"),
+                "source": doc.get("source"),
                 "keys": sorted(bundle.keys()) if isinstance(bundle, dict) else [],
                 "schema_version": doc.get("schema_version"),
                 "schema_drift": doc.get("schema_version") != SCHEMA_VERSION,

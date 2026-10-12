@@ -44,6 +44,8 @@ class _FakeGridFS:
         if "metadata.schema_version" in query:
             if f.metadata.get("schema_version") != query["metadata.schema_version"]:
                 return False
+        if "metadata.source" in query and f.metadata.get("source") != query["metadata.source"]:
+            return False
         return True
 
     def find_one(self, query: dict):
@@ -122,3 +124,28 @@ def test_read_failure_is_swallowed(monkeypatch):
 
     monkeypatch.setattr(rsc, "_bucket", lambda: _BoomBucket())
     assert rsc.get_raw_stream(2024, 1, "Race", "car_data") is None
+
+
+# ---- provenance: a blob is only served back to the session it was written for ----------
+
+JAPAN_Q = "2026/2026-03-29_Japanese_Grand_Prix/2026-03-28_Qualifying"
+AUSTRALIA_Q = "2026/2026-03-08_Australian_Grand_Prix/2026-03-07_Qualifying"
+
+
+def test_blob_written_for_one_session_is_not_served_to_another(fake_bucket):
+    """The reported bug: ``2026_3_Q`` held Australia's data and was served for Japan."""
+    rsc.store_raw_stream(2026, 3, "Q", "timing_data", [{"who": "australia"}], source=AUSTRALIA_Q)
+    assert rsc.get_raw_stream(2026, 3, "Q", "timing_data", source=JAPAN_Q) is None
+    assert rsc.get_raw_stream(2026, 3, "Q", "timing_data", source=AUSTRALIA_Q) == [{"who": "australia"}]
+
+
+def test_legacy_blob_without_a_source_is_a_miss_when_a_source_is_required(fake_bucket):
+    rsc.store_raw_stream(2026, 3, "Q", "timing_data", [{"who": "unknown"}])  # pre-provenance write
+    assert rsc.get_raw_stream(2026, 3, "Q", "timing_data", source=JAPAN_Q) is None
+
+
+def test_rewrite_after_a_mismatch_replaces_the_stale_blob(fake_bucket):
+    rsc.store_raw_stream(2026, 3, "Q", "timing_data", [{"who": "australia"}], source=AUSTRALIA_Q)
+    rsc.store_raw_stream(2026, 3, "Q", "timing_data", [{"who": "japan"}], source=JAPAN_Q)
+    assert len(fake_bucket.files) == 1
+    assert rsc.get_raw_stream(2026, 3, "Q", "timing_data", source=JAPAN_Q) == [{"who": "japan"}]

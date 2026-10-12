@@ -1,18 +1,18 @@
-from src.domain.data.seasons import f1_2025_races_data, f1_2026_races_data
 import json
 import time
-import unicodedata
 from collections import OrderedDict
+from datetime import datetime, timezone
 from threading import Lock
 from typing import Any, Optional
 
-from src.core.config import settings
 from src.core.exceptions import (
     DataNotAvailableError,
     SessionNotFoundError,
     UpstreamUnavailableError,
 )
 from src.core.logging import get_logger
+from src.domain.data.seasons import f1_2025_races_data, f1_2026_races_data
+from src.ingestion import calendar as cal
 
 logger = get_logger(__name__)
 
@@ -20,10 +20,14 @@ logger = get_logger(__name__)
 # JSON index entirely.
 _MIN_LIVETIMING_YEAR = 2018
 
-# Bounded TTL cache for livetiming-derived season data. Previous version was
-# an unbounded dict that grew for the life of the process.
-_LIVETIMING_CACHE_MAX = 20
-_LIVETIMING_CACHE_TTL_SECONDS = 3600
+_CURATED = {2025: f1_2025_races_data, 2026: f1_2026_races_data}
+
+# Bounded TTL cache for built calendars. A calendar built while livetiming was
+# unreachable (curated-only) gets a short TTL so one transient failure cannot pin
+# an un-enriched schedule for an hour.
+_CALENDAR_CACHE_MAX = 20
+_CALENDAR_CACHE_TTL_SECONDS = 3600
+_CALENDAR_DEGRADED_TTL_SECONDS = 60
 
 
 class _TTLCache:
@@ -47,89 +51,34 @@ class _TTLCache:
             self._store.move_to_end(key)
             return value
 
-    def set(self, key, value):
+    def set(self, key, value, ttl: Optional[float] = None):
         with self._lock:
-            self._store[key] = (time.time() + self._ttl, value)
+            self._store[key] = (time.time() + (self._ttl if ttl is None else ttl), value)
             self._store.move_to_end(key)
             while len(self._store) > self._maxsize:
                 self._store.popitem(last=False)
 
 
-_LIVETIMING_SEASON_CACHE = _TTLCache(_LIVETIMING_CACHE_MAX, _LIVETIMING_CACHE_TTL_SECONDS)
-_ENRICHED_SEASON_CACHE = _TTLCache(_LIVETIMING_CACHE_MAX, _LIVETIMING_CACHE_TTL_SECONDS)
+_CALENDAR_CACHE = _TTLCache(_CALENDAR_CACHE_MAX, _CALENDAR_CACHE_TTL_SECONDS)
 
 
 def _fold(value) -> str:
-    if value is None:
-        return ""
-    text = unicodedata.normalize("NFKD", str(value))
-    text = "".join(c for c in text if not unicodedata.combining(c))
-    return "".join(ch for ch in text.lower() if ch.isalnum())
+    return cal.fold(value)
 
 
-def _adapt_livetiming_index_to_season_events(year: int, index: dict) -> list[dict]:
-    """
-    Convert a livetiming Index.json payload into the same shape as the curated
-    f1_YYYY_races_data lists (round, grandPrix, circuit, country, sessions).
-    Missing fields are filled with empty strings — downstream consumers should
-    treat curated data as authoritative when both exist.
-    """
-    events: list[dict] = []
-    for idx, meeting in enumerate(index.get("Meetings", []), start=1):
-        # The livetiming index is not always a full, round-1-anchored season
-        # list — it can be a rolling/truncated window (e.g. starting mid-season).
-        # Prefer the meeting's own calendar round ("Number") over array position.
-        number = meeting.get("Number")
-        circuit = meeting.get("Circuit") if isinstance(meeting.get("Circuit"), dict) else {}
-        events.append({
-            "round": number if isinstance(number, int) else idx,
-            "grandPrix": meeting.get("Name", ""),
-            "officialName": meeting.get("OfficialName", ""),
-            "circuit": circuit.get("ShortName", ""),
-            # Livetiming's Circuit.Key doubles as the stored circuit-layout id
-            # (src/domain/data/circuits/{year}/{key}_*.json), so carrying it
-            # here lets the admin circuits page map events to layouts without
-            # fetching each session's SessionInfo.json.
-            "circuitKey": circuit.get("Key"),
-            # Host city ("Madrid", "Monza"): the name people actually use for a
-            # round whose GP name does not contain it (2026 "Spanish Grand
-            # Prix" is in Madrid). The resolver matches on it.
-            "location": meeting.get("Location", ""),
-            "country": meeting.get("Country", {}).get("Name", "") if isinstance(meeting.get("Country"), dict) else "",
-            "code": meeting.get("Code", ""),
-            "key": meeting.get("Key"),
-            "sessions": [
-                {"name": s.get("Name", ""), "startDate": s.get("StartDate", ""), "endDate": s.get("EndDate", "")}
-                for s in meeting.get("Sessions", [])
-            ],
-        })
-    return events
-
-
-def _fetch_season_events_from_livetiming(year: int) -> list[dict]:
-    """
-    Synthesize a season-events list from livetiming.formula1.com for a year
-    not present in the curated data. Cached in-process per year.
-    """
-    cached = _LIVETIMING_SEASON_CACHE.get(year)
-    if cached is not None:
-        return cached
-
+def fetch_livetiming_index(year: int) -> dict:
+    """Fetch the livetiming season index, mapping unexpected failures to upstream errors."""
     if year < _MIN_LIVETIMING_YEAR:
         raise SessionNotFoundError(
             year=year,
             reason=f"Season {year} is before livetiming coverage ({_MIN_LIVETIMING_YEAR}+).",
         )
-
     # Imported here to avoid a circular import at module load time.
     from src.ingestion.static_client import F1StaticClient
 
-    client = F1StaticClient()
     try:
-        index = client.fetch_season_index(year)
-    except SessionNotFoundError:
-        raise
-    except (DataNotAvailableError, UpstreamUnavailableError):
+        return F1StaticClient().fetch_season_index(year)
+    except (SessionNotFoundError, DataNotAvailableError, UpstreamUnavailableError):
         raise
     except Exception as exc:
         logger.exception("Failed to fetch livetiming index for %s", year)
@@ -137,139 +86,65 @@ def _fetch_season_events_from_livetiming(year: int) -> list[dict]:
             source="livetiming", reason=f"Could not load season {year}: {exc}"
         ) from exc
 
-    events = _adapt_livetiming_index_to_season_events(year, index)
-    _LIVETIMING_SEASON_CACHE.set(year, events)
+
+def _build_live_calendar(year: int) -> tuple[list[dict], bool]:
+    """Build the calendar from live inputs. Returns ``(events, degraded)``."""
+    curated_raw = _CURATED.get(year)
+    curated = cal.adapt_curated(curated_raw, cal.load_overrides()) if curated_raw else None
+    live: Optional[list[dict]] = None
+    try:
+        live = cal.adapt_livetiming_index(fetch_livetiming_index(year))
+    except (SessionNotFoundError, DataNotAvailableError, UpstreamUnavailableError) as exc:
+        if curated is None:
+            raise
+        logger.warning("Calendar %s built from the curated schedule only: %s", year, exc)
+    events = cal.build_calendar(year, live=live, curated=curated)
+    return events, live is None
+
+
+def _calendar(year: int) -> list[dict]:
+    cached = _CALENDAR_CACHE.get(year)
+    if cached is not None:
+        return cached
+
+    events: Optional[list[dict]] = None
+    degraded = False
+    if year < datetime.now(timezone.utc).year:
+        events = cal.load_snapshot(year)
+    if events is None:
+        events, degraded = _build_live_calendar(year)
+
+    _CALENDAR_CACHE.set(
+        year, events, ttl=_CALENDAR_DEGRADED_TTL_SECONDS if degraded else None
+    )
     return events
 
 
-def _fetch_livetiming_meetings_safe(year: int) -> Optional[list[dict]]:
-    """Fetch and adapt livetiming meetings; return None on any failure.
+def get_season_calendar(season_year) -> list[dict]:
+    """Every event of a season -- testing and cancelled included -- with live status.
 
-    Used to enrich curated season data with ``key`` / ``code`` /
-    ``officialName``. Failures must never break the curated-data path.
+    Dicts carry ``round`` (official championship round, ``None`` for testing and
+    cancelled events), ``kind``, ``status``, ``key``, ``aliases``, ``gp_id`` and
+    ``sessions``. See :mod:`src.ingestion.calendar`.
     """
-    try:
-        return _fetch_season_events_from_livetiming(year)
-    except (SessionNotFoundError, DataNotAvailableError, UpstreamUnavailableError) as exc:
-        logger.debug("Livetiming enrichment skipped for %s: %s", year, exc)
-        return None
-    except Exception:
-        logger.exception("Unexpected error enriching curated %s with livetiming", year)
-        return None
+    return cal.apply_runtime_status(_calendar(int(season_year)))
 
 
-def _match_curated_to_livetiming(curated: list[dict], live: list[dict]) -> list[Optional[dict]]:
-    """Pair each curated race with at most one livetiming meeting.
+def get_season_events(season_year, *, include_cancelled: bool = False, include_testing: bool = False) -> list[dict]:
+    """Race events for a season, by official round.
 
-    Three passes, each *claiming* the meeting it matches so no meeting is
-    handed to two curated races:
-
-    1. exact folded ``grandPrix`` name;
-    2. circuit-name containment ("Circuit de Barcelona-Catalunya" vs
-       livetiming's "Catalunya"), only when exactly one unclaimed meeting fits;
-    3. the only remaining unclaimed meeting in the same country.
-
-    A plain country lookup was wrong as soon as a season had two rounds in one
-    country: 2026 has Barcelona ("Gran Premio de Barcelona-Catalunya", which
-    livetiming calls "Barcelona Grand Prix") and Madrid ("Spanish Grand Prix"),
-    both ``country == "Spain"``. A dict keyed by country kept whichever came
-    last, so the Barcelona record was enriched with Madrid's meeting key, code
-    and official name.
+    Curated data exists for 2025 and 2026; every other year >= 2018 comes from a
+    committed snapshot (or, for the current year, livetiming). Cancelled events and
+    pre-season testing are left out unless asked for: nearly every caller iterates
+    "the races that were or will be run". Years before 2018 raise
+    ``SessionNotFoundError``.
     """
-    matches: list[Optional[dict]] = [None] * len(curated)
-    claimed: set[int] = set()
-
-    def _claim(idx: int, meeting: dict) -> None:
-        matches[idx] = meeting
-        claimed.add(id(meeting))
-
-    def _unclaimed() -> list[dict]:
-        return [m for m in live if id(m) not in claimed]
-
-    # Pass 1: exact name.
-    live_by_name = {_fold(m.get("grandPrix")): m for m in live if m.get("grandPrix")}
-    for idx, race in enumerate(curated):
-        meeting = live_by_name.get(_fold(race.get("grandPrix")))
-        if meeting is not None and id(meeting) not in claimed:
-            _claim(idx, meeting)
-
-    # Pass 2: circuit-name containment (both sides non-empty: "" is a
-    # substring of everything).
-    for idx, race in enumerate(curated):
-        if matches[idx] is not None:
-            continue
-        wanted = _fold(race.get("circuit"))
-        if not wanted:
-            continue
-        candidates = []
-        for meeting in _unclaimed():
-            have = _fold(meeting.get("circuit"))
-            if have and (have in wanted or wanted in have):
-                candidates.append(meeting)
-        if len(candidates) == 1:
-            _claim(idx, candidates[0])
-
-    # Pass 3: unique unclaimed meeting in the same country.
-    for idx, race in enumerate(curated):
-        if matches[idx] is not None:
-            continue
-        country = _fold(race.get("country"))
-        if not country:
-            continue
-        candidates = [m for m in _unclaimed() if _fold(m.get("country")) == country]
-        if len(candidates) == 1:
-            _claim(idx, candidates[0])
-
-    return matches
-
-
-def _enrich_curated_with_livetiming(year: int, curated: list[dict]) -> list[dict]:
-    """Attach livetiming ``key`` / ``code`` / ``officialName`` to curated races.
-
-    Curated data owns scheduling fields (``startTime``, ``endTime``,
-    ``hasSprint``). Livetiming owns identity fields needed by
-    :class:`~src.ingestion.event_resolver.EventResolver`. We merge them, prefer
-    curated for anything already present, and log a WARN when round-order
-    diverges so future drift is visible.
-    """
-    enriched = _ENRICHED_SEASON_CACHE.get(year)
-    if enriched is not None:
-        return enriched
-
-    live = _fetch_livetiming_meetings_safe(year)
-    if not live:
-        # No livetiming available. Curated records carry no ``round``, and the
-        # resolver matches round numbers by that key (not list position), so
-        # the offline shape must be the same as the enriched one or every
-        # ``gp=<round>`` lookup fails with the network down (as CI is).
-        offline = [{**race, "round": race.get("round", idx + 1)} for idx, race in enumerate(curated)]
-        _ENRICHED_SEASON_CACHE.set(year, offline)
-        return offline
-
-    matches = _match_curated_to_livetiming(curated, live)
-
-    result: list[dict] = []
-    for idx, race in enumerate(curated):
-        match = matches[idx]
-        merged = dict(race)
-        if match:
-            # Don't overwrite curated keys — only fill gaps.
-            for k in ("officialName", "code", "key", "circuit", "circuitKey", "location"):
-                v = match.get(k)
-                if v and not merged.get(k):
-                    merged[k] = v
-            live_round = match.get("round")
-            curated_round = idx + 1
-            if isinstance(live_round, int) and live_round != curated_round:
-                logger.warning(
-                    "Curated/livetiming round mismatch for %s %s: curated=%s livetiming=%s",
-                    year, race.get("grandPrix"), curated_round, live_round,
-                )
-        merged.setdefault("round", idx + 1)
-        result.append(merged)
-
-    _ENRICHED_SEASON_CACHE.set(year, result)
-    return result
+    events = get_season_calendar(season_year)
+    return [
+        e for e in events
+        if (include_cancelled or e["status"] != cal.STATUS_CANCELLED)
+        and (include_testing or e["kind"] != cal.KIND_TESTING)
+    ]
 
 
 # Utils function
@@ -292,21 +167,6 @@ def check_driver_name(year, name):
             return driver
 
     return None
-
-def get_season_events(season_year):
-    """
-    Get season events for a given year.
-
-    Curated data exists for 2025 and 2026 (with richer metadata). For other
-    years >= 2018 we synthesize the list from livetiming.formula1.com so V2
-    endpoints can serve historical seasons. Years before 2018 raise
-    SessionNotFoundError.
-    """
-    if season_year == 2026:
-        return _enrich_curated_with_livetiming(2026, f1_2026_races_data)
-    if season_year == 2025:
-        return _enrich_curated_with_livetiming(2025, f1_2025_races_data)
-    return _fetch_season_events_from_livetiming(int(season_year))
 
 def get_season_drivers_and_teams(season_year):
     """Get season drivers and teams data for a given season year"""

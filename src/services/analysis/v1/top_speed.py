@@ -6,7 +6,7 @@ from src.core.logging import get_logger
 from src.services.plotting import output as dirOrg
 from src.ingestion import fastf1_client as data_aqcuisition
 from src.services.plotting import theme as setup_theme
-from src.services.plotting.colors import team_colors, teams
+from src.services.plotting.colors import get_team_color, teams
 from src.repositories.plots import store_data_dict_to_mongo, get_plot_data_from_mongo
 
 logger = get_logger(__name__)
@@ -96,7 +96,7 @@ def TopSpeedPlot(y, r, e):
 
 
     # Get team colors from teamColorPicker module
-    list_colors = [team_colors[tms] if tms in team_colors else "#FFFFFF" for tms in teams]
+    list_colors = [get_team_color(tms) for tms in teams]
 
 
     list_top_speed, teams, list_colors = (list(t) for t in zip(*sorted(zip(list_top_speed, teams, list_colors))))
@@ -175,7 +175,7 @@ def TopSpeedData(y, r, e, store_to_mongo=True):
 
 
     # Get team colors from teamColorPicker module
-    list_colors = [team_colors[tms] if tms in team_colors else "#FFFFFF" for tms in teams]
+    list_colors = [get_team_color(tms) for tms in teams]
 
 
     list_top_speed, teams, list_colors = (list(t) for t in zip(*sorted(zip(list_top_speed, teams, list_colors))))

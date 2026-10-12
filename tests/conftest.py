@@ -130,8 +130,8 @@ def auth_headers():
 def _clear_season_event_caches():
     """Reset the process-wide season-events caches between tests.
 
-    ``src/ingestion/reference.py`` memoizes season event lists in two
-    module-level TTL caches. They are correct in production (one process, real
+    ``src/ingestion/reference.py`` memoizes built season calendars in a
+    module-level TTL cache. They are correct in production (one process, real
     data, short TTL) but leak across tests: a test that resolves, say, 2024
     populates the cache, and a later test that mocks the 2024 Index.json with
     ``responses`` never issues the HTTP call, so it silently sees the earlier
@@ -140,15 +140,16 @@ def _clear_season_event_caches():
     Clearing around every test makes ordering irrelevant, which is what let
     this surface as a confusing "passes alone, fails in the suite" bug.
     """
-    from src.ingestion import reference
+    from src.ingestion import reference, static_client
 
-    for cache in (reference._LIVETIMING_SEASON_CACHE, reference._ENRICHED_SEASON_CACHE):
-        with cache._lock:
-            cache._store.clear()
+    def _clear():
+        with reference._CALENDAR_CACHE._lock:
+            reference._CALENDAR_CACHE._store.clear()
+        static_client.clear_index_cache()
+
+    _clear()
     yield
-    for cache in (reference._LIVETIMING_SEASON_CACHE, reference._ENRICHED_SEASON_CACHE):
-        with cache._lock:
-            cache._store.clear()
+    _clear()
 
 
 @pytest.fixture(autouse=True)

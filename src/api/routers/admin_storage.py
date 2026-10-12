@@ -39,6 +39,7 @@ from src.api.schemas.admin import (
 )
 from src.core.logging import get_logger
 from src.core.security.rate_limiting import apply_tiered_limit
+from src.services.mapping_audit import audit_mapping
 from src.services.storage_cleanup import (
     ALL_LAYERS,
     CleanupError,
@@ -121,6 +122,26 @@ async def admin_storage_orphans(
         "total_groups": len(groups),
         "total_reclaimable_bytes": sum(g["reclaimable_bytes"] for g in groups),
     }
+
+
+@router.get(
+    "/mapping-audit",
+    summary="Find stored data filed under the wrong event",
+    operation_id="admin_storage_mapping_audit",
+    responses={200: {"description": "Duplicate payloads across events, unknown gp_ids and provenance coverage."},
+               **ADMIN_ERROR_RESPONSES},
+)
+@apply_tiered_limit("standard")
+async def admin_storage_mapping_audit(
+    request: Request,
+    year: Optional[int] = Query(None, description="Limit to one season; default every season with v2 data."),
+    api_key: str = Depends(require_admin_key),
+) -> Dict[str, Any]:
+    """Read-only. The same qualifying/race payload stored under two different
+    Grands Prix is the signature of the old round-vs-meeting mix-up (one event's
+    laps served as another's). Each suspect comes back as a ready scope: send it
+    to `/preview`, then `/purge`, then regenerate through the backfill."""
+    return await run_in_threadpool(audit_mapping, year)
 
 
 @router.post(

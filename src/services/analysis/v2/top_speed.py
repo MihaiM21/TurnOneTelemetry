@@ -10,7 +10,7 @@ from src.services.plotting import canvas as cv
 from src.services.plotting.canvas import add_legacy_watermark
 from src.services.plotting import output as dirOrg
 from src.services.plotting import theme as setup_theme
-from src.services.plotting.colors import team_colors, teams, get_team_color
+from src.services.plotting.colors import teams, get_team_color
 from src.repositories.plots import store_plot_data_to_mongo, get_plot_data_from_mongo
 from src.ingestion.static_client import F1StaticClient
 from src.services.analysis.v2._helpers import build_session_store
@@ -229,12 +229,8 @@ def _team_color(team: str, given: str, year: int) -> str:
     color = get_team_color(team, year)
     if color.upper() != "#FFFFFF":
         return color
-    if given and given.upper() != "#FFFFFF":
+    if isinstance(given, str) and given.strip() and given.strip().upper() not in ("#FFFFFF", "#FFF"):
         return given
-    # Official names such as "Haas F1 Team" carry no livery colour on file.
-    for known, known_color in team_colors.items():
-        if known.lower() in team.lower():
-            return known_color
     return color
 
 
@@ -389,7 +385,7 @@ def TopSpeedPlot_Telemetry(y: int, identifier: Union[int, str], e: str, store_to
     # Prepare plot data
     plot_data = []
     for team, speed in telemetry_speeds.items():
-        color = team_colors.get(team, "#FFFFFF")
+        color = get_team_color(team, y)
         plot_data.append({
             'Team': team,
             'Speed': speed,
@@ -479,7 +475,7 @@ def TopSpeedData_Telemetry(y: int, identifier: Union[int, str], e: str, store_to
     # Prepare data
     plot_data = []
     for team, speed in telemetry_speeds.items():
-        color = team_colors.get(team, "#FFFFFF")
+        color = get_team_color(team, y)
         plot_data.append({
             'Team': team,
             'Top Speed (km/h)': speed,
@@ -589,7 +585,7 @@ def TopSpeedPlot_SpeedTrap(y: int, identifier: Union[int, str], e: str, fmt: Opt
     # Prepare plot data
     plot_data = []
     for team, speed in st_speeds.items():
-        color = team_colors.get(team, "#FFFFFF")
+        color = get_team_color(team, y)
         plot_data.append({
             'Team': team,
             'Speed': speed,
@@ -678,7 +674,7 @@ def TopSpeedData_SpeedTrap(y: int, identifier: Union[int, str], e: str, store_to
     # Prepare data
     plot_data = []
     for team, speed in st_speeds.items():
-        color = team_colors.get(team, "#FFFFFF")
+        color = get_team_color(team, y)
         plot_data.append({
             'Team': team,
             'Top Speed (km/h)': speed,

@@ -1,0 +1,1545 @@
+{
+ "year": 2023,
+ "events": [
+  {
+   "grandPrix": "Pre-Season Testing",
+   "officialName": "FORMULA 1 ARAMCO PRE-SEASON TESTING 2023",
+   "circuit": "Sakhir",
+   "circuitKey": 63,
+   "location": "Sakhir",
+   "country": "Bahrain",
+   "code": "BRN0104",
+   "key": 1140,
+   "livetimingNumber": 1,
+   "kind": "testing",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2023-02-23T07:00:00+00:00",
+     "endTime": "2023-02-23T16:30:00+00:00",
+     "startDate": "2023-02-23T10:00:00",
+     "endDate": "2023-02-23T19:30:00",
+     "path": "2023/2023-02-25_Pre-Season_Testing/2023-02-23_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2023-02-24T07:00:00+00:00",
+     "endTime": "2023-02-24T16:30:00+00:00",
+     "startDate": "2023-02-24T10:00:00",
+     "endDate": "2023-02-24T19:30:00",
+     "path": "2023/2023-02-25_Pre-Season_Testing/2023-02-24_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2023-02-25T07:00:00+00:00",
+     "endTime": "2023-02-25T16:30:00+00:00",
+     "startDate": "2023-02-25T10:00:00",
+     "endDate": "2023-02-25T19:30:00",
+     "path": "2023/2023-02-25_Pre-Season_Testing/2023-02-25_Practice_3/"
+    }
+   ],
+   "source": "livetiming",
+   "round": null,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": null
+  },
+  {
+   "grandPrix": "Bahrain Grand Prix",
+   "officialName": "FORMULA 1 GULF AIR BAHRAIN GRAND PRIX 2023",
+   "circuit": "Sakhir",
+   "circuitKey": 63,
+   "location": "Sakhir",
+   "country": "Bahrain",
+   "code": "BRN0104",
+   "key": 1141,
+   "livetimingNumber": 1,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2023-03-03T11:30:00+00:00",
+     "endTime": "2023-03-03T12:30:00+00:00",
+     "startDate": "2023-03-03T14:30:00",
+     "endDate": "2023-03-03T15:30:00",
+     "path": "2023/2023-03-05_Bahrain_Grand_Prix/2023-03-03_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2023-03-03T15:00:00+00:00",
+     "endTime": "2023-03-03T16:00:00+00:00",
+     "startDate": "2023-03-03T18:00:00",
+     "endDate": "2023-03-03T19:00:00",
+     "path": "2023/2023-03-05_Bahrain_Grand_Prix/2023-03-03_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2023-03-04T11:30:00+00:00",
+     "endTime": "2023-03-04T12:30:00+00:00",
+     "startDate": "2023-03-04T14:30:00",
+     "endDate": "2023-03-04T15:30:00",
+     "path": "2023/2023-03-05_Bahrain_Grand_Prix/2023-03-04_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2023-03-04T15:00:00+00:00",
+     "endTime": "2023-03-04T16:00:00+00:00",
+     "startDate": "2023-03-04T18:00:00",
+     "endDate": "2023-03-04T19:00:00",
+     "path": "2023/2023-03-05_Bahrain_Grand_Prix/2023-03-04_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2023-03-05T15:00:00+00:00",
+     "endTime": "2023-03-05T17:00:00+00:00",
+     "startDate": "2023-03-05T18:00:00",
+     "endDate": "2023-03-05T20:00:00",
+     "path": "2023/2023-03-05_Bahrain_Grand_Prix/2023-03-05_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 1,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2023_BHR"
+  },
+  {
+   "grandPrix": "Saudi Arabian Grand Prix",
+   "officialName": "FORMULA 1 STC SAUDI ARABIAN GRAND PRIX 2023",
+   "circuit": "Jeddah",
+   "circuitKey": 149,
+   "location": "Jeddah",
+   "country": "Saudi Arabia",
+   "code": "KSA0101",
+   "key": 1142,
+   "livetimingNumber": 2,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2023-03-17T13:30:00+00:00",
+     "endTime": "2023-03-17T14:30:00+00:00",
+     "startDate": "2023-03-17T16:30:00",
+     "endDate": "2023-03-17T17:30:00",
+     "path": "2023/2023-03-19_Saudi_Arabian_Grand_Prix/2023-03-17_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2023-03-17T17:00:00+00:00",
+     "endTime": "2023-03-17T18:00:00+00:00",
+     "startDate": "2023-03-17T20:00:00",
+     "endDate": "2023-03-17T21:00:00",
+     "path": "2023/2023-03-19_Saudi_Arabian_Grand_Prix/2023-03-17_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2023-03-18T13:30:00+00:00",
+     "endTime": "2023-03-18T14:30:00+00:00",
+     "startDate": "2023-03-18T16:30:00",
+     "endDate": "2023-03-18T17:30:00",
+     "path": "2023/2023-03-19_Saudi_Arabian_Grand_Prix/2023-03-18_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2023-03-18T17:00:00+00:00",
+     "endTime": "2023-03-18T18:00:00+00:00",
+     "startDate": "2023-03-18T20:00:00",
+     "endDate": "2023-03-18T21:00:00",
+     "path": "2023/2023-03-19_Saudi_Arabian_Grand_Prix/2023-03-18_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2023-03-19T17:00:00+00:00",
+     "endTime": "2023-03-19T19:00:00+00:00",
+     "startDate": "2023-03-19T20:00:00",
+     "endDate": "2023-03-19T22:00:00",
+     "path": "2023/2023-03-19_Saudi_Arabian_Grand_Prix/2023-03-19_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 2,
+   "aliases": [
+    "Saudi Arabia",
+    "Jeddah"
+   ],
+   "hasSprint": false,
+   "gp_id": "2023_SAU"
+  },
+  {
+   "grandPrix": "Australian Grand Prix",
+   "officialName": "FORMULA 1 ROLEX AUSTRALIAN GRAND PRIX 2023",
+   "circuit": "Melbourne",
+   "circuitKey": 10,
+   "location": "Melbourne",
+   "country": "Australia",
+   "code": "AUS0204",
+   "key": 1143,
+   "livetimingNumber": 3,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2023-03-31T01:30:00+00:00",
+     "endTime": "2023-03-31T02:30:00+00:00",
+     "startDate": "2023-03-31T12:30:00",
+     "endDate": "2023-03-31T13:30:00",
+     "path": "2023/2023-04-02_Australian_Grand_Prix/2023-03-31_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2023-03-31T05:00:00+00:00",
+     "endTime": "2023-03-31T06:00:00+00:00",
+     "startDate": "2023-03-31T16:00:00",
+     "endDate": "2023-03-31T17:00:00",
+     "path": "2023/2023-04-02_Australian_Grand_Prix/2023-03-31_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2023-04-01T01:30:00+00:00",
+     "endTime": "2023-04-01T02:30:00+00:00",
+     "startDate": "2023-04-01T12:30:00",
+     "endDate": "2023-04-01T13:30:00",
+     "path": "2023/2023-04-02_Australian_Grand_Prix/2023-04-01_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2023-04-01T05:00:00+00:00",
+     "endTime": "2023-04-01T06:00:00+00:00",
+     "startDate": "2023-04-01T16:00:00",
+     "endDate": "2023-04-01T17:00:00",
+     "path": "2023/2023-04-02_Australian_Grand_Prix/2023-04-01_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2023-04-02T05:00:00+00:00",
+     "endTime": "2023-04-02T07:00:00+00:00",
+     "startDate": "2023-04-02T15:00:00",
+     "endDate": "2023-04-02T17:00:00",
+     "path": "2023/2023-04-02_Australian_Grand_Prix/2023-04-02_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 3,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2023_AUS"
+  },
+  {
+   "grandPrix": "Azerbaijan Grand Prix",
+   "officialName": "FORMULA 1 AZERBAIJAN GRAND PRIX 2023",
+   "circuit": "Baku",
+   "circuitKey": 144,
+   "location": "Baku",
+   "country": "Azerbaijan",
+   "code": "AZE02",
+   "key": 1207,
+   "livetimingNumber": 4,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2023-04-28T09:30:00+00:00",
+     "endTime": "2023-04-28T10:30:00+00:00",
+     "startDate": "2023-04-28T13:30:00",
+     "endDate": "2023-04-28T14:30:00",
+     "path": "2023/2023-04-30_Azerbaijan_Grand_Prix/2023-04-28_Practice_1/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2023-04-28T13:00:00+00:00",
+     "endTime": "2023-04-28T14:00:00+00:00",
+     "startDate": "2023-04-28T17:00:00",
+     "endDate": "2023-04-28T18:00:00",
+     "path": "2023/2023-04-30_Azerbaijan_Grand_Prix/2023-04-28_Qualifying/"
+    },
+    {
+     "name": "Sprint Shootout",
+     "type": "Qualifying",
+     "startTime": "2023-04-29T08:30:00+00:00",
+     "endTime": "2023-04-29T09:14:00+00:00",
+     "startDate": "2023-04-29T12:30:00",
+     "endDate": "2023-04-29T13:14:00",
+     "path": "2023/2023-04-30_Azerbaijan_Grand_Prix/2023-04-29_Sprint_Shootout/"
+    },
+    {
+     "name": "Sprint",
+     "type": "Race",
+     "startTime": "2023-04-29T13:30:00+00:00",
+     "endTime": "2023-04-29T14:00:00+00:00",
+     "startDate": "2023-04-29T17:30:00",
+     "endDate": "2023-04-29T18:00:00",
+     "path": "2023/2023-04-30_Azerbaijan_Grand_Prix/2023-04-29_Sprint/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2023-04-30T11:00:00+00:00",
+     "endTime": "2023-04-30T13:00:00+00:00",
+     "startDate": "2023-04-30T15:00:00",
+     "endDate": "2023-04-30T17:00:00",
+     "path": "2023/2023-04-30_Azerbaijan_Grand_Prix/2023-04-30_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 4,
+   "aliases": [],
+   "hasSprint": true,
+   "gp_id": "2023_AZE"
+  },
+  {
+   "grandPrix": "Miami Grand Prix",
+   "officialName": "FORMULA 1 CRYPTO.COM MIAMI GRAND PRIX 2023",
+   "circuit": "Miami",
+   "circuitKey": 151,
+   "location": "Miami",
+   "country": "United States",
+   "code": "USA1401",
+   "key": 1208,
+   "livetimingNumber": 5,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2023-05-05T18:00:00+00:00",
+     "endTime": "2023-05-05T19:00:00+00:00",
+     "startDate": "2023-05-05T14:00:00",
+     "endDate": "2023-05-05T15:00:00",
+     "path": "2023/2023-05-07_Miami_Grand_Prix/2023-05-05_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2023-05-05T21:30:00+00:00",
+     "endTime": "2023-05-05T22:30:00+00:00",
+     "startDate": "2023-05-05T17:30:00",
+     "endDate": "2023-05-05T18:30:00",
+     "path": "2023/2023-05-07_Miami_Grand_Prix/2023-05-05_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2023-05-06T16:30:00+00:00",
+     "endTime": "2023-05-06T17:30:00+00:00",
+     "startDate": "2023-05-06T12:30:00",
+     "endDate": "2023-05-06T13:30:00",
+     "path": "2023/2023-05-07_Miami_Grand_Prix/2023-05-06_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2023-05-06T20:00:00+00:00",
+     "endTime": "2023-05-06T21:00:00+00:00",
+     "startDate": "2023-05-06T16:00:00",
+     "endDate": "2023-05-06T17:00:00",
+     "path": "2023/2023-05-07_Miami_Grand_Prix/2023-05-06_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2023-05-07T19:30:00+00:00",
+     "endTime": "2023-05-07T21:30:00+00:00",
+     "startDate": "2023-05-07T15:30:00",
+     "endDate": "2023-05-07T17:30:00",
+     "path": "2023/2023-05-07_Miami_Grand_Prix/2023-05-07_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 5,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2023_MIA"
+  },
+  {
+   "grandPrix": "Monaco Grand Prix",
+   "officialName": "FORMULA 1 GRAND PRIX DE MONACO 2023",
+   "circuit": "Monte Carlo",
+   "circuitKey": 22,
+   "location": "Monaco",
+   "country": "Monaco",
+   "code": "MON0112",
+   "key": 1210,
+   "livetimingNumber": 7,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2023-05-26T11:30:00+00:00",
+     "endTime": "2023-05-26T12:30:00+00:00",
+     "startDate": "2023-05-26T13:30:00",
+     "endDate": "2023-05-26T14:30:00",
+     "path": "2023/2023-05-28_Monaco_Grand_Prix/2023-05-26_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2023-05-26T15:00:00+00:00",
+     "endTime": "2023-05-26T16:00:00+00:00",
+     "startDate": "2023-05-26T17:00:00",
+     "endDate": "2023-05-26T18:00:00",
+     "path": "2023/2023-05-28_Monaco_Grand_Prix/2023-05-26_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2023-05-27T10:30:00+00:00",
+     "endTime": "2023-05-27T11:30:00+00:00",
+     "startDate": "2023-05-27T12:30:00",
+     "endDate": "2023-05-27T13:30:00",
+     "path": "2023/2023-05-28_Monaco_Grand_Prix/2023-05-27_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2023-05-27T14:00:00+00:00",
+     "endTime": "2023-05-27T15:00:00+00:00",
+     "startDate": "2023-05-27T16:00:00",
+     "endDate": "2023-05-27T17:00:00",
+     "path": "2023/2023-05-28_Monaco_Grand_Prix/2023-05-27_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2023-05-28T13:00:00+00:00",
+     "endTime": "2023-05-28T15:00:00+00:00",
+     "startDate": "2023-05-28T15:00:00",
+     "endDate": "2023-05-28T17:00:00",
+     "path": "2023/2023-05-28_Monaco_Grand_Prix/2023-05-28_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 6,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2023_MON"
+  },
+  {
+   "grandPrix": "Spanish Grand Prix",
+   "officialName": "FORMULA 1 AWS GRAN PREMIO DE ESPAÑA 2023",
+   "circuit": "Catalunya",
+   "circuitKey": 15,
+   "location": "Barcelona",
+   "country": "Spain",
+   "code": "ESP0112",
+   "key": 1211,
+   "livetimingNumber": 8,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2023-06-02T11:30:00+00:00",
+     "endTime": "2023-06-02T12:30:00+00:00",
+     "startDate": "2023-06-02T13:30:00",
+     "endDate": "2023-06-02T14:30:00",
+     "path": "2023/2023-06-04_Spanish_Grand_Prix/2023-06-02_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2023-06-02T15:00:00+00:00",
+     "endTime": "2023-06-02T16:00:00+00:00",
+     "startDate": "2023-06-02T17:00:00",
+     "endDate": "2023-06-02T18:00:00",
+     "path": "2023/2023-06-04_Spanish_Grand_Prix/2023-06-02_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2023-06-03T10:30:00+00:00",
+     "endTime": "2023-06-03T11:30:00+00:00",
+     "startDate": "2023-06-03T12:30:00",
+     "endDate": "2023-06-03T13:30:00",
+     "path": "2023/2023-06-04_Spanish_Grand_Prix/2023-06-03_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2023-06-03T14:00:00+00:00",
+     "endTime": "2023-06-03T15:00:00+00:00",
+     "startDate": "2023-06-03T16:00:00",
+     "endDate": "2023-06-03T17:00:00",
+     "path": "2023/2023-06-04_Spanish_Grand_Prix/2023-06-03_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2023-06-04T13:00:00+00:00",
+     "endTime": "2023-06-04T15:00:00+00:00",
+     "startDate": "2023-06-04T15:00:00",
+     "endDate": "2023-06-04T17:00:00",
+     "path": "2023/2023-06-04_Spanish_Grand_Prix/2023-06-04_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 7,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2023_ESP"
+  },
+  {
+   "grandPrix": "Canadian Grand Prix",
+   "officialName": "FORMULA 1 PIRELLI GRAND PRIX DU CANADA 2023",
+   "circuit": "Montreal",
+   "circuitKey": 23,
+   "location": "Montréal",
+   "country": "Canada",
+   "code": "CAN0108",
+   "key": 1212,
+   "livetimingNumber": 9,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2023-06-16T17:30:00+00:00",
+     "endTime": "2023-06-16T18:30:00+00:00",
+     "startDate": "2023-06-16T13:30:00",
+     "endDate": "2023-06-16T14:30:00",
+     "path": "2023/2023-06-18_Canadian_Grand_Prix/2023-06-16_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2023-06-16T20:30:00+00:00",
+     "endTime": "2023-06-16T22:00:00+00:00",
+     "startDate": "2023-06-16T16:30:00",
+     "endDate": "2023-06-16T18:00:00",
+     "path": "2023/2023-06-18_Canadian_Grand_Prix/2023-06-16_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2023-06-17T16:30:00+00:00",
+     "endTime": "2023-06-17T17:30:00+00:00",
+     "startDate": "2023-06-17T12:30:00",
+     "endDate": "2023-06-17T13:30:00",
+     "path": "2023/2023-06-18_Canadian_Grand_Prix/2023-06-17_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2023-06-17T20:00:00+00:00",
+     "endTime": "2023-06-17T21:00:00+00:00",
+     "startDate": "2023-06-17T16:00:00",
+     "endDate": "2023-06-17T17:00:00",
+     "path": "2023/2023-06-18_Canadian_Grand_Prix/2023-06-17_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2023-06-18T18:00:00+00:00",
+     "endTime": "2023-06-18T20:00:00+00:00",
+     "startDate": "2023-06-18T14:00:00",
+     "endDate": "2023-06-18T16:00:00",
+     "path": "2023/2023-06-18_Canadian_Grand_Prix/2023-06-18_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 8,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2023_CAN"
+  },
+  {
+   "grandPrix": "Austrian Grand Prix",
+   "officialName": "FORMULA 1 ROLEX GROSSER PREIS VON ÖSTERREICH 2023",
+   "circuit": "Spielberg",
+   "circuitKey": 19,
+   "location": "Spielberg",
+   "country": "Austria",
+   "code": "AUT0108",
+   "key": 1213,
+   "livetimingNumber": 10,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2023-06-30T11:30:00+00:00",
+     "endTime": "2023-06-30T12:30:00+00:00",
+     "startDate": "2023-06-30T13:30:00",
+     "endDate": "2023-06-30T14:30:00",
+     "path": "2023/2023-07-02_Austrian_Grand_Prix/2023-06-30_Practice_1/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2023-06-30T15:00:00+00:00",
+     "endTime": "2023-06-30T16:00:00+00:00",
+     "startDate": "2023-06-30T17:00:00",
+     "endDate": "2023-06-30T18:00:00",
+     "path": "2023/2023-07-02_Austrian_Grand_Prix/2023-06-30_Qualifying/"
+    },
+    {
+     "name": "Sprint Shootout",
+     "type": "Qualifying",
+     "startTime": "2023-07-01T10:00:00+00:00",
+     "endTime": "2023-07-01T10:44:00+00:00",
+     "startDate": "2023-07-01T12:00:00",
+     "endDate": "2023-07-01T12:44:00",
+     "path": "2023/2023-07-02_Austrian_Grand_Prix/2023-07-01_Sprint_Shootout/"
+    },
+    {
+     "name": "Sprint",
+     "type": "Race",
+     "startTime": "2023-07-01T14:30:00+00:00",
+     "endTime": "2023-07-01T15:00:00+00:00",
+     "startDate": "2023-07-01T16:30:00",
+     "endDate": "2023-07-01T17:00:00",
+     "path": "2023/2023-07-02_Austrian_Grand_Prix/2023-07-01_Sprint/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2023-07-02T13:00:00+00:00",
+     "endTime": "2023-07-02T15:00:00+00:00",
+     "startDate": "2023-07-02T15:00:00",
+     "endDate": "2023-07-02T17:00:00",
+     "path": "2023/2023-07-02_Austrian_Grand_Prix/2023-07-02_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 9,
+   "aliases": [],
+   "hasSprint": true,
+   "gp_id": "2023_AUT"
+  },
+  {
+   "grandPrix": "British Grand Prix",
+   "officialName": "FORMULA 1 ARAMCO BRITISH GRAND PRIX 2023",
+   "circuit": "Silverstone",
+   "circuitKey": 2,
+   "location": "Silverstone",
+   "country": "Great Britain",
+   "code": "GBR0114",
+   "key": 1214,
+   "livetimingNumber": 11,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2023-07-07T11:30:00+00:00",
+     "endTime": "2023-07-07T12:30:00+00:00",
+     "startDate": "2023-07-07T12:30:00",
+     "endDate": "2023-07-07T13:30:00",
+     "path": "2023/2023-07-09_British_Grand_Prix/2023-07-07_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2023-07-07T15:00:00+00:00",
+     "endTime": "2023-07-07T16:00:00+00:00",
+     "startDate": "2023-07-07T16:00:00",
+     "endDate": "2023-07-07T17:00:00",
+     "path": "2023/2023-07-09_British_Grand_Prix/2023-07-07_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2023-07-08T10:30:00+00:00",
+     "endTime": "2023-07-08T11:30:00+00:00",
+     "startDate": "2023-07-08T11:30:00",
+     "endDate": "2023-07-08T12:30:00",
+     "path": "2023/2023-07-09_British_Grand_Prix/2023-07-08_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2023-07-08T14:00:00+00:00",
+     "endTime": "2023-07-08T15:00:00+00:00",
+     "startDate": "2023-07-08T15:00:00",
+     "endDate": "2023-07-08T16:00:00",
+     "path": "2023/2023-07-09_British_Grand_Prix/2023-07-08_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2023-07-09T14:00:00+00:00",
+     "endTime": "2023-07-09T16:00:00+00:00",
+     "startDate": "2023-07-09T15:00:00",
+     "endDate": "2023-07-09T17:00:00",
+     "path": "2023/2023-07-09_British_Grand_Prix/2023-07-09_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 10,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2023_GBR"
+  },
+  {
+   "grandPrix": "Hungarian Grand Prix",
+   "officialName": "FORMULA 1 QATAR AIRWAYS HUNGARIAN GRAND PRIX 2023",
+   "circuit": "Hungaroring",
+   "circuitKey": 4,
+   "location": "Budapest",
+   "country": "Hungary",
+   "code": "HUN0109",
+   "key": 1215,
+   "livetimingNumber": 12,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2023-07-21T11:30:00+00:00",
+     "endTime": "2023-07-21T12:30:00+00:00",
+     "startDate": "2023-07-21T13:30:00",
+     "endDate": "2023-07-21T14:30:00",
+     "path": "2023/2023-07-23_Hungarian_Grand_Prix/2023-07-21_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2023-07-21T15:00:00+00:00",
+     "endTime": "2023-07-21T16:00:00+00:00",
+     "startDate": "2023-07-21T17:00:00",
+     "endDate": "2023-07-21T18:00:00",
+     "path": "2023/2023-07-23_Hungarian_Grand_Prix/2023-07-21_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2023-07-22T10:30:00+00:00",
+     "endTime": "2023-07-22T11:30:00+00:00",
+     "startDate": "2023-07-22T12:30:00",
+     "endDate": "2023-07-22T13:30:00",
+     "path": "2023/2023-07-23_Hungarian_Grand_Prix/2023-07-22_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2023-07-22T14:00:00+00:00",
+     "endTime": "2023-07-22T15:00:00+00:00",
+     "startDate": "2023-07-22T16:00:00",
+     "endDate": "2023-07-22T17:00:00",
+     "path": "2023/2023-07-23_Hungarian_Grand_Prix/2023-07-22_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2023-07-23T13:00:00+00:00",
+     "endTime": "2023-07-23T15:00:00+00:00",
+     "startDate": "2023-07-23T15:00:00",
+     "endDate": "2023-07-23T17:00:00",
+     "path": "2023/2023-07-23_Hungarian_Grand_Prix/2023-07-23_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 11,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2023_HUN"
+  },
+  {
+   "grandPrix": "Belgian Grand Prix",
+   "officialName": "FORMULA 1 MSC CRUISES BELGIAN GRAND PRIX 2023",
+   "circuit": "Spa-Francorchamps",
+   "circuitKey": 7,
+   "location": "Spa-Francorchamps",
+   "country": "Belgium",
+   "code": "BEL02012",
+   "key": 1216,
+   "livetimingNumber": 13,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2023-07-28T11:30:00+00:00",
+     "endTime": "2023-07-28T12:30:00+00:00",
+     "startDate": "2023-07-28T13:30:00",
+     "endDate": "2023-07-28T14:30:00",
+     "path": "2023/2023-07-30_Belgian_Grand_Prix/2023-07-28_Practice_1/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2023-07-28T15:00:00+00:00",
+     "endTime": "2023-07-28T16:00:00+00:00",
+     "startDate": "2023-07-28T17:00:00",
+     "endDate": "2023-07-28T18:00:00",
+     "path": "2023/2023-07-30_Belgian_Grand_Prix/2023-07-28_Qualifying/"
+    },
+    {
+     "name": "Sprint Shootout",
+     "type": "Qualifying",
+     "startTime": "2023-07-29T10:00:00+00:00",
+     "endTime": "2023-07-29T10:44:00+00:00",
+     "startDate": "2023-07-29T12:00:00",
+     "endDate": "2023-07-29T12:44:00",
+     "path": "2023/2023-07-30_Belgian_Grand_Prix/2023-07-29_Sprint_Shootout/"
+    },
+    {
+     "name": "Sprint",
+     "type": "Race",
+     "startTime": "2023-07-29T15:05:00+00:00",
+     "endTime": "2023-07-29T15:35:00+00:00",
+     "startDate": "2023-07-29T17:05:00",
+     "endDate": "2023-07-29T17:35:00",
+     "path": "2023/2023-07-30_Belgian_Grand_Prix/2023-07-29_Sprint/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2023-07-30T13:00:00+00:00",
+     "endTime": "2023-07-30T15:00:00+00:00",
+     "startDate": "2023-07-30T15:00:00",
+     "endDate": "2023-07-30T17:00:00",
+     "path": "2023/2023-07-30_Belgian_Grand_Prix/2023-07-30_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 12,
+   "aliases": [],
+   "hasSprint": true,
+   "gp_id": "2023_BEL"
+  },
+  {
+   "grandPrix": "Dutch Grand Prix",
+   "officialName": "FORMULA 1 HEINEKEN DUTCH GRAND PRIX 2023",
+   "circuit": "Zandvoort",
+   "circuitKey": 55,
+   "location": "Zandvoort",
+   "country": "Netherlands",
+   "code": "NED0105",
+   "key": 1217,
+   "livetimingNumber": 14,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2023-08-25T10:30:00+00:00",
+     "endTime": "2023-08-25T11:30:00+00:00",
+     "startDate": "2023-08-25T12:30:00",
+     "endDate": "2023-08-25T13:30:00",
+     "path": "2023/2023-08-27_Dutch_Grand_Prix/2023-08-25_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2023-08-25T14:00:00+00:00",
+     "endTime": "2023-08-25T15:00:00+00:00",
+     "startDate": "2023-08-25T16:00:00",
+     "endDate": "2023-08-25T17:00:00",
+     "path": "2023/2023-08-27_Dutch_Grand_Prix/2023-08-25_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2023-08-26T09:30:00+00:00",
+     "endTime": "2023-08-26T10:30:00+00:00",
+     "startDate": "2023-08-26T11:30:00",
+     "endDate": "2023-08-26T12:30:00",
+     "path": "2023/2023-08-27_Dutch_Grand_Prix/2023-08-26_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2023-08-26T13:00:00+00:00",
+     "endTime": "2023-08-26T14:00:00+00:00",
+     "startDate": "2023-08-26T15:00:00",
+     "endDate": "2023-08-26T16:00:00",
+     "path": "2023/2023-08-27_Dutch_Grand_Prix/2023-08-26_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2023-08-27T13:00:00+00:00",
+     "endTime": "2023-08-27T15:00:00+00:00",
+     "startDate": "2023-08-27T15:00:00",
+     "endDate": "2023-08-27T17:00:00",
+     "path": "2023/2023-08-27_Dutch_Grand_Prix/2023-08-27_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 13,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2023_NED"
+  },
+  {
+   "grandPrix": "Italian Grand Prix",
+   "officialName": "FORMULA 1 PIRELLI GRAN PREMIO D’ITALIA 2023 ",
+   "circuit": "Monza",
+   "circuitKey": 39,
+   "location": "Monza",
+   "country": "Italy",
+   "code": "ITA0311",
+   "key": 1218,
+   "livetimingNumber": 15,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2023-09-01T11:30:00+00:00",
+     "endTime": "2023-09-01T12:30:00+00:00",
+     "startDate": "2023-09-01T13:30:00",
+     "endDate": "2023-09-01T14:30:00",
+     "path": "2023/2023-09-03_Italian_Grand_Prix/2023-09-01_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2023-09-01T15:00:00+00:00",
+     "endTime": "2023-09-01T16:00:00+00:00",
+     "startDate": "2023-09-01T17:00:00",
+     "endDate": "2023-09-01T18:00:00",
+     "path": "2023/2023-09-03_Italian_Grand_Prix/2023-09-01_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2023-09-02T10:30:00+00:00",
+     "endTime": "2023-09-02T11:30:00+00:00",
+     "startDate": "2023-09-02T12:30:00",
+     "endDate": "2023-09-02T13:30:00",
+     "path": "2023/2023-09-03_Italian_Grand_Prix/2023-09-02_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2023-09-02T14:00:00+00:00",
+     "endTime": "2023-09-02T15:00:00+00:00",
+     "startDate": "2023-09-02T16:00:00",
+     "endDate": "2023-09-02T17:00:00",
+     "path": "2023/2023-09-03_Italian_Grand_Prix/2023-09-02_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2023-09-03T13:00:00+00:00",
+     "endTime": "2023-09-03T15:00:00+00:00",
+     "startDate": "2023-09-03T15:00:00",
+     "endDate": "2023-09-03T17:00:00",
+     "path": "2023/2023-09-03_Italian_Grand_Prix/2023-09-03_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 14,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2023_ITA"
+  },
+  {
+   "grandPrix": "Singapore Grand Prix",
+   "officialName": "FORMULA 1 SINGAPORE AIRLINES SINGAPORE GRAND PRIX 2023 ",
+   "circuit": "Singapore",
+   "circuitKey": 61,
+   "location": "Marina Bay",
+   "country": "Singapore",
+   "code": "SIN0107",
+   "key": 1219,
+   "livetimingNumber": 16,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2023-09-15T09:30:00+00:00",
+     "endTime": "2023-09-15T10:30:00+00:00",
+     "startDate": "2023-09-15T17:30:00",
+     "endDate": "2023-09-15T18:30:00",
+     "path": "2023/2023-09-17_Singapore_Grand_Prix/2023-09-15_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2023-09-15T13:00:00+00:00",
+     "endTime": "2023-09-15T14:00:00+00:00",
+     "startDate": "2023-09-15T21:00:00",
+     "endDate": "2023-09-15T22:00:00",
+     "path": "2023/2023-09-17_Singapore_Grand_Prix/2023-09-15_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2023-09-16T09:30:00+00:00",
+     "endTime": "2023-09-16T10:30:00+00:00",
+     "startDate": "2023-09-16T17:30:00",
+     "endDate": "2023-09-16T18:30:00",
+     "path": "2023/2023-09-17_Singapore_Grand_Prix/2023-09-16_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2023-09-16T13:00:00+00:00",
+     "endTime": "2023-09-16T14:00:00+00:00",
+     "startDate": "2023-09-16T21:00:00",
+     "endDate": "2023-09-16T22:00:00",
+     "path": "2023/2023-09-17_Singapore_Grand_Prix/2023-09-16_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2023-09-17T12:00:00+00:00",
+     "endTime": "2023-09-17T14:00:00+00:00",
+     "startDate": "2023-09-17T20:00:00",
+     "endDate": "2023-09-17T22:00:00",
+     "path": "2023/2023-09-17_Singapore_Grand_Prix/2023-09-17_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 15,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2023_SGP"
+  },
+  {
+   "grandPrix": "Japanese Grand Prix",
+   "officialName": "FORMULA 1 LENOVO JAPANESE GRAND PRIX 2023 ",
+   "circuit": "Suzuka",
+   "circuitKey": 46,
+   "location": "Suzuka",
+   "country": "Japan",
+   "code": "JPN0306",
+   "key": 1220,
+   "livetimingNumber": 17,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2023-09-22T02:30:00+00:00",
+     "endTime": "2023-09-22T03:30:00+00:00",
+     "startDate": "2023-09-22T11:30:00",
+     "endDate": "2023-09-22T12:30:00",
+     "path": "2023/2023-09-24_Japanese_Grand_Prix/2023-09-22_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2023-09-22T06:00:00+00:00",
+     "endTime": "2023-09-22T07:00:00+00:00",
+     "startDate": "2023-09-22T15:00:00",
+     "endDate": "2023-09-22T16:00:00",
+     "path": "2023/2023-09-24_Japanese_Grand_Prix/2023-09-22_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2023-09-23T02:30:00+00:00",
+     "endTime": "2023-09-23T03:30:00+00:00",
+     "startDate": "2023-09-23T11:30:00",
+     "endDate": "2023-09-23T12:30:00",
+     "path": "2023/2023-09-24_Japanese_Grand_Prix/2023-09-23_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2023-09-23T06:00:00+00:00",
+     "endTime": "2023-09-23T07:00:00+00:00",
+     "startDate": "2023-09-23T15:00:00",
+     "endDate": "2023-09-23T16:00:00",
+     "path": "2023/2023-09-24_Japanese_Grand_Prix/2023-09-23_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2023-09-24T05:00:00+00:00",
+     "endTime": "2023-09-24T07:00:00+00:00",
+     "startDate": "2023-09-24T14:00:00",
+     "endDate": "2023-09-24T16:00:00",
+     "path": "2023/2023-09-24_Japanese_Grand_Prix/2023-09-24_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 16,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2023_JPN"
+  },
+  {
+   "grandPrix": "Qatar Grand Prix",
+   "officialName": "FORMULA 1 QATAR AIRWAYS QATAR GRAND PRIX 2023",
+   "circuit": "Lusail",
+   "circuitKey": 150,
+   "location": "Lusail",
+   "country": "Qatar",
+   "code": "QAT0102",
+   "key": 1221,
+   "livetimingNumber": 18,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2023-10-06T13:30:00+00:00",
+     "endTime": "2023-10-06T14:30:00+00:00",
+     "startDate": "2023-10-06T16:30:00",
+     "endDate": "2023-10-06T17:30:00",
+     "path": "2023/2023-10-08_Qatar_Grand_Prix/2023-10-06_Practice_1/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2023-10-06T17:00:00+00:00",
+     "endTime": "2023-10-06T18:00:00+00:00",
+     "startDate": "2023-10-06T20:00:00",
+     "endDate": "2023-10-06T21:00:00",
+     "path": "2023/2023-10-08_Qatar_Grand_Prix/2023-10-06_Qualifying/"
+    },
+    {
+     "name": "",
+     "type": "Qualifying",
+     "startTime": "2023-10-07T13:00:00+00:00",
+     "endTime": "2023-10-07T13:44:00+00:00",
+     "startDate": "2023-10-07T16:00:00",
+     "endDate": "2023-10-07T16:44:00",
+     "path": null
+    },
+    {
+     "name": "Sprint Shootout",
+     "type": "Qualifying",
+     "startTime": "2023-10-07T13:20:00+00:00",
+     "endTime": "2023-10-07T14:04:00+00:00",
+     "startDate": "2023-10-07T16:20:00",
+     "endDate": "2023-10-07T17:04:00",
+     "path": "2023/2023-10-08_Qatar_Grand_Prix/2023-10-07_Sprint_Shootout/"
+    },
+    {
+     "name": "",
+     "type": "Race",
+     "startTime": "2023-10-07T17:30:00+00:00",
+     "endTime": "2023-10-07T18:30:00+00:00",
+     "startDate": "2023-10-07T20:30:00",
+     "endDate": "2023-10-07T21:30:00",
+     "path": null
+    },
+    {
+     "name": "Sprint",
+     "type": "Race",
+     "startTime": "2023-10-07T17:30:00+00:00",
+     "endTime": "2023-10-07T18:30:00+00:00",
+     "startDate": "2023-10-07T20:30:00",
+     "endDate": "2023-10-07T21:30:00",
+     "path": "2023/2023-10-08_Qatar_Grand_Prix/2023-10-07_Sprint/"
+    },
+    {
+     "name": "",
+     "type": "Race",
+     "startTime": "2023-10-08T17:00:00+00:00",
+     "endTime": "2023-10-08T19:00:00+00:00",
+     "startDate": "2023-10-08T20:00:00",
+     "endDate": "2023-10-08T22:00:00",
+     "path": null
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2023-10-08T17:00:00+00:00",
+     "endTime": "2023-10-08T19:00:00+00:00",
+     "startDate": "2023-10-08T20:00:00",
+     "endDate": "2023-10-08T22:00:00",
+     "path": "2023/2023-10-08_Qatar_Grand_Prix/2023-10-08_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 17,
+   "aliases": [],
+   "hasSprint": true,
+   "gp_id": "2023_QAT"
+  },
+  {
+   "grandPrix": "United States Grand Prix",
+   "officialName": "FORMULA 1 LENOVO UNITED STATES GRAND PRIX 2023",
+   "circuit": "Austin",
+   "circuitKey": 9,
+   "location": "Austin",
+   "country": "United States",
+   "code": "USA0101",
+   "key": 1222,
+   "livetimingNumber": 19,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2023-10-20T17:30:00+00:00",
+     "endTime": "2023-10-20T18:30:00+00:00",
+     "startDate": "2023-10-20T12:30:00",
+     "endDate": "2023-10-20T13:30:00",
+     "path": "2023/2023-10-22_United_States_Grand_Prix/2023-10-20_Practice_1/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2023-10-20T21:00:00+00:00",
+     "endTime": "2023-10-20T22:00:00+00:00",
+     "startDate": "2023-10-20T16:00:00",
+     "endDate": "2023-10-20T17:00:00",
+     "path": "2023/2023-10-22_United_States_Grand_Prix/2023-10-20_Qualifying/"
+    },
+    {
+     "name": "Sprint Shootout",
+     "type": "Qualifying",
+     "startTime": "2023-10-21T17:30:00+00:00",
+     "endTime": "2023-10-21T18:14:00+00:00",
+     "startDate": "2023-10-21T12:30:00",
+     "endDate": "2023-10-21T13:14:00",
+     "path": "2023/2023-10-22_United_States_Grand_Prix/2023-10-21_Sprint_Shootout/"
+    },
+    {
+     "name": "Sprint",
+     "type": "Race",
+     "startTime": "2023-10-21T22:00:00+00:00",
+     "endTime": "2023-10-21T23:00:00+00:00",
+     "startDate": "2023-10-21T17:00:00",
+     "endDate": "2023-10-21T18:00:00",
+     "path": "2023/2023-10-22_United_States_Grand_Prix/2023-10-21_Sprint/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2023-10-22T19:00:00+00:00",
+     "endTime": "2023-10-22T21:00:00+00:00",
+     "startDate": "2023-10-22T14:00:00",
+     "endDate": "2023-10-22T16:00:00",
+     "path": "2023/2023-10-22_United_States_Grand_Prix/2023-10-22_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 18,
+   "aliases": [
+    "USA",
+    "United States",
+    "US",
+    "United States of America",
+    "Austin",
+    "COTA",
+    "Circuit of the Americas"
+   ],
+   "hasSprint": true,
+   "gp_id": "2023_USA"
+  },
+  {
+   "grandPrix": "Mexico City Grand Prix",
+   "officialName": "FORMULA 1 GRAN PREMIO DE LA CIUDAD DE MÉXICO 2023",
+   "circuit": "Mexico City",
+   "circuitKey": 65,
+   "location": "Mexico City",
+   "country": "Mexico",
+   "code": "MEX0103",
+   "key": 1223,
+   "livetimingNumber": 20,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2023-10-27T18:30:00+00:00",
+     "endTime": "2023-10-27T19:30:00+00:00",
+     "startDate": "2023-10-27T12:30:00",
+     "endDate": "2023-10-27T13:30:00",
+     "path": "2023/2023-10-29_Mexico_City_Grand_Prix/2023-10-27_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2023-10-27T22:00:00+00:00",
+     "endTime": "2023-10-27T23:00:00+00:00",
+     "startDate": "2023-10-27T16:00:00",
+     "endDate": "2023-10-27T17:00:00",
+     "path": "2023/2023-10-29_Mexico_City_Grand_Prix/2023-10-27_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2023-10-28T17:30:00+00:00",
+     "endTime": "2023-10-28T18:30:00+00:00",
+     "startDate": "2023-10-28T11:30:00",
+     "endDate": "2023-10-28T12:30:00",
+     "path": "2023/2023-10-29_Mexico_City_Grand_Prix/2023-10-28_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2023-10-28T21:00:00+00:00",
+     "endTime": "2023-10-28T22:00:00+00:00",
+     "startDate": "2023-10-28T15:00:00",
+     "endDate": "2023-10-28T16:00:00",
+     "path": "2023/2023-10-29_Mexico_City_Grand_Prix/2023-10-28_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2023-10-29T20:00:00+00:00",
+     "endTime": "2023-10-29T22:00:00+00:00",
+     "startDate": "2023-10-29T14:00:00",
+     "endDate": "2023-10-29T16:00:00",
+     "path": "2023/2023-10-29_Mexico_City_Grand_Prix/2023-10-29_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 19,
+   "aliases": [
+    "Mexico",
+    "Mexico City",
+    "Mexican Grand Prix"
+   ],
+   "hasSprint": false,
+   "gp_id": "2023_MEX"
+  },
+  {
+   "grandPrix": "São Paulo Grand Prix",
+   "officialName": "FORMULA 1 ROLEX GRANDE PRÊMIO DE SÃO PAULO 2023",
+   "circuit": "Interlagos",
+   "circuitKey": 14,
+   "location": "São Paulo",
+   "country": "Brazil",
+   "code": "BRA0109",
+   "key": 1224,
+   "livetimingNumber": 21,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2023-11-03T14:30:00+00:00",
+     "endTime": "2023-11-03T15:30:00+00:00",
+     "startDate": "2023-11-03T11:30:00",
+     "endDate": "2023-11-03T12:30:00",
+     "path": "2023/2023-11-05_São_Paulo_Grand_Prix/2023-11-03_Practice_1/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2023-11-03T18:00:00+00:00",
+     "endTime": "2023-11-03T19:00:00+00:00",
+     "startDate": "2023-11-03T15:00:00",
+     "endDate": "2023-11-03T16:00:00",
+     "path": "2023/2023-11-05_São_Paulo_Grand_Prix/2023-11-03_Qualifying/"
+    },
+    {
+     "name": "Sprint Shootout",
+     "type": "Qualifying",
+     "startTime": "2023-11-04T14:00:00+00:00",
+     "endTime": "2023-11-04T14:44:00+00:00",
+     "startDate": "2023-11-04T11:00:00",
+     "endDate": "2023-11-04T11:44:00",
+     "path": "2023/2023-11-05_São_Paulo_Grand_Prix/2023-11-04_Sprint_Shootout/"
+    },
+    {
+     "name": "Sprint",
+     "type": "Race",
+     "startTime": "2023-11-04T18:30:00+00:00",
+     "endTime": "2023-11-04T19:00:00+00:00",
+     "startDate": "2023-11-04T15:30:00",
+     "endDate": "2023-11-04T16:00:00",
+     "path": "2023/2023-11-05_São_Paulo_Grand_Prix/2023-11-04_Sprint/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2023-11-05T17:00:00+00:00",
+     "endTime": "2023-11-05T19:00:00+00:00",
+     "startDate": "2023-11-05T14:00:00",
+     "endDate": "2023-11-05T16:00:00",
+     "path": "2023/2023-11-05_São_Paulo_Grand_Prix/2023-11-05_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 20,
+   "aliases": [],
+   "hasSprint": true,
+   "gp_id": "2023_SÃO"
+  },
+  {
+   "grandPrix": "Las Vegas Grand Prix",
+   "officialName": "FORMULA 1 HEINEKEN SILVER LAS VEGAS GRAND PRIX 2023",
+   "circuit": "Las Vegas",
+   "circuitKey": 152,
+   "location": "Las Vegas",
+   "country": "United States",
+   "code": "USA1501",
+   "key": 1225,
+   "livetimingNumber": 22,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2023-11-17T04:30:00+00:00",
+     "endTime": "2023-11-17T05:30:00+00:00",
+     "startDate": "2023-11-16T20:30:00",
+     "endDate": "2023-11-16T21:30:00",
+     "path": "2023/2023-11-18_Las_Vegas_Grand_Prix/2023-11-16_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2023-11-17T10:00:00+00:00",
+     "endTime": "2023-11-17T11:30:00+00:00",
+     "startDate": "2023-11-17T02:00:00",
+     "endDate": "2023-11-17T03:30:00",
+     "path": "2023/2023-11-18_Las_Vegas_Grand_Prix/2023-11-17_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2023-11-18T04:30:00+00:00",
+     "endTime": "2023-11-18T05:30:00+00:00",
+     "startDate": "2023-11-17T20:30:00",
+     "endDate": "2023-11-17T21:30:00",
+     "path": "2023/2023-11-18_Las_Vegas_Grand_Prix/2023-11-17_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2023-11-18T08:00:00+00:00",
+     "endTime": "2023-11-18T09:00:00+00:00",
+     "startDate": "2023-11-18T00:00:00",
+     "endDate": "2023-11-18T01:00:00",
+     "path": "2023/2023-11-18_Las_Vegas_Grand_Prix/2023-11-18_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2023-11-19T06:00:00+00:00",
+     "endTime": "2023-11-19T08:00:00+00:00",
+     "startDate": "2023-11-18T22:00:00",
+     "endDate": "2023-11-19T00:00:00",
+     "path": "2023/2023-11-18_Las_Vegas_Grand_Prix/2023-11-18_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 21,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2023_LVG"
+  },
+  {
+   "grandPrix": "Abu Dhabi Grand Prix",
+   "officialName": "FORMULA 1 ETIHAD AIRWAYS ABU DHABI GRAND PRIX 2023 ",
+   "circuit": "Yas Marina Circuit",
+   "circuitKey": 70,
+   "location": "Yas Island",
+   "country": "United Arab Emirates",
+   "code": "UAE0103",
+   "key": 1226,
+   "livetimingNumber": 23,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2023-11-24T09:30:00+00:00",
+     "endTime": "2023-11-24T10:30:00+00:00",
+     "startDate": "2023-11-24T13:30:00",
+     "endDate": "2023-11-24T14:30:00",
+     "path": "2023/2023-11-26_Abu_Dhabi_Grand_Prix/2023-11-24_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2023-11-24T13:00:00+00:00",
+     "endTime": "2023-11-24T14:00:00+00:00",
+     "startDate": "2023-11-24T17:00:00",
+     "endDate": "2023-11-24T18:00:00",
+     "path": "2023/2023-11-26_Abu_Dhabi_Grand_Prix/2023-11-24_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2023-11-25T10:30:00+00:00",
+     "endTime": "2023-11-25T11:30:00+00:00",
+     "startDate": "2023-11-25T14:30:00",
+     "endDate": "2023-11-25T15:30:00",
+     "path": "2023/2023-11-26_Abu_Dhabi_Grand_Prix/2023-11-25_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2023-11-25T14:00:00+00:00",
+     "endTime": "2023-11-25T15:00:00+00:00",
+     "startDate": "2023-11-25T18:00:00",
+     "endDate": "2023-11-25T19:00:00",
+     "path": "2023/2023-11-26_Abu_Dhabi_Grand_Prix/2023-11-25_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2023-11-26T13:00:00+00:00",
+     "endTime": "2023-11-26T15:00:00+00:00",
+     "startDate": "2023-11-26T17:00:00",
+     "endDate": "2023-11-26T19:00:00",
+     "path": "2023/2023-11-26_Abu_Dhabi_Grand_Prix/2023-11-26_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 22,
+   "aliases": [
+    "UAE",
+    "Yas Marina",
+    "Yas Island"
+   ],
+   "hasSprint": false,
+   "gp_id": "2023_ABU"
+  },
+  {
+   "grandPrix": "Emilia Romagna Grand Prix",
+   "officialName": "",
+   "circuit": "",
+   "circuitKey": null,
+   "location": "Imola",
+   "country": "Italy",
+   "code": "",
+   "key": null,
+   "kind": "race",
+   "round": null,
+   "originalRound": null,
+   "sessions": [],
+   "source": "overrides",
+   "status": "cancelled",
+   "reason": "Cancelled because of flooding in the region.",
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2023_EMI"
+  },
+  {
+   "grandPrix": "Chinese Grand Prix",
+   "officialName": "",
+   "circuit": "",
+   "circuitKey": null,
+   "location": "Shanghai",
+   "country": "China",
+   "code": "",
+   "key": null,
+   "kind": "race",
+   "round": null,
+   "originalRound": null,
+   "sessions": [],
+   "source": "overrides",
+   "status": "cancelled",
+   "reason": "Cancelled; China's COVID-19 restrictions left too little lead time.",
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2023_CHN"
+  }
+ ]
+}

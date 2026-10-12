@@ -126,9 +126,10 @@ def available_years() -> List[int]:
 def available_events(year: int) -> List[Dict[str, Any]]:
     """GP events for a year as ``[{round_nr, name}]`` for the admin picker.
 
-    Sourced from the curated schedule, which numbers real Grands Prix 1..N and
-    never includes pre-season testing — so selecting by ``name`` here cannot be
-    confused with a testing meeting. ``round_nr`` matches what the backfill uses.
+    Sourced from the season calendar (``reference.get_season_events``): official
+    championship rounds 1..N, no pre-season testing and no cancelled events, so
+    ``round_nr`` here is the same number V1/FastF1 and every V2 endpoint use and
+    matches what the backfill uses.
     """
     try:
         events = get_season_events(year)
@@ -178,6 +179,10 @@ def _enumerate_targets(
         for idx, race in enumerate(events):
             round_nr = race.get("round") if isinstance(race.get("round"), int) else idx + 1
             if wanted_round is not None and round_nr != wanted_round:
+                continue
+            if "key" in race and race.get("key") is None:
+                # Not listed by livetiming (a future round, or a season it does not
+                # serve): there is nothing to generate, so it is not a backfill target.
                 continue
             gp_name = race.get("grandPrix") or race.get("name") or ""
             for sess in race.get("sessions", []):
@@ -549,8 +554,9 @@ def build_plan(
         return True
 
     for yr, round_nr, gp_name, session_type in targets:
-        # Prefer the GP name identifier to avoid the pre-season-testing
-        # round-number offset (mirrors PlotDataGenerator).
+        # The canonical GP name is the identifier: the existing-data join in
+        # execute_plan keys on it (``_norm_name(unit.identifier)``), and the resolver
+        # maps a calendar name to exactly one event (active races beat cancelled ones).
         ident: Identifier = gp_name or round_nr
         prefix = f"{yr} R{round_nr} {session_type}"
 

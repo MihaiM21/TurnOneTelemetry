@@ -36,6 +36,8 @@ from src.services.analysis.v2.registry import (
     session_drivers,
 )
 from src.services.orchestrator_helpers import simplify_session_name
+from src.core.exceptions import SessionNotFoundError
+from src.ingestion.event_resolver import resolve_event
 from src.workers.plot_inventory import compute_inventory
 
 logger = get_logger(__name__)
@@ -149,8 +151,14 @@ async def v2_session_feature_availability(
     logger.info(
         "Fetching V2 feature availability: Y%s GP%s %s", year, validated_gp, validated_session
     )
+    # Resolve first: a cancelled / ambiguous / unknown event then answers with its own
+    # 404 (cancelled, replaced by ..., or candidate names) instead of a bare "no such event".
+    try:
+        info = await run_in_threadpool(resolve_event, year, validated_gp)
+    except SessionNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=exc.reason or "No such event in the season schedule.") from exc
     inventory = await run_in_threadpool(
-        compute_inventory, year=year, identifier=validated_gp, session=validated_session
+        compute_inventory, year=year, identifier=info.round_nr or validated_gp, session=validated_session
     )
 
     grand_prix = inventory.get("grand_prix") or []
@@ -194,6 +202,8 @@ async def v2_session_feature_availability(
         "year": year,
         "gp": gp_entry.get("event_name"),
         "round_nr": gp_entry.get("round_nr"),
+        "status": info.status,
+        "listed_by_livetiming": info.key is not None,
         "session": validated_session,
         "available": sorted(present),
         "missing": sorted(session_row.get("missing") or []),

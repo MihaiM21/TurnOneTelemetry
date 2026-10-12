@@ -16,6 +16,9 @@ beyond plain strings/dicts.
 from __future__ import annotations
 
 import hashlib
+import json
+import re
+from datetime import datetime, timezone
 from typing import Any, Mapping, Optional
 
 DEFAULT_MAX_AGE_SECONDS = 86400
@@ -96,12 +99,19 @@ def cache_headers(
     }
 
 
-#: Path suffixes under ``/api/v2/`` whose content is not immutable.
+#: Path fragments under ``/api/`` whose content is not immutable.
 #: ``/standings/drivers`` and ``/standings/constructors`` cover both the cached
 #: current-season endpoints and their ``/live`` variants; the per-year and
 #: per-round standings paths (``/seasons/{year}/drivers-standings``) are not
-#: matched and stay immutable.
-VOLATILE_PATH_MARKERS = ("/dashboard", "/standings/drivers", "/standings/constructors")
+#: matched and stay immutable. ``/availability`` reports what is *stored* for a
+#: session, which changes as soon as a backfill or the processor writes data.
+VOLATILE_PATH_MARKERS = ("/dashboard", "/standings/drivers", "/standings/constructors", "/availability")
+
+#: An empty-looking body is only scanned when it is small; a payload with real
+#: content is never this short, and it keeps the check off multi-megabyte bodies.
+_EMPTY_CHECK_MAX_BYTES = 8192
+
+_YEAR_SEGMENT = re.compile(r"(?:^|/)(\d{4})(?=/|$)")
 
 
 def is_volatile_path(path: str) -> bool:
@@ -111,3 +121,53 @@ def is_volatile_path(path: str) -> bool:
     its payload changes as a race unfolds.
     """
     return any(marker in path for marker in VOLATILE_PATH_MARKERS)
+
+
+def is_empty_json_payload(body: bytes) -> bool:
+    """True when a JSON body carries no data: ``[]``, ``{}``, ``null``, or an
+    object whose every list/dict-valued field is empty (``{"standings": []}``).
+
+    An empty answer usually means "not processed yet", so it must not be pinned
+    in a client cache for a day. An object with no list/dict fields at all is
+    treated as data.
+    """
+    if len(body) > _EMPTY_CHECK_MAX_BYTES:
+        return False
+    try:
+        payload = json.loads(body)
+    except (ValueError, UnicodeDecodeError):
+        return False
+    if payload is None:
+        return True
+    if isinstance(payload, (list, tuple)):
+        return len(payload) == 0
+    if isinstance(payload, dict):
+        containers = [v for v in payload.values() if isinstance(v, (list, dict))]
+        return len(payload) == 0 or (bool(containers) and not any(containers))
+    return False
+
+
+def references_current_or_future_year(
+    path: str,
+    query_params: Optional[Mapping[str, Any]] = None,
+    now: Optional[datetime] = None,
+) -> bool:
+    """True when the request addresses the current (or a later) UTC year.
+
+    A season in progress keeps gaining sessions, so its responses are mutable.
+    The year is read from a ``year`` query parameter or a 4-digit path segment
+    (``/seasons/{year}/...``, ``/{year}/{gp}/...``).
+    """
+    current_year = (now or datetime.now(timezone.utc)).year
+    candidates = [match.group(1) for match in _YEAR_SEGMENT.finditer(path or "")]
+    if query_params is not None:
+        raw = query_params.get("year")
+        if raw is not None:
+            candidates.append(str(raw).strip())
+    for candidate in candidates:
+        try:
+            if int(candidate) >= current_year:
+                return True
+        except ValueError:
+            continue
+    return False

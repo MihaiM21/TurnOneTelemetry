@@ -157,3 +157,67 @@ class TestContrastHelpers:
             assert colors.color_distance(base, alt) >= colors.MIN_PAIR_DELTA_E, entry["name"]
             checked += 1
         assert checked >= 8
+
+
+class TestCanonicalTeam:
+    """Official/alternate spellings must resolve to the teams.json name."""
+
+    def test_official_names(self):
+        assert colors.canonical_team("Haas F1 Team") == "Haas"
+        assert colors.canonical_team("Oracle Red Bull Racing") == "Red Bull Racing"
+        assert colors.canonical_team("Red Bull Racing RBPT") == "Red Bull Racing"
+        assert colors.canonical_team("Scuderia Ferrari HP") == "Ferrari"
+        assert colors.canonical_team("Visa Cash App Racing Bulls F1 Team") == "Racing Bulls"
+        assert colors.canonical_team("Visa Cash App RB") == "Racing Bulls"
+        assert colors.canonical_team("RB") == "Racing Bulls"
+        assert colors.canonical_team("Cadillac F1 Team") == "Cadillac"
+
+    def test_sauber_becomes_audi_from_2026(self):
+        for name in ("Kick Sauber", "Stake F1 Team Kick Sauber", "Sauber"):
+            assert colors.canonical_team(name, 2025) == "Kick Sauber"
+            assert colors.canonical_team(name) == "Kick Sauber"
+            assert colors.canonical_team(name, 2026) == "Audi"
+
+    def test_unknown_and_empty_pass_through(self):
+        assert colors.canonical_team("Not A Team") == "Not A Team"
+        assert colors.canonical_team("") == ""
+        assert colors.canonical_team(None) == ""
+
+
+class TestOfficialNamesNeverWhite:
+    def test_haas_official_name_2026(self):
+        assert get_team_color("Haas F1 Team", 2026) == "#B6BABD"
+
+    def test_audi_2026(self):
+        assert get_team_color("Audi", 2026).upper() == "#FF5226"
+
+    def test_cadillac_2026_is_not_white(self):
+        assert get_team_color("Cadillac", 2026) != "#FFFFFF"
+
+    def test_kick_sauber_in_2026_resolves_to_audi_colour(self):
+        assert get_team_color("Kick Sauber", 2026) == get_team_color("Audi", 2026)
+
+    def test_kick_sauber_before_2026_keeps_its_green(self):
+        assert get_team_color("Stake F1 Team Kick Sauber", 2025) == "#52E252"
+
+    def test_legacy_lookup_handles_new_teams_and_official_names(self):
+        assert get_team_color("Haas F1 Team") == "#B6BABD"
+        assert get_team_color("Audi") != "#FFFFFF"
+        assert get_team_color("Cadillac") != "#FFFFFF"
+
+    def test_unknown_team_is_still_white(self):
+        assert get_team_color("Not A Team", 2026) == "#FFFFFF"
+        assert get_team_color("", 2026) == "#FFFFFF"
+        assert get_team_color(None, 2026) == "#FFFFFF"
+
+    def test_every_listed_team_is_coloured(self):
+        for year in (2024, 2025, 2026):
+            for entry in colors._load_teams_data()[str(year)]:
+                assert get_team_color(entry["name"], year) != "#FFFFFF", (year, entry["name"])
+
+    def test_resolve_team_color_none_colour_uses_fallback(self):
+        assert _resolve_team_color({"name": "Audi", "color": None}) == "#BB0A30"
+
+    def test_driver_color_falls_back_to_team(self):
+        assert get_driver_color("ZZZ", 2026, team="Haas F1 Team") == "#B6BABD"
+        assert get_driver_color("ZZZ", 2026) == "#FFFFFF"

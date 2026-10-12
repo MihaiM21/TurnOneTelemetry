@@ -32,7 +32,14 @@ from src.core.config import settings
 #: the driver segment of a generated filename.
 _TLA_RE = re.compile(r"^[A-Za-z]{3}$")
 
-_GP_NAME_RE = re.compile(r"^[A-Za-z0-9 ._'-]{1,80}$")
+# Letters (any script: "São Paulo", "Montréal"), digits, space and . ' - only -- no path
+# separators. ``\w`` also matches "_", which is harmless here.
+_GP_NAME_RE = re.compile(r"^[\w .'\-]{1,80}$")
+
+#: Livetiming meeting keys are four-digit numbers (1279 ...); anything this large is a
+#: key, not a round. Rounds are 1..``settings.max_round``.
+_MIN_MEETING_KEY = 100
+_MAX_MEETING_KEY = 99999
 
 
 def _reject(detail: str) -> None:
@@ -73,20 +80,25 @@ def validate_driver(driver: Optional[str]) -> Optional[str]:
 
 
 def validate_gp(gp: Union[int, str]) -> Union[int, str]:
-    """Round number, event key, or official event name.
+    """Round number, livetiming meeting key, or event name.
 
-    Integers are range-checked against the season bounds. Strings are resolved
-    upstream by ``F1StaticClient.get_event_info`` — which returns a
-    server-controlled name — but are still constrained here so an unresolvable
-    value fails fast and cannot reach a path builder if a future caller skips
-    that resolution.
+    Integers (and all-digit strings) are either an official round
+    (``min_round..max_round``) or a meeting key (``100..99999``); anything in
+    between is rejected. Strings are resolved upstream by
+    ``F1StaticClient.get_event_info`` — which returns a server-controlled name —
+    but are still constrained here so an unresolvable value fails fast and cannot
+    reach a path builder if a future caller skips that resolution.
     """
     if isinstance(gp, bool):  # bool is an int subclass; reject explicitly.
         _reject("gp must be a round number or event name")
-    if isinstance(gp, int):
-        if not (settings.min_round <= gp <= settings.max_round):
+    numeric = gp if isinstance(gp, int) else (int(gp.strip()) if isinstance(gp, str) and gp.strip().isdigit() else None)
+    if numeric is not None:
+        is_round = settings.min_round <= numeric <= settings.max_round
+        is_key = _MIN_MEETING_KEY <= numeric <= _MAX_MEETING_KEY
+        if not (is_round or is_key):
             _reject(
-                f"gp round must be between {settings.min_round} and {settings.max_round}"
+                f"gp must be a round between {settings.min_round} and {settings.max_round}, "
+                f"a meeting key, or an event name"
             )
         return gp
     text = str(gp).strip()
@@ -195,6 +207,14 @@ async def guard_session_params(request: Request) -> None:
     session = request.query_params.get("session")
     if session is not None and session != "":
         validate_session(session)
+
+    # ``gp`` (and ``gp2`` on the cross-session comparison) is a round, a livetiming
+    # meeting key or an event name. Most endpoints declare it as a bare
+    # ``Union[int, str]``, so this is the one place it is checked everywhere.
+    for name in ("gp", "gp2"):
+        value = request.query_params.get(name)
+        if value is not None and value != "":
+            validate_gp(value)
 
     # Single-TLA parameters. The API spells this several ways across versions
     # (`driver`, `driver1`/`driver2`, and `d1`/`d2` on the comparison

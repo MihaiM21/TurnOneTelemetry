@@ -12,6 +12,10 @@ wrong:
   a race runs. ``immutable`` instructs clients never to revalidate, so the live
   dashboard froze for 24 hours in every browser and CDN. Volatile paths now get
   a short ``must-revalidate`` policy instead.
+* **Empty and in-progress answers are not immutable either.** ``200 []`` for a
+  session that has no data yet was pinned for 24h, so the data stayed "missing"
+  in clients after it was processed. An empty JSON body, and any request for the
+  current (or a later) UTC year, now get the short ``must-revalidate`` policy.
 * **These responses are API-key gated**, so the policy is ``private``: a shared
   proxy must never hand one caller's payload to another.
 
@@ -31,8 +35,10 @@ from starlette.responses import Response
 from src.api.http_cache import (
     DEFAULT_MAX_AGE_SECONDS,
     immutable_cache_control,
+    is_empty_json_payload,
     is_not_modified,
     is_volatile_path,
+    references_current_or_future_year,
     volatile_cache_control,
 )
 
@@ -92,7 +98,11 @@ class ETagMiddleware(BaseHTTPMiddleware):
         headers = dict(response.headers)
         headers["ETag"] = etag
         if "cache-control" not in {k.lower() for k in headers}:
-            if is_volatile_path(request.url.path):
+            if (
+                is_volatile_path(request.url.path)
+                or references_current_or_future_year(request.url.path, request.query_params)
+                or ("json" in (response.headers.get("content-type") or "").lower() and is_empty_json_payload(body))
+            ):
                 headers["Cache-Control"] = volatile_cache_control()
             elif self._cache_control_max_age > 0:
                 headers["Cache-Control"] = immutable_cache_control(

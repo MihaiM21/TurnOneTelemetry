@@ -10,6 +10,7 @@ from typing import Optional
 from src.repositories.mongo import MongoDBManager
 from src.repositories.plots import normalize_session_type
 from src.core.logging import get_logger
+from src.ingestion.calendar import country_code_from_event_name
 
 logger = get_logger(__name__)
 
@@ -23,24 +24,9 @@ DATA_TYPE_MAPPING = {
     'Throttle and Brake comparison': 'throttle_brake_comparison_2drivers'
 }
 
-# Country code mapping
-COUNTRY_CODES = {
-    'Australian': 'AUS', 'Bahrain': 'BHR', 'Chinese': 'CHN', 'Japanese': 'JPN',
-    'Saudi Arabian': 'SAU', 'Miami': 'MIA', 'Emilia Romagna': 'EMI', 'Monaco': 'MON',
-    'Spanish': 'ESP', 'Canadian': 'CAN', 'Austrian': 'AUT', 'British': 'GBR',
-    'Belgian': 'BEL', 'Dutch': 'NED', 'Italian': 'ITA', 'Azerbaijan': 'AZE',
-    'Singapore': 'SGP', 'United States': 'USA', 'Mexico': 'MEX', 'Brazil': 'BRA',
-    'Las Vegas': 'LVG', 'Qatar': 'QAT', 'Abu Dhabi': 'ABU'
-}
-
-
 def get_country_code(gp_name: str) -> str:
-    """Extract country code from GP name"""
-    for key, code in COUNTRY_CODES.items():
-        if key.lower() in gp_name.lower():
-            return code
-    # Fallback
-    return gp_name.replace(' ', '').replace('Grand', '').replace('Prix', '')[:3].upper()
+    """Extract the gp_id code from a GP name (single implementation: ``ingestion.calendar``)."""
+    return country_code_from_event_name(gp_name)
 
 
 def infer_data_type_from_filename(filename: str) -> Optional[str]:

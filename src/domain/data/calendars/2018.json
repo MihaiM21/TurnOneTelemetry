@@ -1,0 +1,1315 @@
+{
+ "year": 2018,
+ "events": [
+  {
+   "grandPrix": "Australian Grand Prix",
+   "officialName": "",
+   "circuit": "Albert Park Grand Prix Circuit",
+   "circuitKey": null,
+   "location": "Melbourne",
+   "country": "Australia",
+   "code": "",
+   "key": null,
+   "kind": "race",
+   "round": 1,
+   "sessions": [],
+   "source": "reference",
+   "referenceDate": "2018-03-25",
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2018_AUS"
+  },
+  {
+   "grandPrix": "Bahrain Grand Prix",
+   "officialName": "FORMULA 1 2018 GULF AIR BAHRAIN GRAND PRIX",
+   "circuit": "Sakhir",
+   "circuitKey": 63,
+   "location": "Sakhir",
+   "country": "Bahrain",
+   "code": "BRN0104",
+   "key": 980,
+   "livetimingNumber": 2,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2018-04-06T11:00:00+00:00",
+     "endTime": "2018-04-06T12:30:00+00:00",
+     "startDate": "2018-04-06T14:00:00",
+     "endDate": "2018-04-06T15:30:00",
+     "path": null
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2018-04-06T15:00:00+00:00",
+     "endTime": "2018-04-06T16:30:00+00:00",
+     "startDate": "2018-04-06T18:00:00",
+     "endDate": "2018-04-06T19:30:00",
+     "path": null
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2018-04-07T12:00:00+00:00",
+     "endTime": "2018-04-07T13:00:00+00:00",
+     "startDate": "2018-04-07T15:00:00",
+     "endDate": "2018-04-07T16:00:00",
+     "path": null
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2018-04-07T15:00:00+00:00",
+     "endTime": "2018-04-07T16:00:00+00:00",
+     "startDate": "2018-04-07T18:00:00",
+     "endDate": "2018-04-07T19:00:00",
+     "path": null
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2018-04-08T15:00:00+00:00",
+     "endTime": "2018-04-08T17:00:00+00:00",
+     "startDate": "2018-04-08T18:00:00",
+     "endDate": "2018-04-08T20:00:00",
+     "path": "2018/2018-04-08_Bahrain_Grand_Prix/2018-04-08_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 2,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2018_BHR"
+  },
+  {
+   "grandPrix": "Chinese Grand Prix",
+   "officialName": "FORMULA 1 2018 HEINEKEN CHINESE GRAND PRIX",
+   "circuit": "Shanghai",
+   "circuitKey": 49,
+   "location": "Shanghai",
+   "country": "China",
+   "code": "CHN0101",
+   "key": 981,
+   "livetimingNumber": 3,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2018-04-13T02:00:00+00:00",
+     "endTime": "2018-04-13T03:30:00+00:00",
+     "startDate": "2018-04-13T10:00:00",
+     "endDate": "2018-04-13T11:30:00",
+     "path": "2018/2018-04-15_Chinese_Grand_Prix/2018-04-13_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2018-04-13T06:00:00+00:00",
+     "endTime": "2018-04-13T07:30:00+00:00",
+     "startDate": "2018-04-13T14:00:00",
+     "endDate": "2018-04-13T15:30:00",
+     "path": "2018/2018-04-15_Chinese_Grand_Prix/2018-04-13_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2018-04-14T04:00:00+00:00",
+     "endTime": "2018-04-14T05:00:00+00:00",
+     "startDate": "2018-04-14T12:00:00",
+     "endDate": "2018-04-14T13:00:00",
+     "path": null
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2018-04-14T06:00:00+00:00",
+     "endTime": "2018-04-14T07:00:00+00:00",
+     "startDate": "2018-04-14T14:00:00",
+     "endDate": "2018-04-14T15:00:00",
+     "path": "2018/2018-04-15_Chinese_Grand_Prix/2018-04-14_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2018-04-15T06:10:00+00:00",
+     "endTime": "2018-04-15T08:10:00+00:00",
+     "startDate": "2018-04-15T14:10:00",
+     "endDate": "2018-04-15T16:10:00",
+     "path": "2018/2018-04-15_Chinese_Grand_Prix/2018-04-15_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 3,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2018_CHN"
+  },
+  {
+   "grandPrix": "Azerbaijan Grand Prix",
+   "officialName": "FORMULA 1 2018 AZERBAIJAN GRAND PRIX",
+   "circuit": "Baku",
+   "circuitKey": 144,
+   "location": "Baku",
+   "country": "Azerbaijan",
+   "code": "AZE02",
+   "key": 982,
+   "livetimingNumber": 4,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2018-04-27T09:00:00+00:00",
+     "endTime": "2018-04-27T10:30:00+00:00",
+     "startDate": "2018-04-27T13:00:00",
+     "endDate": "2018-04-27T14:30:00",
+     "path": "2018/2018-04-29_Azerbaijan_Grand_Prix/2018-04-27_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2018-04-27T13:00:00+00:00",
+     "endTime": "2018-04-27T14:30:00+00:00",
+     "startDate": "2018-04-27T17:00:00",
+     "endDate": "2018-04-27T18:30:00",
+     "path": "2018/2018-04-29_Azerbaijan_Grand_Prix/2018-04-27_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2018-04-28T10:00:00+00:00",
+     "endTime": "2018-04-28T11:00:00+00:00",
+     "startDate": "2018-04-28T14:00:00",
+     "endDate": "2018-04-28T15:00:00",
+     "path": "2018/2018-04-29_Azerbaijan_Grand_Prix/2018-04-28_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2018-04-28T13:00:00+00:00",
+     "endTime": "2018-04-28T14:00:00+00:00",
+     "startDate": "2018-04-28T17:00:00",
+     "endDate": "2018-04-28T18:00:00",
+     "path": "2018/2018-04-29_Azerbaijan_Grand_Prix/2018-04-28_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2018-04-29T11:00:00+00:00",
+     "endTime": "2018-04-29T15:00:00+00:00",
+     "startDate": "2018-04-29T15:00:00",
+     "endDate": "2018-04-29T19:00:00",
+     "path": "2018/2018-04-29_Azerbaijan_Grand_Prix/2018-04-29_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 4,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2018_AZE"
+  },
+  {
+   "grandPrix": "Spanish Grand Prix",
+   "officialName": "FORMULA 1 GRAN PREMIO DE ESPAÑA EMIRATES 2018",
+   "circuit": "Catalunya",
+   "circuitKey": 15,
+   "location": "Barcelona",
+   "country": "Spain",
+   "code": "ESP0110",
+   "key": 983,
+   "livetimingNumber": 5,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2018-05-11T09:00:00+00:00",
+     "endTime": "2018-05-11T10:30:00+00:00",
+     "startDate": "2018-05-11T11:00:00",
+     "endDate": "2018-05-11T12:30:00",
+     "path": "2018/2018-05-13_Spanish_Grand_Prix/2018-05-11_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2018-05-11T13:00:00+00:00",
+     "endTime": "2018-05-11T14:30:00+00:00",
+     "startDate": "2018-05-11T15:00:00",
+     "endDate": "2018-05-11T16:30:00",
+     "path": "2018/2018-05-13_Spanish_Grand_Prix/2018-05-11_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2018-05-12T10:00:00+00:00",
+     "endTime": "2018-05-12T11:00:00+00:00",
+     "startDate": "2018-05-12T12:00:00",
+     "endDate": "2018-05-12T13:00:00",
+     "path": "2018/2018-05-13_Spanish_Grand_Prix/2018-05-12_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2018-05-12T13:00:00+00:00",
+     "endTime": "2018-05-12T14:00:00+00:00",
+     "startDate": "2018-05-12T15:00:00",
+     "endDate": "2018-05-12T16:00:00",
+     "path": "2018/2018-05-13_Spanish_Grand_Prix/2018-05-12_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2018-05-13T13:10:00+00:00",
+     "endTime": "2018-05-13T15:10:00+00:00",
+     "startDate": "2018-05-13T15:10:00",
+     "endDate": "2018-05-13T17:10:00",
+     "path": "2018/2018-05-13_Spanish_Grand_Prix/2018-05-13_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 5,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2018_ESP"
+  },
+  {
+   "grandPrix": "Monaco Grand Prix",
+   "officialName": "FORMULA 1 GRAND PRIX DE MONACO 2018",
+   "circuit": "Monte Carlo",
+   "circuitKey": 22,
+   "location": "Monte Carlo",
+   "country": "Monaco",
+   "code": "MON0112",
+   "key": 984,
+   "livetimingNumber": 6,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2018-05-24T09:00:00+00:00",
+     "endTime": "2018-05-24T10:30:00+00:00",
+     "startDate": "2018-05-24T11:00:00",
+     "endDate": "2018-05-24T12:30:00",
+     "path": "2018/2018-05-27_Monaco_Grand_Prix/2018-05-24_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2018-05-24T13:00:00+00:00",
+     "endTime": "2018-05-24T14:30:00+00:00",
+     "startDate": "2018-05-24T15:00:00",
+     "endDate": "2018-05-24T16:30:00",
+     "path": "2018/2018-05-27_Monaco_Grand_Prix/2018-05-24_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2018-05-26T10:00:00+00:00",
+     "endTime": "2018-05-26T11:00:00+00:00",
+     "startDate": "2018-05-26T12:00:00",
+     "endDate": "2018-05-26T13:00:00",
+     "path": "2018/2018-05-27_Monaco_Grand_Prix/2018-05-26_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2018-05-26T13:00:00+00:00",
+     "endTime": "2018-05-26T14:00:00+00:00",
+     "startDate": "2018-05-26T15:00:00",
+     "endDate": "2018-05-26T16:00:00",
+     "path": "2018/2018-05-27_Monaco_Grand_Prix/2018-05-26_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2018-05-27T13:10:00+00:00",
+     "endTime": "2018-05-27T15:10:00+00:00",
+     "startDate": "2018-05-27T15:10:00",
+     "endDate": "2018-05-27T17:10:00",
+     "path": "2018/2018-05-27_Monaco_Grand_Prix/2018-05-27_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 6,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2018_MON"
+  },
+  {
+   "grandPrix": "Canadian Grand Prix",
+   "officialName": "FORMULA 1 GRAND PRIX HEINEKEN DU CANADA 2018",
+   "circuit": "Montreal",
+   "circuitKey": 23,
+   "location": "Montréal",
+   "country": "Canada",
+   "code": "CAN0108",
+   "key": 985,
+   "livetimingNumber": 7,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2018-06-08T14:00:00+00:00",
+     "endTime": "2018-06-08T15:30:00+00:00",
+     "startDate": "2018-06-08T10:00:00",
+     "endDate": "2018-06-08T11:30:00",
+     "path": "2018/2018-06-10_Canadian_Grand_Prix/2018-06-08_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2018-06-08T18:00:00+00:00",
+     "endTime": "2018-06-08T19:30:00+00:00",
+     "startDate": "2018-06-08T14:00:00",
+     "endDate": "2018-06-08T15:30:00",
+     "path": "2018/2018-06-10_Canadian_Grand_Prix/2018-06-08_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2018-06-09T15:00:00+00:00",
+     "endTime": "2018-06-09T16:00:00+00:00",
+     "startDate": "2018-06-09T11:00:00",
+     "endDate": "2018-06-09T12:00:00",
+     "path": "2018/2018-06-10_Canadian_Grand_Prix/2018-06-09_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2018-06-09T18:00:00+00:00",
+     "endTime": "2018-06-09T19:00:00+00:00",
+     "startDate": "2018-06-09T14:00:00",
+     "endDate": "2018-06-09T15:00:00",
+     "path": "2018/2018-06-10_Canadian_Grand_Prix/2018-06-09_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2018-06-10T18:10:00+00:00",
+     "endTime": "2018-06-10T20:10:00+00:00",
+     "startDate": "2018-06-10T14:10:00",
+     "endDate": "2018-06-10T16:10:00",
+     "path": "2018/2018-06-10_Canadian_Grand_Prix/2018-06-10_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 7,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2018_CAN"
+  },
+  {
+   "grandPrix": "French Grand Prix",
+   "officialName": "FORMULA 1 PIRELLI GRAND PRIX DE FRANCE 2018",
+   "circuit": "Paul Ricard",
+   "circuitKey": 28,
+   "location": "Le Castellet",
+   "country": "France",
+   "code": "FRA0603",
+   "key": 986,
+   "livetimingNumber": 8,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2018-06-22T10:00:00+00:00",
+     "endTime": "2018-06-22T11:30:00+00:00",
+     "startDate": "2018-06-22T12:00:00",
+     "endDate": "2018-06-22T13:30:00",
+     "path": "2018/2018-06-24_French_Grand_Prix/2018-06-22_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2018-06-22T14:00:00+00:00",
+     "endTime": "2018-06-22T15:30:00+00:00",
+     "startDate": "2018-06-22T16:00:00",
+     "endDate": "2018-06-22T17:30:00",
+     "path": "2018/2018-06-24_French_Grand_Prix/2018-06-22_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2018-06-23T11:00:00+00:00",
+     "endTime": "2018-06-23T12:00:00+00:00",
+     "startDate": "2018-06-23T13:00:00",
+     "endDate": "2018-06-23T14:00:00",
+     "path": "2018/2018-06-24_French_Grand_Prix/2018-06-23_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2018-06-23T14:00:00+00:00",
+     "endTime": "2018-06-23T15:00:00+00:00",
+     "startDate": "2018-06-23T16:00:00",
+     "endDate": "2018-06-23T17:00:00",
+     "path": "2018/2018-06-24_French_Grand_Prix/2018-06-23_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2018-06-24T14:10:00+00:00",
+     "endTime": "2018-06-24T16:10:00+00:00",
+     "startDate": "2018-06-24T16:10:00",
+     "endDate": "2018-06-24T18:10:00",
+     "path": "2018/2018-06-24_French_Grand_Prix/2018-06-24_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 8,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2018_FRE"
+  },
+  {
+   "grandPrix": "Austrian Grand Prix",
+   "officialName": "FORMULA 1 EYETIME GROSSER PREIS VON ÖSTERREICH 2018",
+   "circuit": "Spielberg",
+   "circuitKey": 19,
+   "location": "Spielberg",
+   "country": "Austria",
+   "code": "AUT0108",
+   "key": 987,
+   "livetimingNumber": 9,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2018-06-29T09:00:00+00:00",
+     "endTime": "2018-06-29T10:30:00+00:00",
+     "startDate": "2018-06-29T11:00:00",
+     "endDate": "2018-06-29T12:30:00",
+     "path": "2018/2018-07-01_Austrian_Grand_Prix/2018-06-29_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2018-06-29T13:00:00+00:00",
+     "endTime": "2018-06-29T14:30:00+00:00",
+     "startDate": "2018-06-29T15:00:00",
+     "endDate": "2018-06-29T16:30:00",
+     "path": "2018/2018-07-01_Austrian_Grand_Prix/2018-06-29_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2018-06-30T10:00:00+00:00",
+     "endTime": "2018-06-30T11:00:00+00:00",
+     "startDate": "2018-06-30T12:00:00",
+     "endDate": "2018-06-30T13:00:00",
+     "path": "2018/2018-07-01_Austrian_Grand_Prix/2018-06-30_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2018-06-30T13:00:00+00:00",
+     "endTime": "2018-06-30T14:00:00+00:00",
+     "startDate": "2018-06-30T15:00:00",
+     "endDate": "2018-06-30T16:00:00",
+     "path": "2018/2018-07-01_Austrian_Grand_Prix/2018-06-30_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2018-07-01T13:10:00+00:00",
+     "endTime": "2018-07-01T15:10:00+00:00",
+     "startDate": "2018-07-01T15:10:00",
+     "endDate": "2018-07-01T17:10:00",
+     "path": "2018/2018-07-01_Austrian_Grand_Prix/2018-07-01_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 9,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2018_AUT"
+  },
+  {
+   "grandPrix": "British Grand Prix",
+   "officialName": "FORMULA 1 2018 ROLEX BRITISH GRAND PRIX",
+   "circuit": "Silverstone",
+   "circuitKey": 2,
+   "location": "Silverstone",
+   "country": "Great Britain",
+   "code": "GBR0114",
+   "key": 988,
+   "livetimingNumber": 10,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2018-07-06T09:00:00+00:00",
+     "endTime": "2018-07-06T10:30:00+00:00",
+     "startDate": "2018-07-06T10:00:00",
+     "endDate": "2018-07-06T11:30:00",
+     "path": "2018/2018-07-08_British_Grand_Prix/2018-07-06_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2018-07-06T13:00:00+00:00",
+     "endTime": "2018-07-06T14:30:00+00:00",
+     "startDate": "2018-07-06T14:00:00",
+     "endDate": "2018-07-06T15:30:00",
+     "path": "2018/2018-07-08_British_Grand_Prix/2018-07-06_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2018-07-07T10:00:00+00:00",
+     "endTime": "2018-07-07T11:00:00+00:00",
+     "startDate": "2018-07-07T11:00:00",
+     "endDate": "2018-07-07T12:00:00",
+     "path": "2018/2018-07-08_British_Grand_Prix/2018-07-07_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2018-07-07T13:00:00+00:00",
+     "endTime": "2018-07-07T14:00:00+00:00",
+     "startDate": "2018-07-07T14:00:00",
+     "endDate": "2018-07-07T15:00:00",
+     "path": "2018/2018-07-08_British_Grand_Prix/2018-07-07_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2018-07-08T13:10:00+00:00",
+     "endTime": "2018-07-08T15:10:00+00:00",
+     "startDate": "2018-07-08T14:10:00",
+     "endDate": "2018-07-08T16:10:00",
+     "path": "2018/2018-07-08_British_Grand_Prix/2018-07-08_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 10,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2018_GBR"
+  },
+  {
+   "grandPrix": "German Grand Prix",
+   "officialName": "FORMULA 1 EMIRATES GROSSER PREIS VON DEUTSCHLAND 2018",
+   "circuit": "Hockenheim",
+   "circuitKey": 34,
+   "location": "Hockenheim",
+   "country": "Germany",
+   "code": "GER0207",
+   "key": 989,
+   "livetimingNumber": 11,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2018-07-20T09:00:00+00:00",
+     "endTime": "2018-07-20T10:30:00+00:00",
+     "startDate": "2018-07-20T11:00:00",
+     "endDate": "2018-07-20T12:30:00",
+     "path": "2018/2018-07-22_German_Grand_Prix/2018-07-20_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2018-07-20T13:00:00+00:00",
+     "endTime": "2018-07-20T14:30:00+00:00",
+     "startDate": "2018-07-20T15:00:00",
+     "endDate": "2018-07-20T16:30:00",
+     "path": "2018/2018-07-22_German_Grand_Prix/2018-07-20_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2018-07-21T10:00:00+00:00",
+     "endTime": "2018-07-21T11:00:00+00:00",
+     "startDate": "2018-07-21T12:00:00",
+     "endDate": "2018-07-21T13:00:00",
+     "path": "2018/2018-07-22_German_Grand_Prix/2018-07-21_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2018-07-21T13:00:00+00:00",
+     "endTime": "2018-07-21T14:00:00+00:00",
+     "startDate": "2018-07-21T15:00:00",
+     "endDate": "2018-07-21T16:00:00",
+     "path": "2018/2018-07-22_German_Grand_Prix/2018-07-21_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2018-07-22T13:10:00+00:00",
+     "endTime": "2018-07-22T15:10:00+00:00",
+     "startDate": "2018-07-22T15:10:00",
+     "endDate": "2018-07-22T17:10:00",
+     "path": "2018/2018-07-22_German_Grand_Prix/2018-07-22_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 11,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2018_GER"
+  },
+  {
+   "grandPrix": "Hungarian Grand Prix",
+   "officialName": "FORMULA 1 ROLEX MAGYAR NAGYDÍJ 2018",
+   "circuit": "Hungaroring",
+   "circuitKey": 4,
+   "location": "Budapest",
+   "country": "Hungary",
+   "code": "HUN0109",
+   "key": 990,
+   "livetimingNumber": 12,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2018-07-27T09:00:00+00:00",
+     "endTime": "2018-07-27T10:30:00+00:00",
+     "startDate": "2018-07-27T11:00:00",
+     "endDate": "2018-07-27T12:30:00",
+     "path": "2018/2018-07-29_Hungarian_Grand_Prix/2018-07-27_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2018-07-27T13:00:00+00:00",
+     "endTime": "2018-07-27T14:30:00+00:00",
+     "startDate": "2018-07-27T15:00:00",
+     "endDate": "2018-07-27T16:30:00",
+     "path": "2018/2018-07-29_Hungarian_Grand_Prix/2018-07-27_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2018-07-28T10:00:00+00:00",
+     "endTime": "2018-07-28T11:00:00+00:00",
+     "startDate": "2018-07-28T12:00:00",
+     "endDate": "2018-07-28T13:00:00",
+     "path": "2018/2018-07-29_Hungarian_Grand_Prix/2018-07-28_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2018-07-28T13:00:00+00:00",
+     "endTime": "2018-07-28T14:00:00+00:00",
+     "startDate": "2018-07-28T15:00:00",
+     "endDate": "2018-07-28T16:00:00",
+     "path": "2018/2018-07-29_Hungarian_Grand_Prix/2018-07-28_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2018-07-29T13:10:00+00:00",
+     "endTime": "2018-07-29T15:10:00+00:00",
+     "startDate": "2018-07-29T15:10:00",
+     "endDate": "2018-07-29T17:10:00",
+     "path": "2018/2018-07-29_Hungarian_Grand_Prix/2018-07-29_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 12,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2018_HUN"
+  },
+  {
+   "grandPrix": "Belgian Grand Prix",
+   "officialName": "FORMULA 1 2018 JOHNNIE WALKER BELGIAN GRAND PRIX",
+   "circuit": "Spa-Francorchamps",
+   "circuitKey": 7,
+   "location": "Spa-Francorchamps",
+   "country": "Belgium",
+   "code": "BEL02012",
+   "key": 991,
+   "livetimingNumber": 13,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2018-08-24T09:00:00+00:00",
+     "endTime": "2018-08-24T10:30:00+00:00",
+     "startDate": "2018-08-24T11:00:00",
+     "endDate": "2018-08-24T12:30:00",
+     "path": "2018/2018-08-26_Belgian_Grand_Prix/2018-08-24_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2018-08-24T13:00:00+00:00",
+     "endTime": "2018-08-24T14:30:00+00:00",
+     "startDate": "2018-08-24T15:00:00",
+     "endDate": "2018-08-24T16:30:00",
+     "path": "2018/2018-08-26_Belgian_Grand_Prix/2018-08-24_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2018-08-25T10:00:00+00:00",
+     "endTime": "2018-08-25T11:00:00+00:00",
+     "startDate": "2018-08-25T12:00:00",
+     "endDate": "2018-08-25T13:00:00",
+     "path": "2018/2018-08-26_Belgian_Grand_Prix/2018-08-25_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2018-08-25T13:00:00+00:00",
+     "endTime": "2018-08-25T14:00:00+00:00",
+     "startDate": "2018-08-25T15:00:00",
+     "endDate": "2018-08-25T16:00:00",
+     "path": "2018/2018-08-26_Belgian_Grand_Prix/2018-08-25_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2018-08-26T13:10:00+00:00",
+     "endTime": "2018-08-26T15:10:00+00:00",
+     "startDate": "2018-08-26T15:10:00",
+     "endDate": "2018-08-26T17:10:00",
+     "path": "2018/2018-08-26_Belgian_Grand_Prix/2018-08-26_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 13,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2018_BEL"
+  },
+  {
+   "grandPrix": "Italian Grand Prix",
+   "officialName": "FORMULA 1 GRAN PREMIO HEINEKEN D'ITALIA 2018",
+   "circuit": "Monza",
+   "circuitKey": 39,
+   "location": "Monza",
+   "country": "Italy",
+   "code": "ITA0311",
+   "key": 992,
+   "livetimingNumber": 14,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2018-08-31T09:00:00+00:00",
+     "endTime": "2018-08-31T10:30:00+00:00",
+     "startDate": "2018-08-31T11:00:00",
+     "endDate": "2018-08-31T12:30:00",
+     "path": "2018/2018-09-02_Italian_Grand_Prix/2018-08-31_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2018-08-31T13:00:00+00:00",
+     "endTime": "2018-08-31T14:30:00+00:00",
+     "startDate": "2018-08-31T15:00:00",
+     "endDate": "2018-08-31T16:30:00",
+     "path": "2018/2018-09-02_Italian_Grand_Prix/2018-08-31_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2018-09-01T10:00:00+00:00",
+     "endTime": "2018-09-01T11:00:00+00:00",
+     "startDate": "2018-09-01T12:00:00",
+     "endDate": "2018-09-01T13:00:00",
+     "path": "2018/2018-09-02_Italian_Grand_Prix/2018-09-01_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2018-09-01T13:00:00+00:00",
+     "endTime": "2018-09-01T14:00:00+00:00",
+     "startDate": "2018-09-01T15:00:00",
+     "endDate": "2018-09-01T16:00:00",
+     "path": "2018/2018-09-02_Italian_Grand_Prix/2018-09-01_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2018-09-02T13:10:00+00:00",
+     "endTime": "2018-09-02T15:10:00+00:00",
+     "startDate": "2018-09-02T15:10:00",
+     "endDate": "2018-09-02T17:10:00",
+     "path": "2018/2018-09-02_Italian_Grand_Prix/2018-09-02_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 14,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2018_ITA"
+  },
+  {
+   "grandPrix": "Singapore Grand Prix",
+   "officialName": "FORMULA 1 2018 SINGAPORE AIRLINES SINGAPORE GRAND PRIX",
+   "circuit": "Singapore",
+   "circuitKey": 61,
+   "location": "Singapore",
+   "country": "Singapore",
+   "code": "SIN0106",
+   "key": 993,
+   "livetimingNumber": 15,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2018-09-14T08:30:00+00:00",
+     "endTime": "2018-09-14T10:00:00+00:00",
+     "startDate": "2018-09-14T16:30:00",
+     "endDate": "2018-09-14T18:00:00",
+     "path": "2018/2018-09-16_Singapore_Grand_Prix/2018-09-14_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2018-09-14T12:30:00+00:00",
+     "endTime": "2018-09-14T14:00:00+00:00",
+     "startDate": "2018-09-14T20:30:00",
+     "endDate": "2018-09-14T22:00:00",
+     "path": "2018/2018-09-16_Singapore_Grand_Prix/2018-09-14_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2018-09-15T10:00:00+00:00",
+     "endTime": "2018-09-15T11:00:00+00:00",
+     "startDate": "2018-09-15T18:00:00",
+     "endDate": "2018-09-15T19:00:00",
+     "path": "2018/2018-09-16_Singapore_Grand_Prix/2018-09-15_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2018-09-15T13:00:00+00:00",
+     "endTime": "2018-09-15T14:00:00+00:00",
+     "startDate": "2018-09-15T21:00:00",
+     "endDate": "2018-09-15T22:00:00",
+     "path": "2018/2018-09-16_Singapore_Grand_Prix/2018-09-15_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2018-09-16T12:10:00+00:00",
+     "endTime": "2018-09-16T14:10:00+00:00",
+     "startDate": "2018-09-16T20:10:00",
+     "endDate": "2018-09-16T22:10:00",
+     "path": "2018/2018-09-16_Singapore_Grand_Prix/2018-09-16_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 15,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2018_SGP"
+  },
+  {
+   "grandPrix": "Russian Grand Prix",
+   "officialName": "FORMULA 1 2018 VTB RUSSIAN GRAND PRIX",
+   "circuit": "Sochi",
+   "circuitKey": 79,
+   "location": "Sochi",
+   "country": "Russia",
+   "code": "RUS0101",
+   "key": 994,
+   "livetimingNumber": 16,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2018-09-28T08:00:00+00:00",
+     "endTime": "2018-09-28T09:30:00+00:00",
+     "startDate": "2018-09-28T11:00:00",
+     "endDate": "2018-09-28T12:30:00",
+     "path": "2018/2018-09-30_Russian_Grand_Prix/2018-09-28_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2018-09-28T12:00:00+00:00",
+     "endTime": "2018-09-28T13:30:00+00:00",
+     "startDate": "2018-09-28T15:00:00",
+     "endDate": "2018-09-28T16:30:00",
+     "path": "2018/2018-09-30_Russian_Grand_Prix/2018-09-28_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2018-09-29T09:00:00+00:00",
+     "endTime": "2018-09-29T10:00:00+00:00",
+     "startDate": "2018-09-29T12:00:00",
+     "endDate": "2018-09-29T13:00:00",
+     "path": "2018/2018-09-30_Russian_Grand_Prix/2018-09-29_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2018-09-29T12:00:00+00:00",
+     "endTime": "2018-09-29T13:00:00+00:00",
+     "startDate": "2018-09-29T15:00:00",
+     "endDate": "2018-09-29T16:00:00",
+     "path": "2018/2018-09-30_Russian_Grand_Prix/2018-09-29_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2018-09-30T11:10:00+00:00",
+     "endTime": "2018-09-30T13:10:00+00:00",
+     "startDate": "2018-09-30T14:10:00",
+     "endDate": "2018-09-30T16:10:00",
+     "path": "2018/2018-09-30_Russian_Grand_Prix/2018-09-30_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 16,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2018_RUS"
+  },
+  {
+   "grandPrix": "Japanese Grand Prix",
+   "officialName": "FORMULA 1 2018 HONDA JAPANESE GRAND PRIX",
+   "circuit": "Suzuka",
+   "circuitKey": 46,
+   "location": "Suzuka",
+   "country": "Japan",
+   "code": "JPN0306",
+   "key": 995,
+   "livetimingNumber": 17,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2018-10-05T01:00:00+00:00",
+     "endTime": "2018-10-05T02:30:00+00:00",
+     "startDate": "2018-10-05T10:00:00",
+     "endDate": "2018-10-05T11:30:00",
+     "path": "2018/2018-10-07_Japanese_Grand_Prix/2018-10-05_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2018-10-05T05:00:00+00:00",
+     "endTime": "2018-10-05T06:30:00+00:00",
+     "startDate": "2018-10-05T14:00:00",
+     "endDate": "2018-10-05T15:30:00",
+     "path": "2018/2018-10-07_Japanese_Grand_Prix/2018-10-05_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2018-10-06T03:00:00+00:00",
+     "endTime": "2018-10-06T04:00:00+00:00",
+     "startDate": "2018-10-06T12:00:00",
+     "endDate": "2018-10-06T13:00:00",
+     "path": "2018/2018-10-07_Japanese_Grand_Prix/2018-10-06_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2018-10-06T06:00:00+00:00",
+     "endTime": "2018-10-06T07:00:00+00:00",
+     "startDate": "2018-10-06T15:00:00",
+     "endDate": "2018-10-06T16:00:00",
+     "path": "2018/2018-10-07_Japanese_Grand_Prix/2018-10-06_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2018-10-07T05:10:00+00:00",
+     "endTime": "2018-10-07T07:10:00+00:00",
+     "startDate": "2018-10-07T14:10:00",
+     "endDate": "2018-10-07T16:10:00",
+     "path": "2018/2018-10-07_Japanese_Grand_Prix/2018-10-07_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 17,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2018_JPN"
+  },
+  {
+   "grandPrix": "United States Grand Prix",
+   "officialName": "FORMULA 1 PIRELLI 2018 UNITED STATES GRAND PRIX",
+   "circuit": "Austin",
+   "circuitKey": 9,
+   "location": "Austin",
+   "country": "United States",
+   "code": "USA0101",
+   "key": 996,
+   "livetimingNumber": 18,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2018-10-19T15:00:00+00:00",
+     "endTime": "2018-10-19T16:30:00+00:00",
+     "startDate": "2018-10-19T10:00:00",
+     "endDate": "2018-10-19T11:30:00",
+     "path": "2018/2018-10-21_United_States_Grand_Prix/2018-10-19_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2018-10-19T19:00:00+00:00",
+     "endTime": "2018-10-19T20:30:00+00:00",
+     "startDate": "2018-10-19T14:00:00",
+     "endDate": "2018-10-19T15:30:00",
+     "path": "2018/2018-10-21_United_States_Grand_Prix/2018-10-19_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2018-10-20T18:00:00+00:00",
+     "endTime": "2018-10-20T19:00:00+00:00",
+     "startDate": "2018-10-20T13:00:00",
+     "endDate": "2018-10-20T14:00:00",
+     "path": "2018/2018-10-21_United_States_Grand_Prix/2018-10-20_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2018-10-20T21:00:00+00:00",
+     "endTime": "2018-10-20T22:00:00+00:00",
+     "startDate": "2018-10-20T16:00:00",
+     "endDate": "2018-10-20T17:00:00",
+     "path": "2018/2018-10-21_United_States_Grand_Prix/2018-10-20_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2018-10-21T18:10:00+00:00",
+     "endTime": "2018-10-21T20:10:00+00:00",
+     "startDate": "2018-10-21T13:10:00",
+     "endDate": "2018-10-21T15:10:00",
+     "path": "2018/2018-10-21_United_States_Grand_Prix/2018-10-21_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 18,
+   "aliases": [
+    "USA",
+    "United States",
+    "US",
+    "United States of America",
+    "Austin",
+    "COTA",
+    "Circuit of the Americas"
+   ],
+   "hasSprint": false,
+   "gp_id": "2018_USA"
+  },
+  {
+   "grandPrix": "Mexican Grand Prix",
+   "officialName": "FORMULA 1 GRAN PREMIO DE MÉXICO 2018",
+   "circuit": "Mexico City",
+   "circuitKey": 65,
+   "location": "Mexico City",
+   "country": "Mexico",
+   "code": "MEX0103",
+   "key": 997,
+   "livetimingNumber": 19,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2018-10-26T15:00:00+00:00",
+     "endTime": "2018-10-26T16:30:00+00:00",
+     "startDate": "2018-10-26T10:00:00",
+     "endDate": "2018-10-26T11:30:00",
+     "path": "2018/2018-10-28_Mexican_Grand_Prix/2018-10-26_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2018-10-26T19:00:00+00:00",
+     "endTime": "2018-10-26T20:30:00+00:00",
+     "startDate": "2018-10-26T14:00:00",
+     "endDate": "2018-10-26T15:30:00",
+     "path": "2018/2018-10-28_Mexican_Grand_Prix/2018-10-26_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2018-10-27T15:00:00+00:00",
+     "endTime": "2018-10-27T16:00:00+00:00",
+     "startDate": "2018-10-27T10:00:00",
+     "endDate": "2018-10-27T11:00:00",
+     "path": "2018/2018-10-28_Mexican_Grand_Prix/2018-10-27_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2018-10-27T18:00:00+00:00",
+     "endTime": "2018-10-27T19:00:00+00:00",
+     "startDate": "2018-10-27T13:00:00",
+     "endDate": "2018-10-27T14:00:00",
+     "path": "2018/2018-10-28_Mexican_Grand_Prix/2018-10-27_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2018-10-28T19:10:00+00:00",
+     "endTime": "2018-10-28T21:10:00+00:00",
+     "startDate": "2018-10-28T13:10:00",
+     "endDate": "2018-10-28T15:10:00",
+     "path": "2018/2018-10-28_Mexican_Grand_Prix/2018-10-28_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 19,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2018_MEX"
+  },
+  {
+   "grandPrix": "Brazilian Grand Prix",
+   "officialName": "FORMULA 1 GRANDE PRÊMIO HEINEKEN DO BRASIL 2018",
+   "circuit": "Interlagos",
+   "circuitKey": 14,
+   "location": "São Paulo",
+   "country": "Brazil",
+   "code": "BRA0107",
+   "key": 998,
+   "livetimingNumber": 20,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2018-11-09T13:00:00+00:00",
+     "endTime": "2018-11-09T14:30:00+00:00",
+     "startDate": "2018-11-09T11:00:00",
+     "endDate": "2018-11-09T12:30:00",
+     "path": "2018/2018-11-11_Brazilian_Grand_Prix/2018-11-09_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2018-11-09T17:00:00+00:00",
+     "endTime": "2018-11-09T18:30:00+00:00",
+     "startDate": "2018-11-09T15:00:00",
+     "endDate": "2018-11-09T16:30:00",
+     "path": "2018/2018-11-11_Brazilian_Grand_Prix/2018-11-09_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2018-11-10T14:00:00+00:00",
+     "endTime": "2018-11-10T15:00:00+00:00",
+     "startDate": "2018-11-10T12:00:00",
+     "endDate": "2018-11-10T13:00:00",
+     "path": "2018/2018-11-11_Brazilian_Grand_Prix/2018-11-10_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2018-11-10T17:00:00+00:00",
+     "endTime": "2018-11-10T18:00:00+00:00",
+     "startDate": "2018-11-10T15:00:00",
+     "endDate": "2018-11-10T16:00:00",
+     "path": "2018/2018-11-11_Brazilian_Grand_Prix/2018-11-10_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2018-11-11T17:10:00+00:00",
+     "endTime": "2018-11-11T19:10:00+00:00",
+     "startDate": "2018-11-11T15:10:00",
+     "endDate": "2018-11-11T17:10:00",
+     "path": "2018/2018-11-11_Brazilian_Grand_Prix/2018-11-11_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 20,
+   "aliases": [],
+   "hasSprint": false,
+   "gp_id": "2018_BRA"
+  },
+  {
+   "grandPrix": "Abu Dhabi Grand Prix",
+   "officialName": "FORMULA 1 2018 ETIHAD AIRWAYS ABU DHABI GRAND PRIX",
+   "circuit": "Yas Marina Circuit",
+   "circuitKey": 70,
+   "location": "Yas Marina",
+   "country": "United Arab Emirates",
+   "code": "UAE0102",
+   "key": 999,
+   "livetimingNumber": 21,
+   "kind": "race",
+   "sessions": [
+    {
+     "name": "Practice 1",
+     "type": "Practice",
+     "startTime": "2018-11-23T09:00:00+00:00",
+     "endTime": "2018-11-23T10:30:00+00:00",
+     "startDate": "2018-11-23T13:00:00",
+     "endDate": "2018-11-23T14:30:00",
+     "path": "2018/2018-11-25_Abu_Dhabi_Grand_Prix/2018-11-23_Practice_1/"
+    },
+    {
+     "name": "Practice 2",
+     "type": "Practice",
+     "startTime": "2018-11-23T13:00:00+00:00",
+     "endTime": "2018-11-23T14:30:00+00:00",
+     "startDate": "2018-11-23T17:00:00",
+     "endDate": "2018-11-23T18:30:00",
+     "path": "2018/2018-11-25_Abu_Dhabi_Grand_Prix/2018-11-23_Practice_2/"
+    },
+    {
+     "name": "Practice 3",
+     "type": "Practice",
+     "startTime": "2018-11-24T10:00:00+00:00",
+     "endTime": "2018-11-24T11:00:00+00:00",
+     "startDate": "2018-11-24T14:00:00",
+     "endDate": "2018-11-24T15:00:00",
+     "path": "2018/2018-11-25_Abu_Dhabi_Grand_Prix/2018-11-24_Practice_3/"
+    },
+    {
+     "name": "Qualifying",
+     "type": "Qualifying",
+     "startTime": "2018-11-24T13:00:00+00:00",
+     "endTime": "2018-11-24T14:00:00+00:00",
+     "startDate": "2018-11-24T17:00:00",
+     "endDate": "2018-11-24T18:00:00",
+     "path": "2018/2018-11-25_Abu_Dhabi_Grand_Prix/2018-11-24_Qualifying/"
+    },
+    {
+     "name": "Race",
+     "type": "Race",
+     "startTime": "2018-11-25T13:10:00+00:00",
+     "endTime": "2018-11-25T15:10:00+00:00",
+     "startDate": "2018-11-25T17:10:00",
+     "endDate": "2018-11-25T19:10:00",
+     "path": "2018/2018-11-25_Abu_Dhabi_Grand_Prix/2018-11-25_Race/"
+    }
+   ],
+   "source": "livetiming",
+   "round": 21,
+   "aliases": [
+    "UAE",
+    "Yas Marina",
+    "Yas Island"
+   ],
+   "hasSprint": false,
+   "gp_id": "2018_ABU"
+  }
+ ]
+}

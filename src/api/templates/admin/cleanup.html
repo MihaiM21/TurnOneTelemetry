@@ -234,4 +234,57 @@
   <p class="muted small">No duplicate directories found.</p>
   {% endif %}
 </section>
+
+<section>
+  <div class="spread">
+    <h2 style="margin:0">Data filed under the wrong event</h2>
+    {% if not audit %}<a class="btn" href="/admin/cleanup?audit=true">Run audit</a>{% endif %}
+  </div>
+  <p class="muted small" style="margin-bottom:10px">
+    Before the calendar rework a round number could resolve to the wrong livetiming meeting, so one
+    event's laps were stored under another's (2026 Japan Q held Australia's). Two different Grands
+    Prix never produce an identical qualifying classification, so the same payload under more than
+    one event is the signature. Every member of a group is a suspect &mdash; open its preview, purge
+    it, then regenerate it from the Plots page. This only reads; nothing is removed here.
+  </p>
+  {% if audit %}
+    <p class="small">
+      {{ audit['total_duplicate_groups'] }} duplicate group(s) &middot;
+      {{ audit['bundles']['without_source'] }} of {{ audit['bundles']['total'] }} session bundles
+      have no recorded source (they are rebuilt on next use, never served).
+    </p>
+    {% for yr in audit['years'] %}
+      {% if yr['unknown_gp_ids'] %}
+      <p class="small warn">{{ yr['year'] }}: stored events the calendar does not know:
+        {% for g in yr['unknown_gp_ids'] %}<code>{{ g }}</code>{% if not loop.last %}, {% endif %}{% endfor %}</p>
+      {% endif %}
+    {% endfor %}
+    {% set groups = [] %}
+    {% for yr in audit['years'] %}{% for d in yr['duplicates'] %}{% if groups.append(d) %}{% endif %}{% endfor %}{% endfor %}
+    {% if groups %}
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Year</th><th>Session</th><th>Feature</th><th>Identical under</th><th>Preview a purge</th></tr></thead>
+        <tbody>
+          {% for d in groups %}
+          <tr>
+            <td>{{ d['year'] }}</td>
+            <td>{{ d['session'] }}</td>
+            <td class="small"><code>{{ d['data_type'] }}</code></td>
+            <td class="small">{{ d['events']|join(', ') }}</td>
+            <td class="small">
+              {% for sc in d['scopes'] %}
+              <a href="/admin/cleanup?preview=true&amp;year={{ sc['year'] }}&amp;gp={{ sc['gp']|urlencode }}&amp;session={{ sc['session'] }}&amp;data_type={{ sc['data_type']|urlencode }}"><code>{{ sc['gp'] }}</code></a>{% if not loop.last %} &middot; {% endif %}
+              {% endfor %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="muted small">No event shares another event's data.</p>
+    {% endif %}
+  {% endif %}
+</section>
 {% endblock %}
