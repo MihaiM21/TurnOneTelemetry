@@ -31,6 +31,10 @@ os.environ["LOG_LEVEL"] = "WARNING"
 os.environ["LOG_FILE"] = "logs/test.log"
 os.environ["SENTRY_DSN"] = ""
 os.environ["F1_PROXY_BASE_URL"] = ""
+# No test may reach api.openf1.org by accident; OpenF1 tests enable it with mocked responses.
+os.environ["OPENF1_FALLBACK"] = "false"
+os.environ["OPENF1_MIN_INTERVAL_S"] = "0"
+os.environ["OPENF1_MAX_PER_MINUTE"] = "0"
 
 # ---- Stdlib / third-party ---------------------------------------------------
 from typing import Iterator

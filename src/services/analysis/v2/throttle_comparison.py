@@ -1,4 +1,3 @@
-import json
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -172,8 +171,7 @@ def process_throttle_data(y: int, identifier: Union[int, str], e: str, client: F
 def get_all_driver_codes(base_url, client):
     mapping = {}
     try:
-        r = client.session.get(base_url + "DriverList.json")
-        data = json.loads(r.content.decode('utf-8-sig'))
+        data = client.fetch_json(base_url + "DriverList.json")
         for k, v in data.items(): mapping[k] = v.get('Tla', k)
     except Exception as exc:
         logger.warning("Error fetching driver codes from DriverList.json: %s", exc)

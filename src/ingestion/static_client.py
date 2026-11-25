@@ -29,6 +29,7 @@ from threading import Lock
 from src.core.config import settings
 from src.core.exceptions import (
     DataNotAvailableError,
+    LivetimingAccessError,
     SessionNotFoundError,
     UpstreamUnavailableError,
 )
@@ -56,6 +57,34 @@ def source_token(base_url: Optional[str]) -> Optional[str]:
     return "/".join(parts[-3:]) if len(parts) >= 3 else None
 
 
+def raise_for_livetiming_access(response: requests.Response, url: str) -> None:
+    """Raise :class:`LivetimingAccessError` for auth / proxy failures.
+
+    Call before mapping 403/404 to "not published". Since 14-15 Oct 2026 the
+    ``/static/<year>/`` archive answers 401 without an F1 TV token, and the
+    f1-proxy Worker answers 403 to a wrong ``X-Proxy-Key``; read as "not
+    published", either would silently turn an outage into "no data".
+    """
+    headers = getattr(response, "headers", None) or {}
+    if response.status_code == 401:
+        state = headers.get("X-Upstream-Auth")
+        expires = headers.get("X-F1TV-Token-Expires") or "unknown"
+        if state == "rejected":
+            hint = f"F1 TV token rejected (expires {expires}); rotate it in the f1-proxy Worker"
+        elif state == "missing":
+            hint = "the f1-proxy Worker has no F1 TV token configured"
+        else:
+            hint = ("the livetiming archive requires an F1 TV token; route through the "
+                    "f1-proxy Worker (F1_PROXY_BASE_URL + F1_PROXY_KEY)")
+        raise LivetimingAccessError(reason=f"401 for {url}: {hint}")
+    proxy_error = headers.get("X-Proxy-Error")
+    if proxy_error:
+        hint = " (check F1_PROXY_KEY)" if proxy_error == "forbidden" else ""
+        raise LivetimingAccessError(
+            reason=f"f1-proxy refused {url}: {response.status_code} {proxy_error}{hint}",
+        )
+
+
 # Season-index cache. The index was fetched on every call (twice per request via
 # SessionDataStore); finished seasons never change, the current one gets a short TTL
 # so a freshly listed meeting (a new session's path) is picked up quickly.
@@ -63,6 +92,34 @@ _INDEX_CACHE: dict = {}
 _INDEX_CACHE_LOCK = Lock()
 _INDEX_TTL_CURRENT_SECONDS = 300
 _INDEX_TTL_PAST_SECONDS = 86400
+# An index rebuilt from OpenF1 is re-checked against livetiming this often, so a
+# restored token takes over again quickly.
+_INDEX_TTL_FALLBACK_SECONDS = 300
+
+
+def openf1_fallback_enabled() -> bool:
+    return bool(settings.openf1_fallback)
+
+
+def load_from_openf1(url: str, original: LivetimingAccessError) -> Any:
+    """``url`` rebuilt from OpenF1, or ``original`` re-raised when OpenF1 cannot serve it.
+
+    ``DataNotAvailableError`` passes through (OpenF1 has the session, not the data).
+    """
+    from src.ingestion import openf1_streams
+
+    if not openf1_fallback_enabled():
+        raise original
+    try:
+        return openf1_streams.load(url)
+    except openf1_streams.UnsupportedStream:
+        raise original
+    except DataNotAvailableError:
+        raise
+    except UpstreamUnavailableError as exc:
+        raise UpstreamUnavailableError(
+            source="livetiming", reason=f"{original.reason}; OpenF1 fallback failed: {exc.reason}"
+        ) from exc
 
 
 def clear_index_cache() -> None:
@@ -110,6 +167,15 @@ class F1StaticClient:
             'Origin': 'https://www.formula1.com',
             'Referer': 'https://www.formula1.com/',
         })
+        if settings.f1_proxy_base_url and settings.f1_proxy_key:
+            self.session.headers['X-Proxy-Key'] = settings.f1_proxy_key
+
+    def _get_checked(self, url: str, **kwargs: Any) -> requests.Response:
+        """GET ``url``; auth/proxy failures and other non-2xx raise clearly."""
+        response = self.session.get(url, timeout=self.DEFAULT_TIMEOUT, **kwargs)
+        raise_for_livetiming_access(response, url)
+        response.raise_for_status()
+        return response
 
     @staticmethod
     def _normalize_text(value: str) -> str:
@@ -206,11 +272,65 @@ class F1StaticClient:
         if hit is not None and hit[0] > time.time():
             return hit[1]
 
-        index = self._fetch_season_index_uncached(year)
-        ttl = _INDEX_TTL_PAST_SECONDS if int(year) < time.gmtime().tm_year else _INDEX_TTL_CURRENT_SECONDS
+        try:
+            index = self._fetch_season_index_uncached(year)
+            ttl = _INDEX_TTL_PAST_SECONDS if int(year) < time.gmtime().tm_year else _INDEX_TTL_CURRENT_SECONDS
+        except LivetimingAccessError as exc:
+            index = self._season_index_from_openf1(year, exc)
+            ttl = _INDEX_TTL_FALLBACK_SECONDS
         with _INDEX_CACHE_LOCK:
             _INDEX_CACHE[cache_key] = (time.time() + ttl, index)
         return index
+
+    @staticmethod
+    def _season_index_from_openf1(year: int, original: LivetimingAccessError) -> Dict[str, Any]:
+        from src.ingestion import openf1_client
+
+        if not openf1_fallback_enabled() or int(year) < openf1_client.MIN_YEAR:
+            raise original
+        try:
+            index = openf1_client.build_index(year)
+        except (DataNotAvailableError, UpstreamUnavailableError) as exc:
+            raise UpstreamUnavailableError(
+                source="livetiming", reason=f"{original.reason}; OpenF1 index failed: {exc}"
+            ) from exc
+        logger.warning("livetiming refused the %s index (%s); serving it from OpenF1", year, original.reason)
+        return index
+
+    def livetiming_locked(self, year: int) -> bool:
+        """True while ``year``'s cached index came from OpenF1 -- livetiming refused it.
+
+        Lets callers go straight to OpenF1 instead of collecting a 401 per stream.
+        """
+        with _INDEX_CACHE_LOCK:
+            hit = _INDEX_CACHE.get((self.BASE_URL, int(year)))
+        return bool(hit and hit[0] > time.time() and hit[1].get("_source") == "openf1")
+
+    def _locked_for(self, url: str) -> bool:
+        from src.ingestion.openf1_client import session_path_from_url
+
+        path = session_path_from_url(url)
+        return bool(path and openf1_fallback_enabled() and self.livetiming_locked(int(path[:4])))
+
+    def _openf1_or_none(self, url: str) -> Optional[Any]:
+        """OpenF1 data for ``url`` when its season is known to be locked, else ``None``."""
+        if not self._locked_for(url):
+            return None
+        try:
+            return load_from_openf1(url, LivetimingAccessError(reason=f"{url}: archive locked"))
+        except LivetimingAccessError:
+            return None
+
+    def fetch_json(self, url: str) -> Any:
+        """GET a livetiming ``.json`` file (BOM-decoded), with the OpenF1 fallback."""
+        cached = self._openf1_or_none(url)
+        if cached is not None:
+            return cached
+        try:
+            response = self._get_checked(url)
+        except LivetimingAccessError as exc:
+            return load_from_openf1(url, exc)
+        return json.loads(response.content.decode('utf-8-sig'))
 
     def _fetch_season_index_uncached(self, year: int) -> Dict[str, Any]:
         url = f"{self.BASE_URL}{year}/Index.json"
@@ -224,6 +344,7 @@ class F1StaticClient:
                 source="livetiming", reason=f"Failed to fetch {url}: {exc}"
             ) from exc
 
+        raise_for_livetiming_access(response, url)
         if response.status_code in (403, 404):
             # livetiming answers 403 (not 404) for objects it does not publish; the
             # 2022 index is one. That is "no data for this season", not an outage.
@@ -463,14 +584,22 @@ class F1StaticClient:
     # TASK 2: THE PARSER
     # ========================================================================
     
-    def parse_jsonstream(self, url: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+    def parse_jsonstream(self, url: str, limit: Optional[int] = None,
+                         fallback: bool = True) -> List[Dict[str, Any]]:
         """
         Parse a .jsonStream file (concatenated JSON objects).
         """
         logger.info(f"Fetching and parsing jsonStream: {url}")
-        
-        response = self.session.get(url, stream=True, timeout=self.DEFAULT_TIMEOUT)
-        response.raise_for_status()
+        if fallback:
+            cached = self._openf1_or_none(url)
+            if cached is not None:
+                return cached
+        try:
+            response = self._get_checked(url, stream=True)
+        except LivetimingAccessError as exc:
+            if not fallback:
+                raise
+            return load_from_openf1(url, exc)
         
         parsed_entries = []
         buffer = ""
@@ -522,14 +651,22 @@ class F1StaticClient:
         logger.info(f"Successfully parsed {len(parsed_entries)} entries")
         return parsed_entries
     
-    def parse_jsonstream_simple(self, url: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+    def parse_jsonstream_simple(self, url: str, limit: Optional[int] = None,
+                                fallback: bool = True) -> List[Dict[str, Any]]:
         """
         Simpler line-by-line parser for .jsonStream files.
         """
         logger.info(f"Fetching and parsing jsonStream (line-by-line): {url}")
-        
-        response = self.session.get(url, timeout=self.DEFAULT_TIMEOUT)
-        response.raise_for_status()
+        if fallback:
+            cached = self._openf1_or_none(url)
+            if cached is not None:
+                return cached
+        try:
+            response = self._get_checked(url)
+        except LivetimingAccessError as exc:
+            if not fallback:
+                raise
+            return load_from_openf1(url, exc)
 
         # Decode with UTF-8 BOM handling
         content = response.content.decode('utf-8-sig')
@@ -601,14 +738,25 @@ class F1StaticClient:
             logger.error(f"Decompression failed: {e}")
             raise
     
-    def parse_compressed_stream(self, url: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+    def parse_compressed_stream(self, url: str, limit: Optional[int] = None,
+                                fallback: bool = True) -> List[Dict[str, Any]]:
         """
         Parse a .z.jsonStream file (Base64 + Zlib compressed concatenated JSON).
+
+        ``fallback=False`` lets ``SessionDataStore`` run the OpenF1 fallback itself,
+        so OpenF1-derived data keeps its own cache provenance.
         """
         logger.info(f"Fetching and parsing compressed stream: {url}")
-        
-        response = self.session.get(url, timeout=self.DEFAULT_TIMEOUT)
-        response.raise_for_status()
+        if fallback:
+            cached = self._openf1_or_none(url)
+            if cached is not None:
+                return cached
+        try:
+            response = self._get_checked(url)
+        except LivetimingAccessError as exc:
+            if not fallback:
+                raise
+            return load_from_openf1(url, exc)
 
         # Handle UTF-8 BOM and normalize line endings
         content = response.content.decode('utf-8-sig')

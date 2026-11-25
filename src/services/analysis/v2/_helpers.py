@@ -1,4 +1,3 @@
-import json
 from contextlib import contextmanager
 from contextvars import ContextVar
 
@@ -168,8 +167,7 @@ def get_all_driver_codes(base_url: str, client: F1StaticClient) -> Dict[str, str
     """Returns {car_number: TLA}"""
     mapping = {}
     try:
-        r = client.session.get(base_url + "DriverList.json")
-        data = json.loads(r.content.decode('utf-8-sig'))
+        data = client.fetch_json(base_url + "DriverList.json")
         for k, v in data.items():
             mapping[str(k)] = v.get('Tla', str(k))
     except Exception as exc:
@@ -198,8 +196,7 @@ def resolve_driver(store: Any, tla: str) -> tuple:
 
 def get_driver_tla_from_num(base_url: str, client: F1StaticClient, num: str) -> str:
     try:
-        r = client.session.get(base_url + "DriverList.json")
-        data = json.loads(r.content.decode('utf-8-sig'))
+        data = client.fetch_json(base_url + "DriverList.json")
         for k, v in data.items():
             if str(k) == str(num):
                 return v.get('Tla', str(num))
@@ -330,8 +327,7 @@ def get_driver_team_from_list(base_url: str, client: F1StaticClient) -> Dict[str
     """Returns {car_number: {'tla': ..., 'team': ...}}"""
     result = {}
     try:
-        r = client.session.get(base_url + "DriverList.json")
-        data = json.loads(r.content.decode('utf-8-sig'))
+        data = client.fetch_json(base_url + "DriverList.json")
         for k, v in data.items():
             result[str(k)] = {
                 'tla': v.get('Tla', str(k)),

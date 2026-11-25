@@ -40,6 +40,11 @@ class _FakeClient:
         assert url.endswith("DriverList.json")
         return _FakeResponse(self._driver_list)
 
+    # Stand-in for ``client.fetch_json(...)`` (the DriverList read with the OpenF1 fallback).
+    def fetch_json(self, url):
+        assert url.endswith("DriverList.json")
+        return self._driver_list
+
 
 class _FakeResponse:
     def __init__(self, payload):
