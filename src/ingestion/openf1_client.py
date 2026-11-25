@@ -22,6 +22,7 @@ Two things it reconstructs that make the rest of the codebase unaware of the swa
 """
 from __future__ import annotations
 
+import re
 import time
 from collections import deque
 from datetime import datetime, timedelta
@@ -55,9 +56,17 @@ def _parse_offset(offset: Optional[str]) -> timedelta:
     return sign * timedelta(hours=parts[0], minutes=parts[1], seconds=parts[2])
 
 
+_FRACTION = re.compile(r"\.(\d+)")
+
+
 def parse_utc(value: str) -> datetime:
-    """OpenF1 ISO timestamp (``...+00:00``) -> aware UTC datetime."""
-    return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    """OpenF1 ISO timestamp (``...+00:00``) -> aware UTC datetime.
+
+    Fractional seconds are padded/truncated to 6 digits first: before 3.11
+    ``fromisoformat`` accepts only 3 or 6 (``04:13:15.5`` raises on 3.10).
+    """
+    text = _FRACTION.sub(lambda m: "." + m.group(1)[:6].ljust(6, "0"), str(value).replace("Z", "+00:00"), count=1)
+    return datetime.fromisoformat(text)
 
 
 def local_naive(utc_iso: str, gmt_offset: Optional[str]) -> datetime:

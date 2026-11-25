@@ -6,7 +6,7 @@ livetiming streams are then fed into the REAL V2 consumers through a duck-typed
 store, so the tests pin what the analysis code actually sees.
 """
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta, timezone
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -29,7 +29,8 @@ RACE_START = "2026-11-22T04:00:00+00:00"
 
 
 def utc(text, plus=0.0):
-    return datetime.fromisoformat(text).replace(tzinfo=timezone.utc) + timedelta(seconds=plus)
+    # openf1_client.parse_utc, not fromisoformat: Python 3.10 rejects "04:13:15.5".
+    return openf1_client.parse_utc(text).replace(tzinfo=timezone.utc) + timedelta(seconds=plus)
 
 
 def iso(moment):
