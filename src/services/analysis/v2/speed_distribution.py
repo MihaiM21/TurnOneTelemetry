@@ -2,7 +2,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from typing import Dict, List, Tuple, Optional, Union
 from datetime import datetime
-import json
 
 from src.services.plotting.canvas import add_legacy_watermark
 from src.services.plotting import output as dirOrg
@@ -128,8 +127,7 @@ def extract_telemetry_pandas(base_url: str, client: F1StaticClient, target_drive
 def get_all_driver_codes(base_url, client):
     mapping = {} # Tla -> Car Number
     try:
-        r = client.session.get(base_url + "DriverList.json")
-        data = json.loads(r.content.decode('utf-8-sig'))
+        data = client.fetch_json(base_url + "DriverList.json")
         for k, v in data.items(): 
             tla = v.get('Tla', k)
             mapping[tla] = str(k)
@@ -139,8 +137,7 @@ def get_all_driver_codes(base_url, client):
 
 def get_driver_tla_from_num(base_url, client, num):
     try:
-        r = client.session.get(base_url + "DriverList.json")
-        data = json.loads(r.content.decode('utf-8-sig'))
+        data = client.fetch_json(base_url + "DriverList.json")
         for k, v in data.items(): 
             if str(k) == str(num):
                 return v.get('Tla', str(num))

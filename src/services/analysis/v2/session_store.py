@@ -17,6 +17,13 @@ accessors for every stream. Each accessor caches in four tiers:
    survives Redis expiry; written only once the session is complete.
 4. Fetch + parse from livetiming — the slow path.
 
+When livetiming refuses the archive (401 since Oct 2026, see
+``static_client.raise_for_livetiming_access``) the same loaders run against
+OpenF1 (:mod:`src.ingestion.openf1_streams`). That data is cached under its own
+provenance, ``openf1:{source}``, so it never masquerades as livetiming's: real
+entries (everything cached before the cut-off) are always looked up first, and a
+restored token replaces OpenF1 data the next time a stream is fetched.
+
 Network failures surface as :class:`UpstreamUnavailableError`; a missing
 stream (HTTP 404) surfaces as :class:`DataNotAvailableError`, mirroring the
 error-wrapping conventions in ``top_speed.py``.
@@ -32,11 +39,18 @@ import requests
 from src.core.cache.redis_cache import get_sync_cache, make_stream_key
 from src.core.exceptions import (
     DataNotAvailableError,
+    LivetimingAccessError,
     SessionNotFoundError,
     UpstreamUnavailableError,
 )
 from src.core.logging import get_logger
-from src.ingestion.static_client import F1StaticClient, raise_for_livetiming_access, source_token
+from src.ingestion.static_client import (
+    F1StaticClient,
+    load_from_openf1,
+    openf1_fallback_enabled,
+    raise_for_livetiming_access,
+    source_token,
+)
 from src.repositories.raw_stream_cache import get_raw_stream, store_raw_stream
 from src.repositories.session_cache import get_session_bundle, store_session_bundle
 from src.services.analysis.v2._helpers import extract_stints_from_data, parse_f1_time
@@ -131,6 +145,13 @@ class SessionDataStore:
         # Identity of the exact livetiming session; every durable cache entry is
         # tagged with it and only served back to the same session.
         self.source: Optional[str] = source_token(base_url)
+        # OpenF1-derived data is cached under its own provenance (see module doc).
+        self.openf1_source: Optional[str] = f"openf1:{self.source}" if self.source else None
+        # The season index came from OpenF1: livetiming refuses this archive, so
+        # skip straight to OpenF1 instead of collecting a 401 per stream.
+        self._livetiming_locked: bool = self.client.livetiming_locked(self.year)
+        self._openf1_mode = False
+        self._openf1_used = False
 
         # Per-instance parsed-stream cache.
         self._cache: Dict[str, Any] = {}
@@ -144,8 +165,14 @@ class SessionDataStore:
     # ------------------------------------------------------------------
     # Fetch primitives
     # ------------------------------------------------------------------
+    def _from_openf1(self, filename: str) -> Any:
+        url = self.base_url + filename
+        return load_from_openf1(url, LivetimingAccessError(reason=f"{url}: livetiming archive locked"))
+
     def _fetch_json(self, filename: str) -> Any:
         """GET a plain ``.json`` file, BOM-decoded."""
+        if self._openf1_mode:
+            return self._from_openf1(filename)
         url = self.base_url + filename
         try:
             resp = self.client.session.get(url, timeout=self.client.DEFAULT_TIMEOUT)
@@ -176,6 +203,8 @@ class SessionDataStore:
 
     def _fetch_stream(self, filename: str) -> List[Dict[str, Any]]:
         """GET and parse a ``.jsonStream`` file into a list of entries."""
+        if self._openf1_mode:
+            return self._from_openf1(filename)
         url = self.base_url + filename
         # Probe status first so 404 maps cleanly (parse_jsonstream_simple would
         # raise a generic HTTPError otherwise).
@@ -205,6 +234,12 @@ class SessionDataStore:
                 source="livetiming", reason=str(exc)
             ) from exc
         return self._parse_stream_content(resp.content)
+
+    def _fetch_compressed(self, filename: str) -> List[Dict[str, Any]]:
+        """GET and decode a ``.z.jsonStream`` (the store handles the OpenF1 fallback)."""
+        if self._openf1_mode:
+            return self._from_openf1(filename)
+        return self.client.parse_compressed_stream(self.base_url + filename, fallback=False)
 
     @staticmethod
     def _parse_stream_content(content: bytes) -> List[Dict[str, Any]]:
@@ -276,7 +311,14 @@ class SessionDataStore:
             return durable
 
         # Tier 4: fetch + parse (slow path).
-        data = loader()
+        if self._livetiming_locked and openf1_fallback_enabled() and self.openf1_source:
+            return self._cached_openf1(stream_name, loader, big, tried_livetiming=False)
+        try:
+            data = loader()
+        except LivetimingAccessError:
+            if not openf1_fallback_enabled() or not self.openf1_source:
+                raise
+            return self._cached_openf1(stream_name, loader, big, tried_livetiming=True)
         self._cache[stream_name] = data
         self._backfill_redis(cache, redis_key, data)
         # Persist durably once the session is safely finished. The in-process
@@ -285,6 +327,59 @@ class SessionDataStore:
         if self.is_session_complete():
             store_raw_stream(
                 self.year, self.round_nr, self.session_name, stream_name, data, source=self.source
+            )
+        return data
+
+    def _cached_openf1(self, stream_name: str, loader: Callable[[], Any], big: bool,
+                       tried_livetiming: bool) -> Any:
+        """Redis -> GridFS -> rebuild, all under the ``openf1:`` provenance.
+
+        A stream OpenF1 cannot rebuild re-raises the livetiming error -- after
+        trying livetiming once if the locked-season shortcut skipped it.
+        """
+        cache = None
+        redis_key = None
+        if not big:
+            redis_key = make_stream_key(
+                self.year, self.round_nr, self.session_name, stream_name, source=self.openf1_source
+            )
+            try:
+                cache = get_sync_cache()
+                if cache.enabled:
+                    hit = cache.get_json(redis_key)
+                    if hit is not None:
+                        self._cache[stream_name] = hit
+                        self._openf1_used = True
+                        return hit
+            except Exception as exc:  # Redis must fail open.
+                logger.debug("Redis stream lookup skipped for %s: %s", stream_name, exc)
+                cache = None
+
+        durable = get_raw_stream(
+            self.year, self.round_nr, self.session_name, stream_name, source=self.openf1_source
+        )
+        if durable is not None:
+            self._cache[stream_name] = durable
+            self._openf1_used = True
+            self._backfill_redis(cache, redis_key, durable)
+            return durable
+
+        self._openf1_mode = True
+        try:
+            data = loader()
+        except LivetimingAccessError:
+            if tried_livetiming:
+                raise
+            self._openf1_mode = False
+            return loader()  # unsupported by OpenF1: livetiming's own answer (data or the 401)
+        finally:
+            self._openf1_mode = False
+        self._cache[stream_name] = data
+        self._openf1_used = True
+        self._backfill_redis(cache, redis_key, data)
+        if self.is_session_complete():
+            store_raw_stream(
+                self.year, self.round_nr, self.session_name, stream_name, data, source=self.openf1_source
             )
         return data
 
@@ -378,9 +473,7 @@ class SessionDataStore:
         """
         return self._cached(
             "car_data",
-            lambda: self.client.parse_compressed_stream(
-                self.base_url + "CarData.z.jsonStream"
-            ),
+            lambda: self._fetch_compressed("CarData.z.jsonStream"),
             big=True,
         )
 
@@ -391,9 +484,7 @@ class SessionDataStore:
         """
         return self._cached(
             "position_data",
-            lambda: self.client.parse_compressed_stream(
-                self.base_url + "Position.z.jsonStream"
-            ),
+            lambda: self._fetch_compressed("Position.z.jsonStream"),
             big=True,
         )
 
@@ -461,6 +552,10 @@ class SessionDataStore:
             loaded = get_session_bundle(
                 self.year, self.round_nr, self.session_name, source=self.source
             )
+            if loaded is None and self._livetiming_locked and self.openf1_source:
+                loaded = get_session_bundle(
+                    self.year, self.round_nr, self.session_name, source=self.openf1_source
+                )
             if loaded is not None:
                 self._derived_bundle = loaded
             elif self.is_session_complete():
@@ -508,7 +603,8 @@ class SessionDataStore:
             store_session_bundle(
                 self.year, self.round_nr, self.session_name, bundle,
                 meta={"event_name": self.event_name},
-                source=self.source,
+                # Any stream rebuilt from OpenF1 makes the whole bundle OpenF1-derived.
+                source=self.openf1_source if self._openf1_used else self.source,
             )
 
     def _compute_stints(self) -> Dict[str, List[Dict[str, Any]]]:

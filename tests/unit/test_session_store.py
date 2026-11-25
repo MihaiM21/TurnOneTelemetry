@@ -287,7 +287,7 @@ def _stub_compressed(store, monkeypatch, payload):
     """Stub the client's compressed-stream parser, counting decode calls."""
     calls = {"n": 0}
 
-    def fake_parse(url):
+    def fake_parse(url, *args, **kwargs):
         calls["n"] += 1
         return payload
 

@@ -54,6 +54,14 @@ class UpstreamUnavailableError(T1APIError):
         super().__init__(f"Upstream {source!r} unavailable: {reason}")
 
 
+class LivetimingAccessError(UpstreamUnavailableError):
+    """livetiming refused the request: 401 (archive needs an F1 TV token) or the
+    f1-proxy Worker refused it. The trigger for the OpenF1 fallback."""
+
+    def __init__(self, reason: str = ""):
+        super().__init__(source="livetiming", reason=reason)
+
+
 class SessionNotFoundError(T1APIError):
     """The requested session does not exist in the schedule at all.
 

@@ -80,6 +80,8 @@ jobs:
             src/services/circuit_derivation.py \
             src/ingestion/circuits_store.py \
             src/ingestion/circuits_loader.py \
+            src/ingestion/openf1_client.py \
+            src/ingestion/openf1_streams.py \
             src/repositories/circuit_layouts.py \
             src/api/routers/admin_circuits.py \
             src/api/routers/admin_social.py \

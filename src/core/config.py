@@ -253,6 +253,14 @@ class Settings(BaseSettings):
     f1_proxy_base_url: Optional[str] = None
     f1_proxy_key: Optional[str] = None  # sent as X-Proxy-Key; must match the Worker's PROXY_KEY
 
+    # OpenF1 fallback (2023+): when livetiming refuses the archive (401 / proxy refusal),
+    # the season index and the streams OpenF1 can rebuild come from api.openf1.org
+    # instead (src/ingestion/openf1_streams.py). Free tier is a few requests a second.
+    openf1_fallback: bool = True
+    openf1_base_url: str = "https://api.openf1.org/v1"
+    openf1_min_interval_s: float = 0.4
+    openf1_max_per_minute: int = 30  # free tier; 0 disables the minute window (paid tiers)
+
     # Background Processor
     enable_background_processor: bool = True
     processor_check_interval: int = 300  # Check every 5 minutes
