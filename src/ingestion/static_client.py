@@ -56,6 +56,35 @@ def source_token(base_url: Optional[str]) -> Optional[str]:
     return "/".join(parts[-3:]) if len(parts) >= 3 else None
 
 
+def raise_for_livetiming_access(response: requests.Response, url: str) -> None:
+    """Raise :class:`UpstreamUnavailableError` for auth / proxy failures.
+
+    Call before mapping 403/404 to "not published". Since 14-15 Oct 2026 the
+    ``/static/<year>/`` archive answers 401 without an F1 TV token, and the
+    f1-proxy Worker answers 403 to a wrong ``X-Proxy-Key``; read as "not
+    published", either would silently turn an outage into "no data".
+    """
+    headers = getattr(response, "headers", None) or {}
+    if response.status_code == 401:
+        state = headers.get("X-Upstream-Auth")
+        expires = headers.get("X-F1TV-Token-Expires") or "unknown"
+        if state == "rejected":
+            hint = f"F1 TV token rejected (expires {expires}); rotate it in the f1-proxy Worker"
+        elif state == "missing":
+            hint = "the f1-proxy Worker has no F1 TV token configured"
+        else:
+            hint = ("the livetiming archive requires an F1 TV token; route through the "
+                    "f1-proxy Worker (F1_PROXY_BASE_URL + F1_PROXY_KEY)")
+        raise UpstreamUnavailableError(source="livetiming", reason=f"401 for {url}: {hint}")
+    proxy_error = headers.get("X-Proxy-Error")
+    if proxy_error:
+        hint = " (check F1_PROXY_KEY)" if proxy_error == "forbidden" else ""
+        raise UpstreamUnavailableError(
+            source="livetiming",
+            reason=f"f1-proxy refused {url}: {response.status_code} {proxy_error}{hint}",
+        )
+
+
 # Season-index cache. The index was fetched on every call (twice per request via
 # SessionDataStore); finished seasons never change, the current one gets a short TTL
 # so a freshly listed meeting (a new session's path) is picked up quickly.
@@ -110,6 +139,15 @@ class F1StaticClient:
             'Origin': 'https://www.formula1.com',
             'Referer': 'https://www.formula1.com/',
         })
+        if settings.f1_proxy_base_url and settings.f1_proxy_key:
+            self.session.headers['X-Proxy-Key'] = settings.f1_proxy_key
+
+    def _get_checked(self, url: str, **kwargs: Any) -> requests.Response:
+        """GET ``url``; auth/proxy failures and other non-2xx raise clearly."""
+        response = self.session.get(url, timeout=self.DEFAULT_TIMEOUT, **kwargs)
+        raise_for_livetiming_access(response, url)
+        response.raise_for_status()
+        return response
 
     @staticmethod
     def _normalize_text(value: str) -> str:
@@ -224,6 +262,7 @@ class F1StaticClient:
                 source="livetiming", reason=f"Failed to fetch {url}: {exc}"
             ) from exc
 
+        raise_for_livetiming_access(response, url)
         if response.status_code in (403, 404):
             # livetiming answers 403 (not 404) for objects it does not publish; the
             # 2022 index is one. That is "no data for this season", not an outage.
@@ -469,8 +508,7 @@ class F1StaticClient:
         """
         logger.info(f"Fetching and parsing jsonStream: {url}")
         
-        response = self.session.get(url, stream=True, timeout=self.DEFAULT_TIMEOUT)
-        response.raise_for_status()
+        response = self._get_checked(url, stream=True)
         
         parsed_entries = []
         buffer = ""
@@ -527,9 +565,8 @@ class F1StaticClient:
         Simpler line-by-line parser for .jsonStream files.
         """
         logger.info(f"Fetching and parsing jsonStream (line-by-line): {url}")
-        
-        response = self.session.get(url, timeout=self.DEFAULT_TIMEOUT)
-        response.raise_for_status()
+
+        response = self._get_checked(url)
 
         # Decode with UTF-8 BOM handling
         content = response.content.decode('utf-8-sig')
@@ -606,9 +643,8 @@ class F1StaticClient:
         Parse a .z.jsonStream file (Base64 + Zlib compressed concatenated JSON).
         """
         logger.info(f"Fetching and parsing compressed stream: {url}")
-        
-        response = self.session.get(url, timeout=self.DEFAULT_TIMEOUT)
-        response.raise_for_status()
+
+        response = self._get_checked(url)
 
         # Handle UTF-8 BOM and normalize line endings
         content = response.content.decode('utf-8-sig')

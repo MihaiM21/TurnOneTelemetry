@@ -1,0 +1,9 @@
+{
+  "name": "f1-proxy",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/index.test.mjs",
+    "deploy": "wrangler deploy"
+  }
+}

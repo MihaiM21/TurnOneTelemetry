@@ -1,0 +1,16 @@
+name = "f1-proxy"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+# Secrets (never in this file):
+#   npx wrangler secret put PROXY_KEY    # same value as F1_PROXY_KEY in the API's .env
+#   npx wrangler secret put F1TV_TOKEN   # F1 TV subscriptionToken (Access tier or higher)
+#   npx wrangler secret put ADMIN_KEY    # optional: enables PUT /_admin/token
+#
+# Optional KV for rotating the token without a redeploy (tokens last ~4 days):
+#   npx wrangler kv namespace create F1TV
+# then uncomment and paste the id:
+# [[kv_namespaces]]
+# binding = "F1TV"
+# id = "<namespace id>"

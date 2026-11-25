@@ -36,7 +36,7 @@ from src.core.exceptions import (
     UpstreamUnavailableError,
 )
 from src.core.logging import get_logger
-from src.ingestion.static_client import F1StaticClient, source_token
+from src.ingestion.static_client import F1StaticClient, raise_for_livetiming_access, source_token
 from src.repositories.raw_stream_cache import get_raw_stream, store_raw_stream
 from src.repositories.session_cache import get_session_bundle, store_session_bundle
 from src.services.analysis.v2._helpers import extract_stints_from_data, parse_f1_time
@@ -153,6 +153,7 @@ class SessionDataStore:
             raise UpstreamUnavailableError(
                 source="livetiming", reason=f"Failed to fetch {url}: {exc}"
             ) from exc
+        raise_for_livetiming_access(resp, url)
         # livetiming's static host answers 403, not 404, for an object that does
         # not exist (e.g. LapCount.jsonStream for a practice session).
         if resp.status_code in (403, 404):
@@ -184,6 +185,7 @@ class SessionDataStore:
             raise UpstreamUnavailableError(
                 source="livetiming", reason=f"Failed to fetch {url}: {exc}"
             ) from exc
+        raise_for_livetiming_access(resp, url)
         # livetiming's static host answers 403, not 404, for an object that does
         # not exist (e.g. LapCount.jsonStream for a practice session).
         if resp.status_code in (403, 404):

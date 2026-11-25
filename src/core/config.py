@@ -247,8 +247,11 @@ class Settings(BaseSettings):
     redis_db: int = 0
     redis_password: str = ""
 
-    # F1 Live Timing Proxy (optional — use a Cloudflare Worker URL to bypass VPS IP blocks)
+    # F1 Live Timing Proxy (optional — use a Cloudflare Worker URL to bypass VPS IP blocks).
+    # Since Oct 2026 livetiming's /static archive needs an F1 TV token; the Worker
+    # (infra/cloudflare/f1-proxy) holds it and only serves callers that send this key.
     f1_proxy_base_url: Optional[str] = None
+    f1_proxy_key: Optional[str] = None  # sent as X-Proxy-Key; must match the Worker's PROXY_KEY
 
     # Background Processor
     enable_background_processor: bool = True
